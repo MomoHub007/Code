@@ -887,528 +887,463 @@
     end
 
 
-    -- ═══════════════════════════════════════════════════
-    --  SMART AUTO PLAY v3 — Farm-First + Anti-Overbuild
-    --  Replace entire Auto Play section with this block
-    -- ═══════════════════════════════════════════════════
+    -- =========================================================
+    -- SMART AUTO PLAY RESET : FARM-FIRST / PRIORITY-FIRST
+    -- Replace old Auto Play block with this whole section
+    -- =========================================================
 
-    -- ─── Throttle State ────────────────────────────────
-    local _lastAutoAt     = 0
-    local _lastPlaceAt    = 0
-    local _lastFarmAt     = 0
-    local _lastUpgradeAt  = 0
-    local _failStreak     = 0
-    local _recentFailed   = {}
-    local _lastJoinAt     = 0
+    local recentFailedSpots = {}
 
-    local LOOP_RATE          = 0.75
-    local GLOBAL_COOLDOWN    = 0.80
-    local PLACE_COOLDOWN     = 1.30
-    local FARM_COOLDOWN      = 1.60
-    local UPGRADE_COOLDOWN   = 2.20
-    local FAIL_BACKOFF_BASE  = 0.80
-    local FAIL_BACKOFF_MAX   = 2.80
+    local lastAutoActionAt = 0
+    local lastPlaceAttemptAt = 0
+    local lastFarmAttemptAt = 0
+    local lastUpgradeBurstAt = 0
+    local placementFailStreak = 0
+    local lastJoinAttempt = 0
 
-    -- ─── Helpers ───────────────────────────────────────
-    local function failBackoff()
-        return math.min(FAIL_BACKOFF_BASE + _failStreak * 0.30, FAIL_BACKOFF_MAX)
+    local AUTO_LOOP_INTERVAL = 0.6
+    local GLOBAL_ACTION_COOLDOWN = 0.25
+    local PLACE_COOLDOWN = 0.75
+    local FARM_COOLDOWN = 0.75
+    local UPGRADE_BURST_COOLDOWN = 0.4
+    local FAIL_BACKOFF_BASE = 0.5
+    local FAIL_BACKOFF_MAX = 2.0
+
+    local function getFailBackoff()
+        return math.min(FAIL_BACKOFF_BASE + (placementFailStreak * 0.25), FAIL_BACKOFF_MAX)
     end
 
-    local function canGlobal()   return (tick() - _lastAutoAt)    >= GLOBAL_COOLDOWN    end
-    local function canPlace()    return (tick() - _lastPlaceAt)   >= PLACE_COOLDOWN + failBackoff() and canGlobal() end
-    local function canFarm()     return (tick() - _lastFarmAt)    >= FARM_COOLDOWN  and canGlobal() end
-    local function canUpgrade()  return (tick() - _lastUpgradeAt) >= UPGRADE_COOLDOWN   and canGlobal() end
+    local function canDoGlobalAction()
+        return (tick() - lastAutoActionAt) >= GLOBAL_ACTION_COOLDOWN
+    end
 
-    local function touchGlobal()   _lastAutoAt = tick() end
-    local function touchPlace(ok)  _lastPlaceAt = tick(); touchGlobal(); if ok then _failStreak = 0 else _failStreak += 1 end end
-    local function touchFarm(ok)   _lastFarmAt = tick();  touchGlobal(); if ok then _failStreak = 0 else _failStreak += 1 end end
-    local function touchUpgrade()  _lastUpgradeAt = tick(); touchGlobal() end
+    local function markGlobalAction()
+        lastAutoActionAt = tick()
+    end
 
-    local function trimFailed()
-        local now, kept = tick(), {}
-        for _, v in ipairs(_recentFailed) do
-            if now - v.t < 9 then table.insert(kept, v) end
+    local function canAttemptFarm()
+        return (tick() - lastFarmAttemptAt) >= FARM_COOLDOWN and canDoGlobalAction()
+    end
+
+    local function canAttemptPlacement()
+        return (tick() - lastPlaceAttemptAt) >= (PLACE_COOLDOWN + getFailBackoff()) and canDoGlobalAction()
+    end
+
+    local function canBurstUpgrade()
+        return (tick() - lastUpgradeBurstAt) >= UPGRADE_BURST_COOLDOWN and canDoGlobalAction()
+    end
+
+    local function markFarmAttempt(success)
+        lastFarmAttemptAt = tick()
+        markGlobalAction()
+        if success then
+            placementFailStreak = 0
+        else
+            placementFailStreak += 1
         end
-        _recentFailed = kept
     end
 
-    local function markFailed(pos)
-        if pos then table.insert(_recentFailed, {pos = pos, t = tick()}) end
+    local function markPlacementAttempt(success)
+        lastPlaceAttemptAt = tick()
+        markGlobalAction()
+        if success then
+            placementFailStreak = 0
+        else
+            placementFailStreak += 1
+        end
     end
 
-    local function nearFailed(pos, r)
-        r = r or 4
-        trimFailed()
-        for _, v in ipairs(_recentFailed) do
-            if (v.pos - pos).Magnitude <= r then return true end
+    local function markUpgradeBurst()
+        lastUpgradeBurstAt = tick()
+        markGlobalAction()
+    end
+
+    local function trimFailedSpots()
+        local now = tick()
+        local kept = {}
+        for _, item in ipairs(recentFailedSpots) do
+            if now - item.t < 8 then
+                table.insert(kept, item)
+            end
+        end
+        recentFailedSpots = kept
+    end
+
+    local function markFailedSpot(pos)
+        if pos then
+            table.insert(recentFailedSpots, {pos = pos, t = tick()})
+        end
+    end
+
+    local function isNearFailedSpot(pos, radius)
+        radius = radius or 4
+        trimFailedSpots()
+        for _, item in ipairs(recentFailedSpots) do
+            if (item.pos - pos).Magnitude <= radius then
+                return true
+            end
         end
         return false
     end
 
-    -- ─── Field Scan ────────────────────────────────────
-    local function scanField(farmSlot)
+    local function softResync()
         local placedFolder = workspace:FindFirstChild("placedTowers")
-        local enemies      = workspace:FindFirstChild("enemiesModels")
+        local liveCount = placedFolder and #placedFolder:GetChildren() or 0
+        local tracked = 0
 
-        local s = {
-            towerCount       = placedFolder and #placedFolder:GetChildren() or 0,
-            enemyCount       = enemies      and #enemies:GetChildren()      or 0,
-            attackTowers     = {},
-            farmTowers       = {},
-            attackCount      = 0,
-            farmCount        = 0,
-            nearestEnemyDist = math.huge,
-            closeThreats     = 0,
-            poorlyGuarded    = 0,
-            wellGuarded      = 0,
-            maxSupport       = 0,
-            leaking          = false,
-        }
+        for i = 1, 6 do
+            tracked += (placedTracking[i] or 0)
+        end
+
+        if liveCount == 0 then
+            placedTracking = {0, 0, 0, 0, 0, 0}
+            farmPositions = {}
+            recentFailedSpots = {}
+            placementFailStreak = 0
+            lastAutoActionAt = 0
+            lastPlaceAttemptAt = 0
+            lastFarmAttemptAt = 0
+            lastUpgradeBurstAt = 0
+            return
+        end
+
+        if tracked > liveCount + 2 then
+            placedTracking = {0, 0, 0, 0, 0, 0}
+            farmPositions = {}
+            recentFailedSpots = {}
+            placementFailStreak = 0
+            print("♻️ [ResetAI] Tracking desync detected, reset local counters.")
+        end
+    end
+
+    local function getDeckCardBySlot(deck, slot)
+        for _, card in ipairs(deck) do
+            if card.Slot == slot then
+                return card
+            end
+        end
+        return nil
+    end
+
+    local function getOrderedPriorityCards(deck, farmSlot)
+        local result = {}
+
+        for _, slotNum in ipairs(MoMoConfig.UnitPriority) do
+            if slotNum ~= farmSlot then
+                local card = getDeckCardBySlot(deck, slotNum)
+                if card then
+                    table.insert(result, card)
+                end
+            end
+        end
+
+        for _, card in ipairs(deck) do
+            local exists = false
+            for _, picked in ipairs(result) do
+                if picked.Slot == card.Slot then
+                    exists = true
+                    break
+                end
+            end
+            if not exists and card.Slot ~= farmSlot then
+                table.insert(result, card)
+            end
+        end
+
+        return result
+    end
+
+    local function classifyPlacedTowers()
+        local attackTowers = {}
+        local farmTowers = {}
+        local placedFolder = workspace:FindFirstChild("placedTowers")
 
         if placedFolder then
             for _, obj in pairs(placedFolder:GetChildren()) do
                 if obj:IsA("Model") and obj.Name:match("^tower%-") then
                     local pos = obj:GetPivot().Position
                     local isFarm = false
-                    for _, fp in ipairs(farmPositions) do
-                        if (pos - fp).Magnitude < 3 then isFarm = true; break end
+
+                    for _, fPos in ipairs(farmPositions) do
+                        if (pos - fPos).Magnitude < 3 then
+                            isFarm = true
+                            break
+                        end
                     end
+
                     if isFarm then
-                        s.farmCount += 1
-                        table.insert(s.farmTowers, {obj = obj, pos = pos})
+                        table.insert(farmTowers, obj)
                     else
-                        s.attackCount += 1
-                        table.insert(s.attackTowers, {obj = obj, pos = pos})
+                        table.insert(attackTowers, obj)
                     end
                 end
             end
         end
 
-        s.leaking = isDefenseBreached()
+        return attackTowers, farmTowers, placedFolder
+    end
 
-        if #s.attackTowers > 0 and enemies then
-            for _, enemy in pairs(enemies:GetChildren()) do
-                local hrp = enemy:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local ep  = hrp.Position
-                    local best, support = math.huge, 0
-                    for _, t in ipairs(s.attackTowers) do
-                        local d = (ep - t.pos).Magnitude
-                        if d < best then best = d end
-                        if d <= 18 then support += 1 end
-                    end
-                    if best < s.nearestEnemyDist then
-                        s.nearestEnemyDist = best
-                        s.maxSupport = support
-                    end
-                    if best <= 12 then
-                        s.closeThreats += 1
-                        if support >= 3 then s.wellGuarded  += 1
-                        else                 s.poorlyGuarded += 1 end
+    local function getLatestEnemyAnchor()
+        local enemies = workspace:FindFirstChild("enemiesModels")
+        if not enemies then
+            return nil, nil
+        end
+
+        local bestEnemy = nil
+        local bestPos = nil
+        local bestScore = -math.huge
+
+        for _, enemy in ipairs(enemies:GetChildren()) do
+            local hrp = enemy:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local pos = hrp.Position
+
+                -- heuristic ง่าย ๆ: ใช้แกน Z เป็นตัวประมาณ "ตัวที่อยู่หน้าสุด"
+                -- ถ้าแมพไหนทิศทางเดินไม่ใช่ Z ค่อยเปลี่ยน logic นี้ทีหลัง
+                if pos.Z > bestScore then
+                    bestScore = pos.Z
+                    bestEnemy = enemy
+                    bestPos = pos
+                end
+            end
+        end
+
+        return bestEnemy, bestPos
+    end
+
+    local function findSpotNearLatestEnemy(minDist, maxDist, tries)
+        minDist = minDist or 5
+        maxDist = maxDist or 18
+        tries = tries or 10
+
+        local _, enemyPos = getLatestEnemyAnchor()
+        if not enemyPos then
+            return findSpot()
+        end
+
+        local bestSpot = nil
+        local bestScore = math.huge
+
+        for _ = 1, tries do
+            local spot = findSpot()
+            if spot and spot.Position and not isNearFailedSpot(spot.Position, 4) then
+                local dist = (spot.Position - enemyPos).Magnitude
+
+                if dist >= minDist and dist <= maxDist then
+                    local targetDist = (minDist + maxDist) / 2
+                    local score = math.abs(dist - targetDist)
+
+                    if score < bestScore then
+                        bestScore = score
+                        bestSpot = spot
                     end
                 end
             end
         end
 
-        return s
-    end
+        -- fallback: ถ้าไม่มีจุดในช่วงที่ต้องการจริง ๆ ค่อยยอมใช้ spot ที่ใกล้สุด
+        if not bestSpot then
+            local fallbackScore = math.huge
 
-    -- ─── Danger State ──────────────────────────────────
-    local function getDanger(deck, farmSlot)
-        local s = scanField(farmSlot)
+            for _ = 1, math.max(tries // 2, 4) do
+                local spot = findSpot()
+                if spot and spot.Position and not isNearFailedSpot(spot.Position, 4) then
+                    local dist = (spot.Position - enemyPos).Magnitude
+                    local score = math.abs(dist - maxDist)
 
-        if s.attackCount == 0 then return "EMERGENCY", 100, s end
-
-        local score = 0
-        if s.leaking then score += 30 end
-
-        local d = s.nearestEnemyDist
-        if     d <= 8  then score += 22
-        elseif d <= 14 then score += 12
-        elseif d <= 22 then score +=  6
-        elseif d <= 32 then score +=  2 end
-
-        score += math.min(s.poorlyGuarded * 8, 24)
-        score -= math.min(s.wellGuarded   * 6, 18)
-
-        if     s.maxSupport >= 4 then score -= 10
-        elseif s.maxSupport >= 3 then score -=  6
-        elseif s.maxSupport >= 2 then score -=  2 end
-
-        if     s.attackCount == 1 then score += 10
-        elseif s.attackCount == 2 then score +=  4 end
-
-        if farmSlot > 0 and (placedTracking[farmSlot] or 0) >= 1 and not s.leaking then
-            score -= 5
-        end
-
-        if s.attackCount >= 2 and s.poorlyGuarded == 0 and not s.leaking then
-            score -= 8
-        end
-
-        if score >= 55 then return "EMERGENCY", score, s
-        elseif score >= 24 then return "PRESSURE", score, s
-        else return "SAFE", score, s end
-    end
-
-    -- ─── Attack Placed Count ───────────────────────────
-    local function attackPlacedCount(deck, farmSlot)
-        local n = 0
-        for _, card in ipairs(deck) do
-            if card.Slot ~= farmSlot then
-                n += (placedTracking[card.Slot] or 0)
-            end
-        end
-        return n
-    end
-
-    -- ─── Cheapest Attack ───────────────────────────────
-    local function cheapestAttack(deck, farmSlot)
-        local min = math.huge
-        for _, card in ipairs(deck) do
-            if card.Slot ~= farmSlot then
-                local lim = MoMoConfig.UnitLimits[card.Slot] or 0
-                local pl  = placedTracking[card.Slot] or 0
-                if pl < lim and card.Cost > 0 and card.Cost < min then
-                    min = card.Cost
+                    if score < fallbackScore then
+                        fallbackScore = score
+                        bestSpot = spot
+                    end
                 end
             end
         end
-        return min == math.huge and 0 or min
+
+        return bestSpot
     end
 
-    -- ─── Nearby Tower Count ────────────────────────────
-    local function nearbyTowerCount(pos, radius)
-        local pf = workspace:FindFirstChild("placedTowers")
-        if not pf or not pos then return 0 end
-        local n = 0
-        for _, obj in pairs(pf:GetChildren()) do
-            if obj:IsA("Model") and obj.Name:match("^tower%-") then
-                local tp = obj:GetPivot().Position
-                local isF = false
-                for _, fp in ipairs(farmPositions) do
-                    if (tp - fp).Magnitude < 3 then isF = true; break end
-                end
-                if not isF and (tp - pos).Magnitude <= (radius or 12) then n += 1 end
-            end
-        end
-        return n
-    end
+    local function tryPlaceFarm(sync, farmCard, placedFolder, farmLimit)
+        if not sync or not farmCard then return false end
 
-    -- ─── Soft Resync ───────────────────────────────────
-    local function resync()
-        local pf   = workspace:FindFirstChild("placedTowers")
-        local live = pf and #pf:GetChildren() or 0
-        local tracked = 0
-        for i = 1, 6 do tracked += (placedTracking[i] or 0) end
+        local placedFarm = placedTracking[farmCard.Slot] or 0
+        if placedFarm >= farmLimit then return false end
+        if not canAttemptFarm() then return false end
+        if getRealMoney() < farmCard.Cost then return false end
 
-        if live == 0 then
-            placedTracking = {0,0,0,0,0,0}
-            farmPositions  = {}
-            _recentFailed  = {}
-            _failStreak    = 0
-            _lastAutoAt    = 0
-            _lastPlaceAt   = 0
-            _lastFarmAt    = 0
-            _lastUpgradeAt = 0
-            return
-        end
+        local success = false
 
-        if tracked > live + 2 then
-            placedTracking = {0,0,0,0,0,0}
-            farmPositions  = {}
-            _recentFailed  = {}
-            _failStreak    = 0
-            print("♻️ [v3] Tracking desync reset")
-        end
-    end
-
-    -- ─── Place Farm ────────────────────────────────────
-    local function placeFarm(sync, farmCard, pf, limit, danger, deck)
-        if not sync or not farmCard or not canFarm() then return false end
-
-        local placed = placedTracking[farmCard.Slot] or 0
-        if placed >= limit then return false end
-        if danger == "EMERGENCY" then return false end
-
-        local money    = getRealMoney()
-        local atkCount = attackPlacedCount(deck, farmCard.Slot)
-        local cheap    = cheapestAttack(deck, farmCard.Slot)
-        local leaking  = isDefenseBreached()
-
-        -- บังคับวางฟาร์มตัวแรกถ้ามีตัวกันบ้านอย่างน้อย 1 และไม่ leak
-        local forcedFirst = atkCount >= 1 and placed == 0 and not leaking
-
-        if not forcedFirst and danger == "PRESSURE" and cheap > 0 then
-            local reserve = atkCount >= 1 and math.floor(cheap * 0.35) or cheap
-            if money < (farmCard.Cost + reserve) then
-                touchFarm(false)
-                return false
-            end
-        end
-
-        if money < farmCard.Cost then
-            touchFarm(false)
-            return false
-        end
-
-        local ok, success = false, false
-        for _ = 1, 4 do
+        for _ = 1, 6 do
             local spot = findFarmSpot()
-            if spot and not nearFailed(spot.Position, 5) then
-                local before = pf and #pf:GetChildren() or 0
-                ok = pcall(function()
+            if spot and not isNearFailedSpot(spot.Position, 5) then
+                local countBefore = placedFolder and #placedFolder:GetChildren() or 0
+                local ok = pcall(function()
                     sync.clientTowerPlacement.call(farmCard.UUID, spot)
                 end)
+
                 if ok then
-                    task.wait(0.9)
-                    local after = pf and #pf:GetChildren() or 0
-                    if after > before then
+                    task.wait(0.7)
+                    local countAfter = placedFolder and #placedFolder:GetChildren() or 0
+                    if countAfter > countBefore then
                         placedTracking[farmCard.Slot] = (placedTracking[farmCard.Slot] or 0) + 1
                         table.insert(farmPositions, spot.Position)
                         success = true
-                        print("🤑 [v3] Farm placed (" .. placedTracking[farmCard.Slot] .. "/" .. limit .. ")")
+                        print("🤑 [FarmFirst] วางตัวฟาร์มสำเร็จ (" .. placedTracking[farmCard.Slot] .. "/" .. farmLimit .. ")")
                         break
                     else
-                        markFailed(spot.Position)
+                        markFailedSpot(spot.Position)
                     end
                 else
-                    if spot then markFailed(spot.Position) end
+                    markFailedSpot(spot.Position)
                 end
             end
         end
 
-        touchFarm(success)
+        markFarmAttempt(success)
         return success
     end
 
-    -- ─── Sort Attack Deck ──────────────────────────────
-    local function sortedAttack(deck, danger, farmSlot)
-        local list = {}
-        for _, c in ipairs(deck) do table.insert(list, c) end
+    local function tryPlacePriorityAttack(sync, deck, farmSlot, placedFolder)
+        if not sync or #deck == 0 then return false end
+        if not canAttemptPlacement() then return false end
 
-        table.sort(list, function(a, b)
-            if a.Slot == farmSlot then return false end
-            if b.Slot == farmSlot then return true  end
-            local sa, sb = 0, 0
-            local la = MoMoConfig.UnitLimits[a.Slot] or 0
-            local lb = MoMoConfig.UnitLimits[b.Slot] or 0
-            local pa = placedTracking[a.Slot] or 0
-            local pb = placedTracking[b.Slot] or 0
-            if pa >= la then return false end
-            if pb >= lb then return true  end
-            if danger == "EMERGENCY" then
-                sa = -a.Cost
-                sb = -b.Cost
-            else
-                sa = (la - pa) * 4 + a.Cost * 0.05
-                sb = (lb - pb) * 4 + b.Cost * 0.05
-                if pa == 0 then sa += 6 end
-                if pb == 0 then sb += 6 end
-            end
-            return sa > sb
-        end)
-        return list
-    end
-
-    -- ─── Place Attack ──────────────────────────────────
-    local function placeAttack(sync, deck, farmSlot, danger, pf)
-        if not sync or #deck == 0 or not canPlace() then return false end
-
-        local money   = getRealMoney()
+        local money = getRealMoney()
+        local priorityCards = getOrderedPriorityCards(deck, farmSlot)
         local success = false
 
-        for _, card in ipairs(sortedAttack(deck, danger, farmSlot)) do
-            local lim = MoMoConfig.UnitLimits[card.Slot] or 0
-            local pl  = placedTracking[card.Slot] or 0
-            if card.Slot ~= farmSlot and pl < lim and money >= card.Cost then
-                local bestSpot, bestScore = nil, -math.huge
-                for _ = 1, 6 do
-                    local spot = findSpot()
-                    if spot and spot.Position and not nearFailed(spot.Position, 4) then
-                        local nearby = nearbyTowerCount(spot.Position, 12)
-                        local sc = danger == "EMERGENCY" and (-nearby * 4) or (-nearby * 8)
-                        if sc > bestScore then bestScore = sc; bestSpot = spot end
-                    end
-                end
+        for _, card in ipairs(priorityCards) do
+            local limit = MoMoConfig.UnitLimits[card.Slot] or 0
+            local placed = placedTracking[card.Slot] or 0
 
-                if bestSpot and bestSpot.Position and bestScore > -100 then
-                    local before = pf and #pf:GetChildren() or 0
-                    local ok = pcall(function()
-                        sync.clientTowerPlacement.call(card.UUID, bestSpot)
-                    end)
-                    if ok then
-                        task.wait(0.9)
-                        local after = pf and #pf:GetChildren() or 0
-                        if after > before then
-                            placedTracking[card.Slot] = (placedTracking[card.Slot] or 0) + 1
-                            success = true
-                            print("✅ [v3] Attack placed slot " .. card.Slot .. " (" .. placedTracking[card.Slot] .. "/" .. lim .. ")")
-                            break
+            if placed < limit and money >= card.Cost then
+                for _ = 1, 6 do
+                    local spot = findSpotNearLatestEnemy(4, 14, 8)
+                    if spot and spot.Position and not isNearFailedSpot(spot.Position, 4) then
+                        local countBefore = placedFolder and #placedFolder:GetChildren() or 0
+                        local ok = pcall(function()
+                            sync.clientTowerPlacement.call(card.UUID, spot)
+                        end)
+
+                        if ok then
+                            task.wait(0.7)
+                            local countAfter = placedFolder and #placedFolder:GetChildren() or 0
+                            if countAfter > countBefore then
+                                placedTracking[card.Slot] = (placedTracking[card.Slot] or 0) + 1
+                                success = true
+                                print("✅ [Priority] วาง Unit Slot " .. card.Slot .. " สำเร็จ (" .. placedTracking[card.Slot] .. "/" .. limit .. ")")
+                                break
+                            else
+                                markFailedSpot(spot.Position)
+                            end
                         else
-                            markFailed(bestSpot.Position)
+                            markFailedSpot(spot.Position)
                         end
-                    else
-                        markFailed(bestSpot.Position)
                     end
                 end
             end
-            if success then break end
+
+            if success then
+                break
+            end
         end
 
-        touchPlace(success)
+        markPlacementAttempt(success)
         return success
     end
 
-    -- ─── Smart Upgrade ─────────────────────────────────
-    local function smartUpgrade(danger, atkTowers, farmTowers, deck, farmSlot)
-        if not canUpgrade() then return false end
+    local function tryUpgradeObject(obj)
+        local ok = pcall(function()
+            ReplicatedStorage.towers.towers_RELIABLE:FireServer(
+                buffer.fromstring("\001\031+\000" .. obj.Name),
+                {}
+            )
+        end)
+        return ok
+    end
 
-        local targets, done = {}, false
+    local function tryUpgradeFarmFirst(attackTowers, farmTowers, deck, farmSlot)
+        if not canBurstUpgrade() then return false end
 
-        if danger == "SAFE" then
-            for _, t in ipairs(farmTowers) do table.insert(targets, t) end
-            for _, t in ipairs(atkTowers)  do table.insert(targets, t) end
-        else
-            for _, t in ipairs(atkTowers) do table.insert(targets, t) end
-            if danger == "PRESSURE" then
-                for _, t in ipairs(farmTowers) do table.insert(targets, t) end
+        local acted = false
+
+        -- 1) อัปฟาร์มก่อนเสมอ
+        for _, obj in ipairs(farmTowers) do
+            if tryUpgradeObject(obj) then
+                acted = true
             end
         end
 
-        local maxTries = danger == "EMERGENCY" and 1 or 2
-        local count = 0
-        for _, t in ipairs(targets) do
-            if count >= maxTries then break end
-            local ok = pcall(function()
-                ReplicatedStorage.towers.towers_RELIABLE:FireServer(
-                    buffer.fromstring("\001\031+\000" .. t.obj.Name), {}
-                )
-            end)
-            if ok then done = true; count += 1; task.wait(0.12) end
+        -- 2) แล้วค่อยอัปตาม Priority ของผู้เล่น
+        local orderedPrioritySlots = {}
+        for _, slotNum in ipairs(MoMoConfig.UnitPriority) do
+            if slotNum ~= farmSlot then
+                table.insert(orderedPrioritySlots, slotNum)
+            end
         end
 
-        touchUpgrade()
-        return done
+        for _, slotNum in ipairs(orderedPrioritySlots) do
+            for _, obj in ipairs(attackTowers) do
+                -- ใช้ heuristic ว่า slot tracking นี้มีของอยู่ก็ยิง upgrade ทุกตัวในสนามก่อน
+                if (placedTracking[slotNum] or 0) > 0 then
+                    if tryUpgradeObject(obj) then
+                        acted = true
+                    end
+                end
+            end
+        end
+
+        markUpgradeBurst()
+        return acted
     end
 
-    -- ─── Main Loop ─────────────────────────────────────
     task.spawn(function()
         while true do
-            task.wait(LOOP_RATE)
+            task.wait(AUTO_LOOP_INTERVAL)
 
-            -- Auto Join
-            if MoMoConfig.AutoJoin and isInLobby() and tick() - _lastJoinAt > 10 then
-                _lastJoinAt = tick()
-                AutoJoinMatch(
-                    MoMoConfig.SelectedMode, MoMoConfig.SelectedMap,
-                    MoMoConfig.SelectedAct,  MoMoConfig.SelectedDifficulty
-                )
+            if MoMoConfig.AutoJoin and isInLobby() and tick() - lastJoinAttempt > 10 then
+                lastJoinAttempt = tick()
+                AutoJoinMatch(MoMoConfig.SelectedMode, MoMoConfig.SelectedMap, MoMoConfig.SelectedAct, MoMoConfig.SelectedDifficulty)
                 continue
             end
 
-            if not MoMoConfig.AutoPlay then continue end
+            if not MoMoConfig.AutoPlay then
+                continue
+            end
 
-            resync()
+            softResync()
 
             local sync = getSync()
             local deck = getDeckUUIDs()
-            if not sync or #deck == 0 then continue end
-
-            -- Classify towers
-            local pf = workspace:FindFirstChild("placedTowers")
-            local atkTowers, farmTowers = {}, {}
-            if pf then
-                for _, obj in pairs(pf:GetChildren()) do
-                    if obj:IsA("Model") and obj.Name:match("^tower%-") then
-                        local pos, isF = obj:GetPivot().Position, false
-                        for _, fp in ipairs(farmPositions) do
-                            if (pos - fp).Magnitude < 3 then isF = true; break end
-                        end
-                        if isF then table.insert(farmTowers, {obj=obj,pos=pos})
-                        else         table.insert(atkTowers,  {obj=obj,pos=pos}) end
-                    end
-                end
-            end
-
-            -- Get config
+            local attackTowers, farmTowers, placedFolder = classifyPlacedTowers()
             local farmSlot = MoMoConfig.FarmUnit or 0
             local farmCard = nil
+
             if farmSlot > 0 then
-                for _, c in ipairs(deck) do
-                    if c.Slot == farmSlot then farmCard = c; break end
+                farmCard = getDeckCardBySlot(deck, farmSlot)
+            end
+
+            if not sync or #deck == 0 then
+                continue
+            end
+
+            -- 1) วางฟาร์มก่อนเสมอจนเต็มลิมิต
+            if farmCard then
+                local farmLimit = MoMoConfig.UnitLimits[farmSlot] or 0
+                if tryPlaceFarm(sync, farmCard, placedFolder, farmLimit) then
+                    continue
                 end
             end
 
-            local farmLimit   = farmSlot > 0 and (MoMoConfig.UnitLimits[farmSlot] or 0) or 0
-            local atkPlaced   = attackPlacedCount(deck, farmSlot)
-            local placedFarm  = farmSlot > 0 and (placedTracking[farmSlot] or 0) or 0
-            local leaking     = isDefenseBreached()
-            local danger, _, _ = getDanger(deck, farmSlot)
-
-            -- ── Priority 0: Emergency only ──────────────────
-            if danger == "EMERGENCY" then
-                if placeAttack(sync, deck, farmSlot, "EMERGENCY", pf) then continue end
+            -- 2) วางตัวตาม Priority ผู้เล่นเสมอ ที่ตำแหน่งมอนล่าสุด
+            if tryPlacePriorityAttack(sync, deck, farmSlot, placedFolder) then
+                continue
             end
 
-            -- ── Priority 1: Place FARM first ────────────────
-            -- วางฟาร์มก่อนเป็นอันดับแรกสุดเสมอ
-            -- เงื่อนไข: ยังไม่ครบ limit AND ไม่ leak AND (ปลอดภัย หรือ มีตัวกันบ้านอย่างน้อย 1 แล้ว)
-            if farmCard and placedFarm < farmLimit then
-                local allowFarm = not leaking and (
-                    danger == "SAFE" or
-                    (danger == "PRESSURE" and atkPlaced >= 1)
-                )
-                if allowFarm then
-                    if placeFarm(sync, farmCard, pf, farmLimit, danger, deck) then continue end
-                end
-            end
+            -- 3) อัปเกรดฟาร์มก่อน แล้วอัปตัว Priority ทันทีเมื่อมีเงินถึง
+            tryUpgradeFarmFirst(attackTowers, farmTowers, deck, farmSlot)
 
-            -- ── Priority 2: Place first defense tower ────────
-            -- ถ้ายังไม่มีตัวกันบ้านเลย ให้วางก่อน (ไม่งั้นจะไม่มีทางเปิดฟาร์มได้)
-            if atkPlaced == 0 then
-                if placeAttack(sync, deck, farmSlot, danger, pf) then continue end
-            end
-
-            -- ── Priority 3: Pressure defense ─────────────────
-            if danger == "PRESSURE" then
-                if placeAttack(sync, deck, farmSlot, danger, pf) then continue end
-            end
-
-            -- ── Priority 4: Upgrades ─────────────────────────
-            local cheap = cheapestAttack(deck, farmSlot)
-            local money = getRealMoney()
-            local doUpgrade = false
-
-            if danger == "SAFE" then
-                doUpgrade = true
-            elseif danger == "PRESSURE" then
-                doUpgrade = true
-            else
-                doUpgrade = cheap == 0 or money > cheap * 1.8
-            end
-
-            if doUpgrade then
-                smartUpgrade(danger, atkTowers, farmTowers, deck, farmSlot)
-            end
-
-            -- ── Priority 5: Safe fill towers ─────────────────
-            if danger == "SAFE" then
-                placeAttack(sync, deck, farmSlot, "SAFE", pf)
-            end
-
-            -- Debug log
-            if not _G._v3dbg or tick() - _G._v3dbg > 4 then
-                _G._v3dbg = tick()
-                local s = scanField(farmSlot)
-                print(string.format(
-                    "🧠 [v3] %s | atk=%d farm=%d/%d | enemy=%d nearDist=%.0f | leaking=%s",
-                    danger, s.attackCount,
-                    placedFarm, farmLimit,
-                    s.enemyCount,
-                    s.nearestEnemyDist == math.huge and 999 or s.nearestEnemyDist,
-                    tostring(s.leaking)
-                ))
+            if not _G.lastResetAIStateMsg or tick() - _G.lastResetAIStateMsg > 4 then
+                _G.lastResetAIStateMsg = tick()
+                print("🧠 [ResetAI] FarmFirst loop running | farmSlot = " .. tostring(farmSlot) .. " | farmCard = " .. tostring(farmCard and farmCard.UUID or "nil"))
             end
         end
     end)
