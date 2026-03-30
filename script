@@ -1009,45 +1009,98 @@
     end
 
     local function getFrontStats()
-        local pathFolder = getPathFolder()
         local placedFolder = workspace:FindFirstChild("placedTowers")
         local enemies = workspace:FindFirstChild("enemiesModels")
 
         local data = {
             towerCount = placedFolder and #placedFolder:GetChildren() or 0,
             enemyCount = enemies and #enemies:GetChildren() or 0,
-            maxTowerProgress = -1,
-            maxEnemyProgress = -1,
+
+            attackTowerCount = 0,
+            farmTowerCount = 0,
+
+            nearestEnemyPos = nil,
+            nearestEnemyDist = math.huge,
             frontTowerPos = nil,
-            frontEnemyPos = nil,
+
             closeThreats = 0,
-            pathMissing = pathFolder == nil
+            mediumThreats = 0,
+            farThreats = 0,
+
+            wellCoveredCloseThreats = 0,
+            poorlyCoveredCloseThreats = 0,
+
+            maxSupportOnClosestEnemy = 0,
+
+            attackTowers = {},
+            farmTowers = {},
+            pathMissing = false
         }
 
-        if pathFolder and placedFolder then
+        if placedFolder then
             for _, obj in pairs(placedFolder:GetChildren()) do
                 if obj:IsA("Model") and obj.Name:match("^tower%-") then
                     local pos = obj:GetPivot().Position
-                    local prog = getProgressScore(pos, pathFolder)
-                    if prog > data.maxTowerProgress then
-                        data.maxTowerProgress = prog
-                        data.frontTowerPos = pos
+                    local isFarm = false
+
+                    for _, fPos in ipairs(farmPositions) do
+                        if (pos - fPos).Magnitude < 3 then
+                            isFarm = true
+                            break
+                        end
+                    end
+
+                    if isFarm then
+                        data.farmTowerCount += 1
+                        table.insert(data.farmTowers, {obj = obj, pos = pos})
+                    else
+                        data.attackTowerCount += 1
+                        table.insert(data.attackTowers, {obj = obj, pos = pos})
                     end
                 end
             end
         end
 
-        if pathFolder and enemies then
-            for _, e in pairs(enemies:GetChildren()) do
-                local hrp = e:FindFirstChild("HumanoidRootPart")
+        if #data.attackTowers > 0 and enemies then
+            for _, enemy in pairs(enemies:GetChildren()) do
+                local hrp = enemy:FindFirstChild("HumanoidRootPart")
                 if hrp then
-                    local prog = getProgressScore(hrp.Position, pathFolder)
-                    if prog > data.maxEnemyProgress then
-                        data.maxEnemyProgress = prog
-                        data.frontEnemyPos = hrp.Position
+                    local enemyPos = hrp.Position
+                    local bestDist = math.huge
+                    local nearestTowerPos = nil
+                    local supportCount = 0
+
+                    for _, t in ipairs(data.attackTowers) do
+                        local dist = (enemyPos - t.pos).Magnitude
+
+                        if dist < bestDist then
+                            bestDist = dist
+                            nearestTowerPos = t.pos
+                        end
+
+                        if dist <= 18 then
+                            supportCount += 1
+                        end
                     end
-                    if data.maxTowerProgress >= 0 and prog >= data.maxTowerProgress then
+
+                    if bestDist < data.nearestEnemyDist then
+                        data.nearestEnemyDist = bestDist
+                        data.nearestEnemyPos = enemyPos
+                        data.frontTowerPos = nearestTowerPos
+                        data.maxSupportOnClosestEnemy = supportCount
+                    end
+
+                    if bestDist <= 12 then
                         data.closeThreats += 1
+                        if supportCount >= 3 then
+                            data.wellCoveredCloseThreats += 1
+                        else
+                            data.poorlyCoveredCloseThreats += 1
+                        end
+                    elseif bestDist <= 24 then
+                        data.mediumThreats += 1
+                    else
+                        data.farThreats += 1
                     end
                 end
             end
@@ -1056,58 +1109,80 @@
         return data
     end
 
+
+
+    local function getAttackPlacedCount(deck, farmSlot)
+        local attackPlaced = 0
+        for _, card in ipairs(deck) do
+            if card.Slot ~= farmSlot then
+                attackPlaced += (placedTracking[card.Slot] or 0)
+            end
+        end
+        return attackPlaced
+    end
+
     local function getDangerState(deck, farmSlot)
         local stats = getFrontStats()
-        if stats.pathMissing then
-            return "EMERGENCY", 100, stats
-        end
-
-        if stats.towerCount == 0 then
-            return "EMERGENCY", 100, stats
-        end
-
         local score = 0
         local isLeaking = isDefenseBreached()
 
+        if stats.attackTowerCount == 0 then
+            return "EMERGENCY", 100, stats
+        end
+
         if isLeaking then
-            score += 50
+            score += 35
         end
 
-        if stats.maxEnemyProgress > stats.maxTowerProgress then
-            score += 30
+        if stats.nearestEnemyDist <= 8 then
+            score += 22
+        elseif stats.nearestEnemyDist <= 14 then
+            score += 12
+        elseif stats.nearestEnemyDist <= 22 then
+            score += 6
+        elseif stats.nearestEnemyDist <= 32 then
+            score += 2
         end
 
-        if stats.frontEnemyPos and stats.frontTowerPos and stats.maxEnemyProgress == stats.maxTowerProgress then
-            local dist = (stats.frontEnemyPos - stats.frontTowerPos).Magnitude
-            if dist > 15 then
-                score += 20
-            elseif dist > 10 then
-                score += 10
-            end
+        score += math.min(stats.poorlyCoveredCloseThreats * 8, 24)
+        score += math.min(stats.mediumThreats * 3, 12)
+
+        -- ถ้า close threats ถูกคุมด้วยหลายป้อม ให้ลดคะแนนอันตราย
+        score -= math.min(stats.wellCoveredCloseThreats * 6, 18)
+
+        if stats.maxSupportOnClosestEnemy >= 4 then
+            score -= 10
+        elseif stats.maxSupportOnClosestEnemy >= 3 then
+            score -= 6
+        elseif stats.maxSupportOnClosestEnemy >= 2 then
+            score -= 2
         end
 
-        score += math.min(stats.closeThreats * 8, 24)
-
-        if stats.towerCount <= 1 then
-            score += 25
-        elseif stats.towerCount <= 3 then
+        if stats.attackTowerCount == 1 then
             score += 10
+        elseif stats.attackTowerCount == 2 then
+            score += 4
         end
 
-        local cheapestAttack = getCheapestAttackCost(deck, farmSlot)
-        local money = getRealMoney()
-        if isLeaking and cheapestAttack > 0 and money < cheapestAttack then
-            score += 10
+        if farmSlot > 0 and (placedTracking[farmSlot] or 0) >= 1 and not isLeaking then
+            score -= 5
         end
 
-        if score >= 70 then
+        if stats.attackTowerCount >= 2 and stats.poorlyCoveredCloseThreats == 0 and not isLeaking then
+            score -= 8
+        end
+
+        if score >= 55 then
             return "EMERGENCY", score, stats
-        elseif score >= 30 then
+        elseif score >= 24 then
             return "PRESSURE", score, stats
         else
             return "SAFE", score, stats
         end
     end
+
+
+
 
     local function classifyPlacedTowers()
         local attackTowers = {}
@@ -1315,13 +1390,17 @@
 
         local money = getRealMoney()
         local cheapestAttack = getCheapestAttackCost(deck, farmCard.Slot)
+        local attackPlaced = getAttackPlacedCount(deck, farmCard.Slot)
 
         if dangerState == "EMERGENCY" then
             return false
         end
 
-        if dangerState == "PRESSURE" and cheapestAttack > 0 then
-            local reserve = cheapestAttack
+        local leaking = isDefenseBreached()
+        local forceEarlyFarm = attackPlaced >= 1 and placedFarm == 0 and not leaking
+
+        if not forceEarlyFarm and dangerState == "PRESSURE" and cheapestAttack > 0 then
+            local reserve = attackPlaced >= 1 and math.floor(cheapestAttack * 0.35) or cheapestAttack
             if money < (farmCard.Cost + reserve) then
                 return false
             end
@@ -1362,6 +1441,7 @@
         markFarmAttempt(success)
         return success
     end
+
 
     local function scoreCard(card, dangerState, farmSlot)
         local limit = MoMoConfig.UnitLimits[card.Slot] or 0
@@ -1426,6 +1506,45 @@
         return result
     end
 
+    local function countNearbyAttackTowers(pos, radius)
+        local placedFolder = workspace:FindFirstChild("placedTowers")
+        if not placedFolder or not pos then return 0 end
+
+        local count = 0
+        radius = radius or 12
+
+        for _, obj in pairs(placedFolder:GetChildren()) do
+            if obj:IsA("Model") and obj.Name:match("^tower%-") then
+                local towerPos = obj:GetPivot().Position
+
+                local isFarm = false
+                for _, fPos in ipairs(farmPositions) do
+                    if (towerPos - fPos).Magnitude < 3 then
+                        isFarm = true
+                        break
+                    end
+                end
+
+                if not isFarm and (towerPos - pos).Magnitude <= radius then
+                    count += 1
+                end
+            end
+        end
+
+        return count
+    end
+
+    local function isSpotOversaturated(pos, dangerState)
+        if not pos then return true end
+
+        local nearby = countNearbyAttackTowers(pos, dangerState == "EMERGENCY" and 10 or 12)
+        if dangerState == "EMERGENCY" then
+            return nearby >= 3
+        else
+            return nearby >= 2
+        end
+    end
+
     local function tryPlaceAttack(sync, deck, farmSlot, dangerState, placedFolder)
         if not sync or #deck == 0 then return false end
         if not canAttemptPlacement() then return false end
@@ -1439,28 +1558,51 @@
             local placed = placedTracking[card.Slot] or 0
 
             if card.Slot ~= farmSlot and placed < limit and money >= card.Cost then
-                for _ = 1, 4 do
+                local bestSpot = nil
+                local bestScore = -math.huge
+
+                for _ = 1, 6 do
                     local spot = findSpot()
                     if spot and spot.Position and not isNearFailedSpot(spot.Position, 4) then
-                        local countBefore = placedFolder and #placedFolder:GetChildren() or 0
-                        local ok = pcall(function()
-                            sync.clientTowerPlacement.call(card.UUID, spot)
-                        end)
+                        local nearbyAttack = countNearbyAttackTowers(spot.Position, 12)
+                        local score = 0
 
-                        if ok then
-                            task.wait(0.9)
-                            local countAfter = placedFolder and #placedFolder:GetChildren() or 0
-                            if countAfter > countBefore then
-                                placedTracking[card.Slot] = (placedTracking[card.Slot] or 0) + 1
-                                success = true
-                                print("✅ [SmartAI] วาง Unit Slot " .. card.Slot .. " สำเร็จ (" .. placedTracking[card.Slot] .. "/" .. limit .. ")")
-                                break
-                            else
-                                markFailedSpot(spot.Position)
-                            end
+                        if dangerState == "EMERGENCY" then
+                            score -= nearbyAttack * 4
                         else
-                            markFailedSpot(spot.Position)
+                            score -= nearbyAttack * 8
                         end
+
+                        if isSpotOversaturated(spot.Position, dangerState) then
+                            score -= 100
+                        end
+
+                        if score > bestScore then
+                            bestScore = score
+                            bestSpot = spot
+                        end
+                    end
+                end
+
+                if bestSpot and bestSpot.Position and bestScore > -100 then
+                    local countBefore = placedFolder and #placedFolder:GetChildren() or 0
+                    local ok = pcall(function()
+                        sync.clientTowerPlacement.call(card.UUID, bestSpot)
+                    end)
+
+                    if ok then
+                        task.wait(0.9)
+                        local countAfter = placedFolder and #placedFolder:GetChildren() or 0
+                        if countAfter > countBefore then
+                            placedTracking[card.Slot] = (placedTracking[card.Slot] or 0) + 1
+                            success = true
+                            print("✅ [SmartAI] วาง Unit Slot " .. card.Slot .. " สำเร็จ (" .. placedTracking[card.Slot] .. "/" .. limit .. ")")
+                            break
+                        else
+                            markFailedSpot(bestSpot.Position)
+                        end
+                    else
+                        markFailedSpot(bestSpot.Position)
                     end
                 end
             end
@@ -1473,6 +1615,7 @@
         markPlacementAttempt(success)
         return success
     end
+
 
     task.spawn(function()
         while true do
@@ -1508,15 +1651,36 @@
             local dangerState, dangerScore, stats = getDangerState(deck, farmSlot)
             local acted = false
 
-            -- 1) ถ้าเริ่มกดดัน ให้กันบ้านก่อน
-            if dangerState == "EMERGENCY" or dangerState == "PRESSURE" then
+            local attackPlaced = getAttackPlacedCount(deck, farmSlot)
+            local placedFarm = farmSlot > 0 and (placedTracking[farmSlot] or 0) or 0
+            local leakingNow = isDefenseBreached()
+
+            -- 1) emergency ค่อยกันบ้านก่อนจริง ๆ
+            if dangerState == "EMERGENCY" then
                 acted = tryPlaceAttack(sync, deck, farmSlot, dangerState, placedFolder)
                 if acted then
                     continue
                 end
             end
 
-            -- 2) ฟาร์มแบบไม่ถี่เกินและไม่โลภเกิน
+            -- 2) ถ้ามีตัวกันบ้านแล้วอย่างน้อย 1 แต่ยังไม่มีฟาร์มเลย ให้ฟาร์มก่อน
+            if farmCard and attackPlaced >= 1 and placedFarm == 0 and not leakingNow then
+                local farmLimit = MoMoConfig.UnitLimits[farmSlot] or 0
+                acted = tryPlaceFarm(sync, farmCard, placedFolder, farmLimit, dangerState, deck)
+                if acted then
+                    continue
+                end
+            end
+
+            -- 3) pressure ค่อยกันบ้าน
+            if dangerState == "PRESSURE" then
+                acted = tryPlaceAttack(sync, deck, farmSlot, dangerState, placedFolder)
+                if acted then
+                    continue
+                end
+            end
+
+            -- 4) ฟาร์มตามปกติ
             if farmCard then
                 local farmLimit = MoMoConfig.UnitLimits[farmSlot] or 0
                 acted = tryPlaceFarm(sync, farmCard, placedFolder, farmLimit, dangerState, deck)
@@ -1525,7 +1689,7 @@
                 end
             end
 
-            -- 3) อัปเกรดเป็นรอบ ไม่ยิงรัวทุกลูป
+            -- 5) upgrade
             if canBurstUpgrade() then
                 local cheapestAttack = getCheapestAttackCost(deck, farmSlot)
                 local money = getRealMoney()
@@ -1547,13 +1711,14 @@
                 end
             end
 
-            -- 4) ถ้าปลอดภัยค่อยเติมตัวโจมตีเพิ่มแบบช้า ๆ
+            -- 6) ถ้าปลอดภัยค่อยเติมตัวโจมตีเพิ่ม
             if dangerState == "SAFE" then
                 acted = tryPlaceAttack(sync, deck, farmSlot, "SAFE", placedFolder)
                 if acted then
                     continue
                 end
             end
+
 
             if not _G.lastSmartStateMsg or tick() - _G.lastSmartStateMsg > 4 then
                 _G.lastSmartStateMsg = tick()
