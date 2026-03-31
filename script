@@ -62,7 +62,7 @@ local MoMoConfig = {
     AutoHogyokuQuest = false,
     AutoDungeon = false, AutoTower = false, AutoLeaveTower = false, TargetTowerFloor = 1, 
     SelectedDungeonType = "RuneDungeon", SelectedDungeonDiff = "Easy", AutoReplayDungeon = false, MerchantAmount = 1,
-    AutoChest = false, SelectedChests = {}, ChestAmount = 1, AutoDeleteMap = false,
+    AutoChest = false, SelectedChests = {}, ChestAmount = 1, AutoDeleteMap = false, UltraDeleteMap = false,
     WalkSpeed = 16, JumpPower = 50, AntiAFK = false, AutoRejoin = false, AutoHaki = false, AutoArmamentHaki = false
 }
 
@@ -477,6 +477,253 @@ function ToggleMap(state: boolean)
     end
 end
 
+--// Ultra Aggressive Map Cache
+--// Hide almost everything in workspace, but keep Character / Camera / Terrain safe.
+--// Uses Parent = nil, not Destroy(), so it can be restored later.
+
+_G.UltraMapCache = _G.UltraMapCache or {}
+local MapCache = _G.UltraMapCache
+
+MapCache.Enabled = MapCache.Enabled or false
+MapCache.Objects = MapCache.Objects or {}      -- [instance] = originalParent
+MapCache.Observer = MapCache.Observer or nil
+MapCache.BatchSize = MapCache.BatchSize or 800
+MapCache.JobId = MapCache.JobId or 0
+
+local function notifyMsg(txt)
+    if typeof(MoMoNotify) == "function" then
+        MoMoNotify({
+            Title = "Ultra Map Cache",
+            Desc = txt,
+            Time = 3
+        })
+    else
+        warn("[Ultra Map Cache] " .. tostring(txt))
+    end
+end
+
+local function isProtected(instance)
+    if not instance then return true end
+    if instance == workspace or instance == workspace.CurrentCamera or instance == workspace.Terrain then
+        return true
+    end
+
+    local char = LP and LP.Character
+    if char and (instance == char or instance:IsDescendantOf(char)) then
+        return true
+    end
+
+    local keepFolders = {
+        workspace:FindFirstChild("NPCs"),
+        workspace:FindFirstChild("Bosses"),
+        workspace:FindFirstChild("Enemies"),
+        workspace:FindFirstChild("Monsters"),
+        workspace:FindFirstChild("Mobs"),
+        workspace:FindFirstChild("ServiceNPCs") -- เพิ่มอันนี้ให้ด้วยเพราะ Sailor Piece ใช้เก็บ NPC เควส/สุ่มบอส
+    }
+
+    for _, folder in ipairs(keepFolders) do
+        if folder and instance:IsDescendantOf(folder) then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function ultraHasCachedAncestor(instance)
+    local current = instance and instance.Parent
+    while current do
+        if MapCache.Objects[current] ~= nil then
+            return true
+        end
+        current = current.Parent
+    end
+    return false
+end
+
+local function canHide(instance)
+    if not instance then
+        return false
+    end
+
+    if MapCache.Objects[instance] ~= nil then
+        return false
+    end
+
+    if not instance.Parent then
+        return false
+    end
+
+    if isProtected(instance) then
+        return false
+    end
+
+    return true
+end
+
+local function hideInstance(instance)
+    if not canHide(instance) then
+        return false
+    end
+
+    local ok, err = pcall(function()
+        MapCache.Objects[instance] = instance.Parent
+        instance.Parent = nil
+    end)
+
+    if not ok then
+        MapCache.Objects[instance] = nil
+        warn("Hide failed:", err)
+        return false
+    end
+
+    return true
+end
+
+local function ultraRestoreInstance(instance, originalParent)
+    if not instance then
+        return
+    end
+
+    pcall(function()
+        if originalParent and (originalParent == workspace or originalParent.Parent ~= nil) then
+            instance.Parent = originalParent
+        else
+            instance.Parent = workspace
+        end
+    end)
+end
+
+local function disconnectUltraObserver()
+    if MapCache.Observer then
+        MapCache.Observer:Disconnect()
+        MapCache.Observer = nil
+    end
+end
+
+local function connectUltraObserver(jobId)
+    disconnectUltraObserver()
+
+    -- DescendantAdded fires when new objects enter the tree.
+    MapCache.Observer = workspace.DescendantAdded:Connect(function(instance)
+        if not MapCache.Enabled then
+            return
+        end
+
+        task.defer(function()
+            if not MapCache.Enabled then
+                return
+            end
+
+            if jobId ~= MapCache.JobId then
+                return
+            end
+
+            if not instance or not instance.Parent then
+                return
+            end
+
+            if isProtected(instance) then
+                return
+            end
+
+            if ultraHasCachedAncestor(instance) then
+                return
+            end
+
+            hideInstance(instance)
+        end)
+    end)
+end
+
+local function hideAll(jobId)
+    local list = workspace:GetDescendants()
+    local processed = 0
+    local hidden = 0
+
+    for _, obj in ipairs(list) do
+        if not MapCache.Enabled then
+            return
+        end
+
+        if jobId ~= MapCache.JobId then
+            return
+        end
+
+        if not ultraHasCachedAncestor(obj) then
+            if hideInstance(obj) then
+                hidden += 1
+            end
+        end
+
+        processed += 1
+        if processed % MapCache.BatchSize == 0 then
+            RunService.Heartbeat:Wait()
+        end
+    end
+
+    notifyMsg("Hidden: " .. tostring(hidden))
+end
+
+local function restoreAll(jobId)
+    local restoreList = {}
+    local processed = 0
+    local restored = 0
+
+    for instance, originalParent in pairs(MapCache.Objects) do
+        restoreList[#restoreList + 1] = {
+            Instance = instance,
+            Parent = originalParent
+        }
+    end
+
+    for _, item in ipairs(restoreList) do
+        if jobId ~= MapCache.JobId then
+            return
+        end
+
+        ultraRestoreInstance(item.Instance, item.Parent)
+        MapCache.Objects[item.Instance] = nil
+
+        restored += 1
+        processed += 1
+
+        if processed % MapCache.BatchSize == 0 then
+            RunService.Heartbeat:Wait()
+        end
+    end
+
+    notifyMsg("Restored: " .. tostring(restored))
+end
+
+function ToggleUltraMap(state)
+    state = state == true
+
+    if state == MapCache.Enabled then
+        return
+    end
+
+    MapCache.JobId += 1
+    local jobId = MapCache.JobId
+
+    if state then
+        MapCache.Enabled = true
+        connectUltraObserver(jobId)
+
+        task.spawn(function()
+            hideAll(jobId)
+        end)
+    else
+        MapCache.Enabled = false
+        disconnectUltraObserver()
+
+        task.spawn(function()
+            restoreAll(jobId)
+        end)
+    end
+end
+
 -- ==========================================
 -- 📚 ฐานข้อมูลต่างๆ (Database)
 -- ==========================================
@@ -867,6 +1114,14 @@ PerfSec:Toggle({
         ToggleMap(val)
     end
 }, "MoMo_AutoDeleteMap")
+PerfSec:Toggle({
+    Name = "Ultra Delete Map",
+    Default = MoMoConfig.UltraDeleteMap,
+    Callback = function(val)
+        MoMoConfig.UltraDeleteMap = val
+        ToggleUltraMap(val)
+    end
+}, "MoMo_UltraDeleteMap")
 
 local PlSec = tabs.Settings:Section({ Side = "Right" })
 PlSec:Header({ Name = "Local Player" })
