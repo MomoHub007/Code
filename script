@@ -11,6 +11,16 @@ end
 _G.MoMoHubLoaded = true
 
 -- 🌟 UI Phase Initialization
+local OpFarmRoute = {
+    {Island = "Starter",      Targets = {"Thief4"}},
+    {Island = "Jungle",       Targets = {"Monkey2"}},
+    {Island = "Desert",       Targets = {"DesertBandit2"}},
+    {Island = "Snow",         Targets = {"FrostRogue3"}},
+    {Island = "Shibuya",      Targets = {"Sorcerer3"}},
+    {Island = "HollowIsland", Targets = {"Hollow2"}},
+    {Island = "Shinjuku",     Targets = {"Curse3", "StrongSorcerer4"}},
+}
+
 _G.AtomicBossPhase = "teleport"
 _G.LastAtomicSummonTime = 0
 _G.TargetMob = nil 
@@ -62,7 +72,8 @@ local MoMoConfig = {
     AutoHogyokuQuest = false,
     AutoDungeon = false, AutoTower = false, AutoLeaveTower = false, TargetTowerFloor = 1, 
     SelectedDungeonType = "RuneDungeon", SelectedDungeonDiff = "Easy", AutoReplayDungeon = false, MerchantAmount = 1,
-    AutoChest = false, SelectedChests = {}, ChestAmount = 1, AutoDeleteMap = false, UltraDeleteMap = false,
+    AutoChest = false, SelectedChests = {}, ChestAmount = 1, UltraDeleteMap = false,
+    OpFarmAllMap = false,
     WalkSpeed = 16, JumpPower = 50, AntiAFK = false, AutoRejoin = false, AutoHaki = false, AutoArmamentHaki = false
 }
 
@@ -101,382 +112,6 @@ local function ApplyFpsBoost()
     end)
 end
 
---// Smart Map Caching System
---// Optimized "Auto Delete Map" using cache + Parent = nil
---// Do NOT use Destroy() so the map can be restored safely.
-
-_G.MapDeletionSystem = _G.MapDeletionSystem or {}
-local MapSystem = _G.MapDeletionSystem
-
-MapSystem.Enabled = MapSystem.Enabled or false
-MapSystem.Cache = MapSystem.Cache or {}          -- [instance] = originalParent
-MapSystem.Observer = MapSystem.Observer or nil
-MapSystem.BatchSize = MapSystem.BatchSize or 750 -- Safe range: 500 - 1000
-MapSystem.JobId = MapSystem.JobId or 0
-
-local TARGET_ROOT_NAMES = {
-    "Map",
-    "Islands",
-    "Environment"
-}
-
-local IGNORE_NAMES = {
-    NPCs = true,
-    Enemies = true,
-    Bosses = true,
-    Portals = true,
-    Hitboxes = true
-}
-
-local VISUAL_CLASS_WHITELIST = {
-    Decal = true,
-    Texture = true,
-    ParticleEmitter = true,
-    Trail = true,
-    Beam = true,
-    Smoke = true,
-    Fire = true,
-    Sparkles = true,
-    PointLight = true,
-    SpotLight = true,
-    SurfaceLight = true
-}
-
-local function notifyMapCache(text)
-    if typeof(MoMoNotify) == "function" then
-        MoMoNotify({
-            Title = "Map Cache",
-            Desc = text,
-            Time = 3
-        })
-    else
-        warn("[Map Cache] " .. tostring(text))
-    end
-end
-
-local function getTargetRoots()
-    local roots = {}
-
-    for _, rootName in ipairs(TARGET_ROOT_NAMES) do
-        local root = workspace:FindFirstChild(rootName)
-        if root then
-            table.insert(roots, root)
-        end
-    end
-
-    return roots
-end
-
-local function isTargetRoot(instance)
-    if not instance then
-        return false
-    end
-
-    for _, rootName in ipairs(TARGET_ROOT_NAMES) do
-        if instance.Name == rootName and instance.Parent == workspace then
-            return true
-        end
-    end
-
-    return false
-end
-
-local function isInsideTargetRoots(instance)
-    if not instance then
-        return false
-    end
-
-    for _, root in ipairs(getTargetRoots()) do
-        if instance == root or instance:IsDescendantOf(root) then
-            return true
-        end
-    end
-
-    return false
-end
-
-local function hasIgnoredAncestor(instance)
-    local current = instance
-
-    while current and current ~= workspace do
-        if current == workspace.Terrain then
-            return true
-        end
-
-        if IGNORE_NAMES[current.Name] then
-            return true
-        end
-
-        if current:IsA("SpawnLocation") then
-            return true
-        end
-
-        if current.Name == "HumanoidRootPart" then
-            return true
-        end
-
-        current = current.Parent
-    end
-
-    return false
-end
-
-local function isCharacterLike(instance)
-    local model = instance:FindFirstAncestorOfClass("Model")
-    if not model then
-        return false
-    end
-
-    return model:FindFirstChildOfClass("Humanoid") ~= nil
-end
-
-local function hasCachedAncestor(instance)
-    local current = instance.Parent
-
-    while current do
-        if MapSystem.Cache[current] ~= nil then
-            return true
-        end
-        current = current.Parent
-    end
-
-    return false
-end
-
-function isValidMapPart(instance)
-    if not instance then
-        return false
-    end
-
-    if MapSystem.Cache[instance] ~= nil then
-        return false
-    end
-
-    if instance == workspace then
-        return false
-    end
-
-    if instance == workspace.Terrain then
-        return false
-    end
-
-    if isTargetRoot(instance) then
-        return false
-    end
-
-    if not isInsideTargetRoots(instance) then
-        return false
-    end
-
-    if hasIgnoredAncestor(instance) then
-        return false
-    end
-
-    if isCharacterLike(instance) then
-        return false
-    end
-
-    if instance:IsA("Camera") or instance:IsA("Humanoid") or instance:IsA("Tool") then
-        return false
-    end
-
-    -- BasePart = MeshPart / Union / Part / Wedge / etc.
-    if instance:IsA("BasePart") then
-        return true
-    end
-
-    if VISUAL_CLASS_WHITELIST[instance.ClassName] then
-        return true
-    end
-
-    return false
-end
-
-local function cacheAndHide(instance)
-    if not instance or not instance.Parent then
-        return false
-    end
-
-    if MapSystem.Cache[instance] ~= nil then
-        return false
-    end
-
-    local originalParent = instance.Parent
-    MapSystem.Cache[instance] = originalParent
-
-    local ok = pcall(function()
-        instance.Parent = nil
-    end)
-
-    if not ok then
-        MapSystem.Cache[instance] = nil
-        return false
-    end
-
-    return true
-end
-
-local function restoreInstance(instance, originalParent)
-    if not instance then
-        return
-    end
-
-    pcall(function()
-        if originalParent and (originalParent == workspace or originalParent.Parent ~= nil) then
-            instance.Parent = originalParent
-        else
-            -- Fallback: if original parent no longer exists, restore to workspace
-            instance.Parent = workspace
-        end
-    end)
-end
-
-local function disconnectObserver()
-    if MapSystem.Observer then
-        MapSystem.Observer:Disconnect()
-        MapSystem.Observer = nil
-    end
-end
-
-local function connectObserver(jobId)
-    disconnectObserver()
-
-    MapSystem.Observer = workspace.DescendantAdded:Connect(function(instance)
-        if not MapSystem.Enabled then
-            return
-        end
-
-        -- task.defer lets Roblox finish parenting first before we inspect ancestry.
-        task.defer(function()
-            if not MapSystem.Enabled then
-                return
-            end
-
-            if jobId ~= MapSystem.JobId then
-                return
-            end
-
-            if not instance or instance.Parent == nil then
-                return
-            end
-
-            if hasCachedAncestor(instance) then
-                return
-            end
-
-            if isValidMapPart(instance) then
-                cacheAndHide(instance)
-            end
-        end)
-    end)
-end
-
-local function buildInitialScanList()
-    local list = {}
-
-    for _, root in ipairs(getTargetRoots()) do
-        for _, descendant in ipairs(root:GetDescendants()) do
-            table.insert(list, descendant)
-        end
-    end
-
-    return list
-end
-
-local function hideMapLoop(jobId)
-    local scanList = buildInitialScanList()
-    local processed = 0
-    local hiddenCount = 0
-
-    for _, instance in ipairs(scanList) do
-        if not MapSystem.Enabled then
-            return
-        end
-
-        if jobId ~= MapSystem.JobId then
-            return
-        end
-
-        -- If a parent was already cached, skip this child.
-        -- This avoids redundant work when Roblox fires descendants in bursts.
-        if not hasCachedAncestor(instance) then
-            if isValidMapPart(instance) then
-                if cacheAndHide(instance) then
-                    hiddenCount += 1
-                end
-            end
-        end
-
-        processed += 1
-
-        -- Anti-freeze yielding:
-        -- Large maps can contain tens of thousands of instances.
-        -- Yield every N items so the client UI stays responsive.
-        if processed % MapSystem.BatchSize == 0 then
-            RunService.Heartbeat:Wait()
-        end
-    end
-
-    notifyMapCache("Map hidden. Cached objects: " .. tostring(hiddenCount))
-end
-
-local function restoreMapLoop(jobId)
-    local restoreList = {}
-    local processed = 0
-    local restoredCount = 0
-
-    for instance, originalParent in pairs(MapSystem.Cache) do
-        table.insert(restoreList, {
-            Instance = instance,
-            OriginalParent = originalParent
-        })
-    end
-
-    for _, entry in ipairs(restoreList) do
-        if jobId ~= MapSystem.JobId then
-            return
-        end
-
-        restoreInstance(entry.Instance, entry.OriginalParent)
-        MapSystem.Cache[entry.Instance] = nil
-        restoredCount += 1
-        processed += 1
-
-        if processed % MapSystem.BatchSize == 0 then
-            RunService.Heartbeat:Wait()
-        end
-    end
-
-    notifyMapCache("Map restored. Restored objects: " .. tostring(restoredCount))
-end
-
-function ToggleMap(state: boolean)
-    state = state == true
-
-    if state == MapSystem.Enabled then
-        return
-    end
-
-    MapSystem.JobId += 1
-    local currentJob = MapSystem.JobId
-
-    if state then
-        MapSystem.Enabled = true
-        connectObserver(currentJob)
-
-        task.spawn(function()
-            hideMapLoop(currentJob)
-        end)
-    else
-        MapSystem.Enabled = false
-        disconnectObserver()
-
-        task.spawn(function()
-            restoreMapLoop(currentJob)
-        end)
-    end
-end
-
 --// Ultra Aggressive Map Cache
 --// Hide almost everything in workspace, but keep Character / Camera / Terrain safe.
 --// Uses Parent = nil, not Destroy(), so it can be restored later.
@@ -504,28 +139,36 @@ end
 
 local function isProtected(instance)
     if not instance then return true end
-    if instance == workspace or instance == workspace.CurrentCamera or instance == workspace.Terrain then
-        return true
-    end
+    if instance == workspace then return true end
+    if instance == workspace.CurrentCamera then return true end
+    if instance == workspace.Terrain then return true end
 
+    -- กัน Character ของผู้เล่น
     local char = LP and LP.Character
     if char and (instance == char or instance:IsDescendantOf(char)) then
         return true
     end
 
+    -- ✅ กัน NPCs, Bosses, และ Model ที่มี Humanoid ทั้งหมด
     local keepFolders = {
         workspace:FindFirstChild("NPCs"),
         workspace:FindFirstChild("Bosses"),
         workspace:FindFirstChild("Enemies"),
         workspace:FindFirstChild("Monsters"),
         workspace:FindFirstChild("Mobs"),
-        workspace:FindFirstChild("ServiceNPCs") -- เพิ่มอันนี้ให้ด้วยเพราะ Sailor Piece ใช้เก็บ NPC เควส/สุ่มบอส
     }
 
     for _, folder in ipairs(keepFolders) do
-        if folder and instance:IsDescendantOf(folder) then
+        if folder and (instance == folder or instance:IsDescendantOf(folder)) then
             return true
         end
+    end
+
+    -- กัน Model ที่มี Humanoid ในตัว (มอนที่ไม่ได้อยู่ในโฟลเดอร์มาตรฐาน)
+    local model = instance:IsA("Model") and instance
+        or instance:FindFirstAncestorOfClass("Model")
+    if model and model:FindFirstChildOfClass("Humanoid") then
+        return true
     end
 
     return false
@@ -863,7 +506,7 @@ task.spawn(function()
                     -- 1.0 = 100% (ปกติ)
                     -- 0.8 = 80% (เล็กลงนิดหน่อย กำลังสวย)
                     -- 0.7 = 70% (เล็กกะทัดรัด)
-                    scale.Scale = 0.9
+                    scale.Scale = 1
                     
                     scale.Parent = child
                 end
@@ -967,6 +610,106 @@ end)
 -- ==========================================
 -- 📑 สร้าง Tabs & Sections (MacLib)
 -- ==========================================
+local function IsAnyFarmActive()
+    return (
+        MoMoConfig.AutoFarm
+        or MoMoConfig.AutoBoss
+        or MoMoConfig.AutoIsland
+        or MoMoConfig.AutoSummon
+        or MoMoConfig.AutoDungeon
+        or MoMoConfig.AutoTower
+        or MoMoConfig.AutoStrongestBoss
+        or MoMoConfig.AutoTrueAizen
+        or MoMoConfig.AutoAtomicBoss
+        or MoMoConfig.AutoHogyokuQuest
+        or MoMoConfig.OpFarmAllMap
+    )
+end
+
+local OP_LOAD_DELAY = 1
+local OP_HIT_BURST = 10
+
+local function GetNpcTargetByName(targetName)
+    local npcs = workspace:FindFirstChild("NPCs")
+    if not npcs then return nil end
+
+    local mob = npcs:FindFirstChild(targetName)
+    if not mob then return nil end
+
+    local mobRoot = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChild("Torso") or mob.PrimaryPart
+    local hum = mob:FindFirstChild("Humanoid")
+    if mobRoot and hum then
+        return mob
+    end
+
+    return nil
+end
+
+local function WarpBehindAndHit(mob)
+    local char = LP.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not char or not root or not mob then return end
+
+    local mobRoot = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChild("Torso") or mob.PrimaryPart
+    if not mobRoot then return end
+
+    local lookVector = mobRoot.CFrame.LookVector
+    local flatLookVector = Vector3.new(lookVector.X, 0, lookVector.Z)
+
+    if flatLookVector.Magnitude < 0.001 then
+        flatLookVector = Vector3.new(0, 0, -1)
+    else
+        flatLookVector = flatLookVector.Unit
+    end
+
+    local targetPos = mobRoot.Position - (flatLookVector * 5)
+
+    char:PivotTo(CFrame.lookAt(targetPos, mobRoot.Position))
+    root.Velocity = Vector3.zero
+    root.RotVelocity = Vector3.zero
+
+    _G.TargetMob = mob
+
+    for _ = 1, OP_HIT_BURST do
+        if not MoMoConfig.OpFarmAllMap then break end
+
+        pcall(function()
+            RS.CombatSystem.Remotes.RequestHit:FireServer()
+        end)
+
+        RunService.Heartbeat:Wait()
+    end
+
+    _G.TargetMob = nil
+end
+
+task.spawn(function()
+    while true do
+        task.wait(0.05)
+
+        if MoMoConfig.OpFarmAllMap then
+            for _, route in ipairs(OpFarmRoute) do
+                if not MoMoConfig.OpFarmAllMap then break end
+
+                pcall(function()
+                    RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(route.Island)
+                end)
+
+                task.wait(OP_LOAD_DELAY)
+
+                for _, targetName in ipairs(route.Targets) do
+                    if not MoMoConfig.OpFarmAllMap then break end
+
+                    local mob = GetNpcTargetByName(targetName)
+                    if mob then
+                        WarpBehindAndHit(mob)
+                    end
+                end
+            end
+        end
+    end
+end)
+
 local tabGroups = { Main = Window:TabGroup() }
 
 local tabs = {
@@ -985,6 +728,17 @@ local tabs = {
 local FarmSec = tabs.AutoFarm:Section({ Side = "Left" })
 FarmSec:Header({ Name = "Auto Level Farm" })
 FarmSec:Toggle({ Name = "Start Auto Level Farm", Default = MoMoConfig.AutoFarm, Callback = function(val) MoMoConfig.AutoFarm = val end }, "MoMo_AutoFarm")
+FarmSec:Toggle({
+    Name = "OP Farm All Map",
+    Default = MoMoConfig.OpFarmAllMap,
+    Callback = function(val)
+        MoMoConfig.OpFarmAllMap = val
+        if val then
+            _G.TargetMob = nil
+            _G.TargetPosition = nil
+        end
+    end
+}, "MoMo_OpFarmAllMap")
 
 local IslandSec = tabs.AutoFarm:Section({ Side = "Right" })
 IslandSec:Header({ Name = "Auto Island Farm" })
@@ -1106,14 +860,6 @@ ChestSec:Toggle({ Name = "Enable Auto Chest", Default = MoMoConfig.AutoChest, Ca
 local PerfSec = tabs.Settings:Section({ Side = "Left" })
 PerfSec:Header({ Name = "Performance" })
 PerfSec:Toggle({ Name = "Enable FPS Boost (Smooth Plastic)", Default = MoMoConfig.AutoFpsBoost, Callback = function(val) MoMoConfig.AutoFpsBoost = val; if val then ApplyFpsBoost(); MoMoNotify({Title = "FPS Boost", Desc = "🚀 FPS Boost Enabled!", Time = 3}) else MoMoNotify({Title = "FPS Boost", Desc = "⚠️ Rejoin to restore graphics", Time = 4}) end end }, "MoMo_FpsBoost")
-PerfSec:Toggle({
-    Name = "Auto Delete Map (Cache)",
-    Default = MoMoConfig.AutoDeleteMap,
-    Callback = function(val)
-        MoMoConfig.AutoDeleteMap = val
-        ToggleMap(val)
-    end
-}, "MoMo_AutoDeleteMap")
 PerfSec:Toggle({
     Name = "Ultra Delete Map",
     Default = MoMoConfig.UltraDeleteMap,
@@ -1310,6 +1056,22 @@ MoMoNotify({Title = "MoMoHub", Desc = "Script Loaded!", Time = 4})
 -- 🛡️ [ วิชามาร 2 & 3: INSTANT WARP + ANTI-RUBBERBAND SPAM ]
 -- ==========================================
 local function SafeBypassWarp(targetPos, lookTarget, customSpeed)
+    if MoMoConfig.OpFarmAllMap then
+        local char = LP.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not char or not root then return end
+
+        if lookTarget and (targetPos - lookTarget).Magnitude > 0.01 then
+            char:PivotTo(CFrame.lookAt(targetPos, lookTarget))
+        else
+            char:PivotTo(CFrame.new(targetPos))
+        end
+
+        root.Velocity = Vector3.zero
+        root.RotVelocity = Vector3.zero
+        return
+    end
+
     local char = LP.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     local hum = char and char:FindFirstChild("Humanoid")
@@ -1330,7 +1092,7 @@ local function SafeBypassWarp(targetPos, lookTarget, customSpeed)
     for i = 1, steps do
         if not root or not root.Parent then break end
         
-        local farmActive = (MoMoConfig.AutoFarm or MoMoConfig.AutoBoss or MoMoConfig.AutoIsland or MoMoConfig.AutoSummon or MoMoConfig.AutoDungeon or MoMoConfig.AutoTower or MoMoConfig.AutoStrongestBoss or MoMoConfig.AutoTrueAizen or MoMoConfig.AutoAtomicBoss or MoMoConfig.AutoHogyokuQuest)
+        local farmActive = IsAnyFarmActive()
         if not farmActive then break end
         
         local nextPos = startPos:Lerp(targetPos, i / steps)
@@ -1350,7 +1112,7 @@ RunService.Stepped:Connect(function()
     local char = LP.Character
     if not char then return end
 
-    local farmActive = (MoMoConfig.AutoFarm or MoMoConfig.AutoBoss or MoMoConfig.AutoIsland or MoMoConfig.AutoSummon or MoMoConfig.AutoDungeon or MoMoConfig.AutoTower or MoMoConfig.AutoStrongestBoss or MoMoConfig.AutoTrueAizen or MoMoConfig.AutoAtomicBoss or MoMoConfig.AutoHogyokuQuest)
+    local farmActive = IsAnyFarmActive()
     local hasTarget = (_G.TargetMob or _G.TargetPosition)
 
     if (farmActive and hasTarget) or MoMoConfig.NoClip then
@@ -1530,7 +1292,7 @@ end
 task.spawn(function()
     while true do
         task.wait(0.1) 
-        if (MoMoConfig.AutoFarm or MoMoConfig.AutoBoss or MoMoConfig.AutoIsland or MoMoConfig.AutoSummon or MoMoConfig.AutoDungeon or MoMoConfig.AutoTower or MoMoConfig.AutoStrongestBoss or MoMoConfig.AutoTrueAizen or MoMoConfig.AutoHogyokuQuest) and _G.TargetMob then
+        if IsAnyFarmActive() and _G.TargetMob then
             local char = LP.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
             local mobRoot = _G.TargetMob and (_G.TargetMob:FindFirstChild("HumanoidRootPart") or _G.TargetMob:FindFirstChild("Torso") or _G.TargetMob.PrimaryPart)
@@ -1719,12 +1481,21 @@ end)
 -- [ ENGINE 1: Logic & Target ]
 task.spawn(function()
     while true do
-        task.wait(0.1)
+        if MoMoConfig.OpFarmAllMap then
+            RunService.Heartbeat:Wait()
+        else
+            task.wait(0.1)
+        end
+
         local char = LP.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local hum = char and char:FindFirstChild("Humanoid")
 
-        if (MoMoConfig.AutoFarm or MoMoConfig.AutoBoss or MoMoConfig.AutoIsland or MoMoConfig.AutoSummon or MoMoConfig.AutoDungeon or MoMoConfig.AutoTower or MoMoConfig.AutoStrongestBoss or MoMoConfig.AutoTrueAizen or MoMoConfig.AutoAtomicBoss or MoMoConfig.AutoHogyokuQuest) and root then
+        if MoMoConfig.OpFarmAllMap then
+            continue
+        end
+
+        if IsAnyFarmActive() and root then
             
             _G.TargetMob = nil
             _G.TargetPosition = nil
@@ -2063,31 +1834,80 @@ end)
 -- ==========================================
 task.spawn(function()
     while true do
-        task.wait() 
-        local farmActive = (MoMoConfig.AutoFarm or MoMoConfig.AutoBoss or MoMoConfig.AutoIsland or MoMoConfig.AutoSummon or MoMoConfig.AutoDungeon or MoMoConfig.AutoTower or MoMoConfig.AutoStrongestBoss or MoMoConfig.AutoTrueAizen or MoMoConfig.AutoAtomicBoss or MoMoConfig.AutoHogyokuQuest)
+        task.wait()
+
+        local farmActive = IsAnyFarmActive()
         local char = LP.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local hum = char and char:FindFirstChild("Humanoid")
 
         if farmActive and root and hum then
             local bv = root:FindFirstChild("MomoFloatBV")
-            if not bv then bv = Instance.new("BodyVelocity"); bv.Name = "MomoFloatBV"; bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge); bv.Velocity = Vector3.new(0, 0, 0); bv.Parent = root end
+            if not bv then
+                bv = Instance.new("BodyVelocity")
+                bv.Name = "MomoFloatBV"
+                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                bv.Velocity = Vector3.zero
+                bv.Parent = root
+            end
+
             local hasTarget = (_G.TargetMob ~= nil) or (_G.TargetPosition ~= nil)
-            if hasTarget and ((_G.TargetMob and _G.TargetMob:FindFirstChild("HumanoidRootPart") and _G.TargetMob.Humanoid.Health > 0) or (_G.TargetPosition ~= nil)) then
-                root.Anchored = false; if hum then hum.PlatformStand = false end
-                local targetPos = nil; local lookAtTarget = nil
-                local mobRoot = _G.TargetMob and (_G.TargetMob:FindFirstChild("HumanoidRootPart") or _G.TargetMob:FindFirstChild("Torso") or _G.TargetMob.PrimaryPart)
-                if mobRoot and _G.TargetMob:FindFirstChild("Humanoid") and _G.TargetMob.Humanoid.Health > 0 then
-                    targetPos = mobRoot.Position + Vector3.new(0, MoMoConfig.FarmHeight, 0); lookAtTarget = mobRoot.Position
-                elseif _G.TargetPosition then targetPos = _G.TargetPosition end
-                if targetPos then lookAtTarget = lookAtTarget or targetPos; SafeBypassWarp(targetPos, lookAtTarget) end
+            local mobRoot = _G.TargetMob and (_G.TargetMob:FindFirstChild("HumanoidRootPart") or _G.TargetMob:FindFirstChild("Torso") or _G.TargetMob.PrimaryPart)
+
+            if hasTarget and ((_G.TargetMob and mobRoot and _G.TargetMob:FindFirstChild("Humanoid") and _G.TargetMob.Humanoid.Health > 0) or (_G.TargetPosition ~= nil)) then
+                root.Anchored = false
+                hum.PlatformStand = false
+
+                local targetPos = nil
+                local lookAtTarget = nil
+
+                if MoMoConfig.OpFarmAllMap and mobRoot then
+                    local lookVector = mobRoot.CFrame.LookVector
+                    local flatLookVector = Vector3.new(lookVector.X, 0, lookVector.Z)
+
+                    if flatLookVector.Magnitude < 0.001 then
+                        flatLookVector = Vector3.new(0, 0, -1)
+                    else
+                        flatLookVector = flatLookVector.Unit
+                    end
+
+                    targetPos = mobRoot.Position - (flatLookVector * 5)
+                    lookAtTarget = mobRoot.Position
+
+                    char:PivotTo(CFrame.lookAt(targetPos, lookAtTarget))
+                    root.Velocity = Vector3.zero
+                    root.RotVelocity = Vector3.zero
+                    bv.Velocity = Vector3.zero
+                else
+                    if mobRoot and _G.TargetMob:FindFirstChild("Humanoid") and _G.TargetMob.Humanoid.Health > 0 then
+                        targetPos = mobRoot.Position + Vector3.new(0, MoMoConfig.FarmHeight, 0)
+                        lookAtTarget = mobRoot.Position
+                    elseif _G.TargetPosition then
+                        targetPos = _G.TargetPosition
+                        lookAtTarget = targetPos
+                    end
+
+                    if targetPos then
+                        SafeBypassWarp(targetPos, lookAtTarget)
+                    end
+                end
             else
-                root.Anchored = true; root.Velocity = Vector3.new(0,0,0)
+                root.Anchored = true
+                root.Velocity = Vector3.zero
+                bv.Velocity = Vector3.zero
             end
         else
             if root then
-                for _, oldBv in pairs(root:GetChildren()) do if oldBv:IsA("BodyVelocity") and string.find(oldBv.Name, "Momo") then oldBv:Destroy() end end
-                root.Anchored = false; if hum then hum.PlatformStand = false; hum:ChangeState(8) end
+                for _, oldBv in pairs(root:GetChildren()) do
+                    if oldBv:IsA("BodyVelocity") and string.find(oldBv.Name, "Momo") then
+                        oldBv:Destroy()
+                    end
+                end
+                root.Anchored = false
+                if hum then
+                    hum.PlatformStand = false
+                    hum:ChangeState(8)
+                end
             end
         end
     end
