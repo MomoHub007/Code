@@ -1,1349 +1,1456 @@
-    -- =====================================================================
-    -- 🤖 [MoMo AutoPlay V5.0]: Clean UI & Smart Logic
-    -- =====================================================================
-    local Players = game:GetService("Players")
-    local LocalPlayer = Players.LocalPlayer
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local workspace = game:GetService("Workspace")
-    local UserInputService = game:GetService("UserInputService")
-    local LP = LocalPlayer
+-- ==========================================
+-- ⚡ MomoHub - Fast Attack Engine (Strongest Boss Edition)
+-- 🎨 [ MACLIB UI + AUTO CONFIG EDITION ]
+-- ==========================================
+local HttpService = game:GetService("HttpService")
 
-    print("🚀 [MoMo AutoPlay] เริ่มรัน V5.0 (Clean UI)...")
+if _G.MoMoHubLoaded then 
+    warn("MoMoHub: Script is already running!")
+    return 
+end
+_G.MoMoHubLoaded = true
 
-    local MoMoLogo = "rbxthumb://type=Asset&id=121052363208302&w=150&h=150"
+-- 🌟 UI Phase Initialization
+_G.AtomicBossPhase = "teleport"
+_G.LastAtomicSummonTime = 0
+_G.TargetMob = nil 
+_G.TargetPosition = nil
+_G.BossRoundRobinIndex = 1
+_G.LastBossKilledTime = 0
+_G.BossNoMobAfterTeleport = {}
+_G.IslandRoundRobinIndex = 1
+_G.LastIslandTeleportTime = 0
+_G.LastSummonTime = 0 
+_G.LastStrongestBossSummonTime = 0 
+_G.StrongestBossPhase = "teleport" 
+_G.StrongestBossRetryCount = 0 
+_G.LastTrueAizenSummonTime = 0
+_G.TrueAizenPhase = "teleport"
+_G.TrueAizenRetryCount = 0 
+_G.HogyokuQuestPhase = "teleportToHueco"
+_G.HogyokuSearchTarget = nil
+_G.CollectedHogyokuFragments = {}
+_G.LastFlyNotify = 0
+_G.LastHakiToggleTime = 0 
+_G.LastArmamentHakiToggleTime = 0 
 
-    -- ==========================================
-    -- ⚙️ ค่าเริ่มต้นสำหรับ UI State 
-    -- ==========================================
-    local MoMoConfig = {
-        AutoFpsBoost = false,
-        WalkSpeed = 16, 
-        JumpPower = 50, 
-        AntiAFK = false, 
-        AutoRejoin = false,
-        AutoPlay = false,
-        UnitPriority = {1, 2, 3, 4, 5, 6}, 
-        UnitLimits = {
-            [1] = 2, [2] = 2, [3] = 2, [4] = 2, [5] = 2, [6] = 2
-        },
-        AutoJoin = false,
-        SelectedMode = "Story",
-        SelectedMap = "Ninja Leaf",
-        SelectedDifficulty = "Normal",
-        SelectedAct = 1,
-        FarmUnit = 0
-    }
+local Players = game:GetService("Players")
+local VirtualUser = game:GetService("VirtualUser")
+local UserInputService = game:GetService("UserInputService")
+local RS = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local LP = Players.LocalPlayer
 
-    -- ==========================================
-    -- 🎨 เริ่มโหลด UI (MACLIB)
-    -- ==========================================
-    local MacLib = loadstring(game:HttpGet("https://github.com/biggaboy212/Maclib/releases/latest/download/maclib.txt"))()
+local MoMoLogo = "rbxthumb://type=Asset&id=121052363208302&w=150&h=150"
 
-    local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-    local windowSize = isMobile and UDim2.fromOffset(420, 340) or UDim2.fromOffset(868, 550)
+-- ==========================================
+-- ⚙️ ค่าเริ่มต้น (ระบบ Config Manager จะดึงไปเขียนทับเอง)
+-- ==========================================
+local MoMoConfig = {
+    AutoFarm = false, WeaponType = "None", FarmHeight = 9, TweenSpeed = 150,
+    AutoTween = false, AutoFpsBoost = false,
+    AutoSkill = false, SelectedSkills = {}, 
+    AutoStats = false, StatAmount = 1, SelectedStats = {}, 
+    AutoMerchant = false, SelectedMerchantItems = {},
+    AutoBoss = false, SelectedBosses = {},
+    AutoIsland = false, SelectedIslands = {},
+    AutoSummon = false, SelectedSummonBoss = "SaberBoss", SelectedSummonDiff = "Normal",
+    AutoStrongestBoss = false, SelectedStrongestBoss = "StrongestToday", SelectedStrongestDiff = "Normal",
+    AutoTrueAizen = false, SelectedTrueAizenDiff = "Normal",
+    AutoAtomicBoss = false, SelectedAtomicDiff = "Normal",
+    AutoHogyokuQuest = false,
+    AutoDungeon = false, AutoTower = false, AutoLeaveTower = false, TargetTowerFloor = 1, 
+    AutoRestartTower = false, RestartTowerFloor = 1, AutoReplayTower = false, NoClip = false, BypassTP = true,
+    SelectedDungeonType = "RuneDungeon", SelectedDungeonDiff = "Easy", AutoReplayDungeon = false, MerchantAmount = 1,
+    AutoChest = false, SelectedChests = {}, ChestAmount = 1,
+    WalkSpeed = 16, JumpPower = 50, AntiAFK = false, AutoRejoin = false, AutoHaki = false, AutoArmamentHaki = false
+}
 
-    local Window = MacLib:Window({
-        Title = "MOMOHUB",
-        Subtitle = "Anime Overlord Script",
-        Size = windowSize,
-        DragStyle = 1,
-        DisabledWindowControls = {},
-        ShowUserInfo = not isMobile,
-        Keybind = Enum.KeyCode.LeftControl,
-        AcrylicBlur = not isMobile,
-    })
+-- ==========================================
+-- 🚀 [ ULTRA BOOST FPS & REDUCE LAG FUNCTION ]
+-- ==========================================
+local _FPSBoostApplied = false
+local function ApplyFpsBoost()
+    if _FPSBoostApplied then return end 
+    _FPSBoostApplied = true
+    task.spawn(function()
+        local Lighting = game:GetService("Lighting")
+        local Terrain = workspace:FindFirstChildOfClass("Terrain")
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        if Terrain then
+            Terrain.WaterWaveSize = 0; Terrain.WaterWaveSpeed = 0
+            Terrain.WaterReflectance = 0; Terrain.WaterTransparency = 0
+            pcall(function() Terrain:Clear() end) 
+        end
+        local function CleanPart(v)
+            pcall(function()
+                if v:IsA("BasePart") or v:IsA("MeshPart") then
+                    v.Material = Enum.Material.SmoothPlastic; v.Reflectance = 0; v.CastShadow = false
+                elseif v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1
+                elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Lifetime = NumberRange.new(0)
+                elseif v:IsA("Fire") or v:IsA("SpotLight") or v:IsA("Smoke") or v:IsA("Sparkles") then v.Enabled = false
+                end
+            end)
+        end
+        for _, v in pairs(Lighting:GetDescendants()) do
+            if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("BlurEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("SunRaysEffect") then v:Destroy() end
+        end
+        for _, v in pairs(workspace:GetDescendants()) do CleanPart(v) end
+        workspace.DescendantAdded:Connect(function(v) if MoMoConfig.AutoFpsBoost then CleanPart(v) end end)
+    end)
+end
 
-    local function MoMoNotify(data)
-        Window:Notify({
-            Title = data.Title or "MoMoHub",
-            Description = data.Desc or "",
-            Lifetime = data.Time or 3
-        })
+-- ==========================================
+-- 📚 ฐานข้อมูลต่างๆ (Database)
+-- ==========================================
+local WeaponDatabase = {
+    ["Saber"] = "Sword", ["Gojo"] = "Melee", ["Sukuna"] = "Melee", ["Jinwoo"] = "Sword",
+    ["Combat"] = "Melee", ["Katana"] = "Sword", ["Dark Blade"] = "Sword", ["Ragna"] = "Sword",
+    ["Aizen"] = "Sword", ["Qin Shi"] = "Melee", ["Yuji"] = "Melee", ["Shadow"] = "Sword",
+    ["Alucard"] = "Melee", ["Strongest Of Today"] = "Melee", ["Strongest In History"] = "Melee",
+    ["Ichigo"] = "Sword", ["Rimuru"] = "Sword", ["Madoka"] = "Melee", ["Gilgamesh"] = "Melee",
+    ["Anos"] = "Melee", ["Shadow Monarch"] = "Sword", ["Escanor"] = "Sword", ["Blessed Maiden"] = "Melee",
+    ["True Aizen"] = "Sword", ["Yamato"] = "Sword" , ["Gryphon"] = "Sword" , ["Manipulator"] = "Sword",
+    ["Saber Alter"] = "Melee", ["Atomic"] = "Sword", ["Abyssal Empress"] = "Sword", ["Strongest Shinobi"] = "Melee",
+    ["True Manipulator"] = "Sword" , ["Excalibur"] = "Sword"
+}
+
+local BossDatabase = {
+    ["YujiBoss"] = {Island = "ShibuyaStation", Prefix = "Shibuya", MobName = "Yuji"},
+    ["SukunaBoss"] = {Island = "ShibuyaStation", Prefix = "Shibuya", MobName = "Sukuna"},
+    ["GojoBoss"] = {Island = "ShibuyaStation", Prefix = "Shibuya", MobName = "Gojo"},
+    ["JinwooBoss"] = {Island = "SailorIsland", Prefix = "Sailor", MobName = "Jinwoo"},
+    ["AizenBoss"] = {Island = "HollowIsland", Prefix = "HollowIsland", MobName = "Aizen"},
+    ["AlucardBoss"] = {Island = "SailorIsland", Prefix = "Sailor", MobName = "Alucard"},
+    ["YamatoBoss"] = {Island = "JudgementIsland", Prefix = "Judgement", MobName = "Yamato", TimerName = "Yamato", SpawnerName = "TimedBossSpawn_YamatoBoss"},
+    ["StrongestShinobiBoss"] = {Island = "Ninja", Prefix = "Ninja", MobName = "StrongestShinobiBoss", TimerName = "StrongestShinobiBoss", SpawnerName = "TimedBossSpawn_StrongestShinobiBoss"}
+}
+
+local BossList = {"YujiBoss", "SukunaBoss", "GojoBoss", "JinwooBoss", "AizenBoss", "AlucardBoss", "YamatoBoss", "StrongestShinobiBoss"}
+local IslandList = {"Starter", "Jungle", "Desert", "Snow", "Sailor", "Shibuya", "HollowIsland", "Shinjuku", "Slime", "Academy", "Judgement", "SoulDominion", "Ninja", "Lawless"}
+local IslandMobDatabase = {
+    ["Starter"] = {"Thief", "ThiefBoss"}, ["Jungle"] = {"Monkey", "MonkeyBoss"}, ["Desert"] = {"DesertBandit", "DesertBoss"},
+    ["Snow"] = {"FrostRogue", "Winter"}, ["Sailor"] = {"JinwooBoss", "Alucard"}, ["Shibuya"] = {"Sorcerer", "PandaMiniBoss"},
+    ["HollowIsland"] = {"Hollow"}, ["Shinjuku"] = {"Curse", "StrongSorcerer"}, ["Slime"] = {"Slime"},
+    ["Academy"] = {"Academy"}, ["Judgement"] = {"Swordsman", "YamatoBoss"}, ["SoulDominion"] = {"Quincy"},
+    ["Ninja"] = {"Ninja"}, ["Lawless"] = {"Arena"}
+}
+
+local AllSummonBosses = {"SaberBoss", "QinShiBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", "SaberAlterBoss"}
+local SummonBossDifficulties = {"Normal", "Medium", "Hard", "Extreme"}
+local StrongestBossDifficulties = {"Normal", "Medium", "Hard", "Extreme"}
+local StrongestBossTypes = {"StrongestToday", "StrongestHistory"}
+local StrongestBossData = {
+    ["StrongestToday"] = {RemoteArg = "StrongestToday", MobPrefix = "StrongestofTodayBoss_"},
+    ["StrongestHistory"] = {RemoteArg = "StrongestHistory", MobPrefix = "StrongestinHistoryBoss_"}
+}
+local TrueAizenDifficulties = {"Normal", "Medium", "Hard", "Extreme"}
+local SummonMobNames = {
+    ["SaberBoss"] = "Saber", ["QinShiBoss"] = "QinShi", ["IchigoBoss"] = "Ichigo",
+    ["GilgameshBoss"] = "Gilgamesh", ["BlessedMaidenBoss"] = "BlessedMaiden", ["SaberAlterBoss"] = "SaberAlter"
+}
+
+local QuestData = {
+    {Level = 12000, NPC = "QuestNPC19", Target = "Arena", Island = "Lawless"}, {Level = 11500, NPC = "QuestNPC18", Target = "Ninja", Island = "Ninja"},
+    {Level = 10750, NPC = "QuestNPC17", Target = "Quincy", Island = "SoulDominion"}, {Level = 10000, NPC = "QuestNPC16", Target = "Swordsman", Island = "Judgement"},
+    {Level = 9000, NPC = "QuestNPC15", Target = "AcademyTeacher", Island = "Academy"}, {Level = 8000, NPC = "QuestNPC14", Target = "Slime", Island = "Slime"},
+    {Level = 7000, NPC = "QuestNPC13", Target = "Curse", Island = "Shinjuku"}, {Level = 6250, NPC = "QuestNPC12", Target = "StrongSorcerer", Island = "Shinjuku"},
+    {Level = 5000, NPC = "QuestNPC11", Target = "Hollow", Island = "HollowIsland"}, {Level = 4000, NPC = "QuestNPC10", Target = "PandaMiniBoss", Island = "Shibuya"},
+    {Level = 3000, NPC = "QuestNPC9", Target = "Sorcerer", Island = "Shibuya"}, {Level = 2000, NPC = "QuestNPC8", Target = "SnowBoss", Island = "Snow"},
+    {Level = 1500, NPC = "QuestNPC7", Target = "FrostRogue", Island = "Snow"}, {Level = 1000, NPC = "QuestNPC6", Target = "DesertBoss", Island = "Desert"},
+    {Level = 750, NPC = "QuestNPC5", Target = "DesertBandit", Island = "Desert"}, {Level = 500, NPC = "QuestNPC4", Target = "MonkeyBoss", Island = "Jungle"},
+    {Level = 250, NPC = "QuestNPC3", Target = "Monkey", Island = "Jungle"}, {Level = 100, NPC = "QuestNPC2", Target = "ThiefBoss", Island = "Starter"},
+    {Level = 0, NPC = "QuestNPC1", Target = "Thief", Island = "Starter"} 
+}
+
+local MerchantItemsList = {
+    "Race Reroll", "Trait Reroll", "Clan Reroll", "Boss Key", "Dungeon Key", 
+    "Rush Key", "Boss Ticket", "Haki Color Reroll"
+}
+
+local ChestsList = {
+    "Common Chest", "Rare Chest", "Epic Chest", "Legendary Chest", "Mythical Chest", "Secret Chest"
+}
+
+-- 🛡️ [ ANTI-ANTI-CHEAT ]
+pcall(function()
+    local mt = getrawmetatable(game)
+    local oldNamecall = mt.__namecall
+    setreadonly(mt, false)
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if method == "Kick" or method == "kick" then return nil end
+        if method == "FireServer" or method == "InvokeServer" then
+            local remoteName = tostring(self):lower()
+            if string.find(remoteName, "kick") or string.find(remoteName, "ban") or string.find(remoteName, "cheat") or string.find(remoteName, "exploit") or string.find(remoteName, "log") or string.find(remoteName, "flag") then
+                return nil
+            end
+        end
+        return oldNamecall(self, ...)
+    end)
+    setreadonly(mt, true)
+end)
+
+local function getFarmInfo()
+    local data = LP:WaitForChild("Data", 10)
+    local level = data and data:WaitForChild("Level", 10)
+    if level then
+        for _, info in ipairs(QuestData) do
+            if level.Value >= info.Level then return info.NPC, info.Target, info.Island end
+        end
     end
+    return nil, nil, nil
+end
 
-    local globalSettings = {
-        UIBlurToggle = Window:GlobalSetting({
-            Name = "UI Blur",
-            Default = Window:GetAcrylicBlurState(),
-            Callback = function(bool) Window:SetAcrylicBlurState(bool) end,
-        }),
-        NotificationToggler = Window:GlobalSetting({
-            Name = "Notifications",
-            Default = Window:GetNotificationsState(),
-            Callback = function(bool) Window:SetNotificationsState(bool) end,
-        }),
-        ShowUserInfo = Window:GlobalSetting({
-            Name = "Show User Info",
-            Default = Window:GetUserInfoState(),
-            Callback = function(bool) Window:SetUserInfoState(bool) end,
-        })
-    }
+-- ==========================================
+-- 🎨 เริ่มโหลด UI (MACLIB)
+-- ==========================================
+local MacLib = loadstring(game:HttpGet("https://github.com/biggaboy212/Maclib/releases/latest/download/maclib.txt"))()
 
-    -- ==========================================
-    -- 📌 ปุ่มเปิด/ปิด UI สำหรับผู้เล่นมือถือ
-    -- ==========================================
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local windowSize = isMobile and UDim2.fromOffset(420, 340) or UDim2.fromOffset(868, 550)
+
+local Window = MacLib:Window({
+    Title = "MOMOHUB",
+    Subtitle = "Sailor Piece Auto Script",
+    Size = windowSize,
+    DragStyle = 1,
+    DisabledWindowControls = {},
+    ShowUserInfo = not isMobile,
+    Keybind = Enum.KeyCode.LeftControl,
+    AcrylicBlur = not isMobile,
+})
+
+-- 🌟 2. [The Magic Trick] ยัด UIScale เพื่อย่อส่วนทุกอย่างบนหน้าจอพร้อมกัน!
+task.spawn(function()
+    task.wait(1) -- รอให้ MacLib โหลด UI เข้าจอให้เสร็จก่อน
     local targetGui = (gethui and gethui()) or game:GetService("CoreGui") or Players.LocalPlayer:WaitForChild("PlayerGui")
-    local CustomGui = Instance.new("ScreenGui")
-    CustomGui.Name = "MoMoHubToggleUI"
-    CustomGui.ResetOnSpawn = false
-    CustomGui.Parent = targetGui
-
-    local ToggleBtn = Instance.new("ImageButton")
-    ToggleBtn.Name = "MoMoHubToggle"
-    ToggleBtn.Parent = CustomGui
-    ToggleBtn.Position = UDim2.new(0.5, -25, 0, 5) 
-    ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
-    ToggleBtn.BackgroundTransparency = 1
-    ToggleBtn.Image = MoMoLogo
-
-    local dragging, dragInput, dragStart, startPos
-    ToggleBtn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true; dragStart = input.Position; startPos = ToggleBtn.Position
-            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
-        end
-    end)
-    ToggleBtn.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position - dragStart
-            ToggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-
-    local vim = game:GetService("VirtualInputManager")
-    local isClicking = false
-    ToggleBtn.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isClicking = true end end)
-    ToggleBtn.InputChanged:Connect(function(input) if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then isClicking = false end end)
-    ToggleBtn.InputEnded:Connect(function(input)
-        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and isClicking then
-            pcall(function() vim:SendKeyEvent(true, Enum.KeyCode.LeftControl, false, game); task.wait(0.05); vim:SendKeyEvent(false, Enum.KeyCode.LeftControl, false, game) end)
-        end
-    end)
-
-    -- ==========================================
-    -- 📑 สร้าง Tabs & Sections (แยกหน้า)
-    -- ==========================================
-    local tabGroups = { Main = Window:TabGroup() }
-
-    local tabs = {
-        -- แยกหน้าชัดเจน: Join, Play, Settings
-        Join = tabGroups.Main:Tab({ Name = "Auto Join", Image = "rbxassetid://10734950309" }),
-        Play = tabGroups.Main:Tab({ Name = "Auto Play", Image = "rbxassetid://10723345518" }), 
-        Settings = tabGroups.Main:Tab({ Name = "Settings", Image = "rbxassetid://10709810948" }),
-    }
-
-    -- 🚪 ====== Auto Join Tab ======
-    local JoinSec = tabs.Join:Section({ Side = "Left" })
-    JoinSec:Header({ Name = "Matchmaking" })
-    JoinSec:Toggle({ Name = "Enable Auto Join", Default = MoMoConfig.AutoJoin, Callback = function(val) MoMoConfig.AutoJoin = val end }, "MoMo_AutoJoin")
-
-    JoinSec:Dropdown({
-        Name = "Select Game Mode",
-        Options = {"Story", "Legend"},
-        Default = MoMoConfig.SelectedMode,
-        Callback = function(val) MoMoConfig.SelectedMode = val end
-    }, "MoMo_JoinMode")
-
-    local mapNames = {"Ninja Leaf", "Marine Fortress", "Namok", "Sky Island", "Cursed Arena"}
-    JoinSec:Dropdown({
-        Name = "Select Map",
-        Options = mapNames,
-        Default = MoMoConfig.SelectedMap,
-        Callback = function(val) MoMoConfig.SelectedMap = val end
-    }, "MoMo_JoinMap")
-
-    JoinSec:Dropdown({
-        Name = "Select Difficulty (Story Only)",
-        Options = {"Normal", "Nightmare"},
-        Default = MoMoConfig.SelectedDifficulty,
-        Callback = function(val) MoMoConfig.SelectedDifficulty = val end
-    }, "MoMo_JoinDifficulty")
-
-    JoinSec:Dropdown({
-        Name = "Select Act (1-6)",
-        Options = {"1", "2", "3", "4", "5", "6"},
-        Default = tostring(MoMoConfig.SelectedAct),
-        Callback = function(val) MoMoConfig.SelectedAct = tonumber(val) end
-    }, "MoMo_JoinAct")
-
-
-    -- ⚔️ ====== Auto Play Tab ======
-    local AutoSec = tabs.Play:Section({ Side = "Left" })
-    AutoSec:Header({ Name = "Auto Play Logic" })
-    AutoSec:Toggle({ Name = "Enable Auto Play", Default = MoMoConfig.AutoPlay, Callback = function(val) MoMoConfig.AutoPlay = val end }, "MoMo_AutoPlay")
-
-    AutoSec:Header({ Name = "Priority Queue (ลำดับการวาง)" })
-    for i = 1, 6 do
-        AutoSec:Dropdown({
-            Name = "ลำดับที่ " .. i .. " (วางก่อน)",
-            Default = "Unit " .. i,
-            Options = {"Unit 1", "Unit 2", "Unit 3", "Unit 4", "Unit 5", "Unit 6"},
-            Callback = function(val) 
-                local unitNum = tonumber(val:match("%d+"))
-                MoMoConfig.UnitPriority[i] = unitNum 
-            end
-        }, "MoMo_PriorityQueue_"..i)
-    end
-
-    AutoSec:Header({ Name = "Economy Logic (ระบบปั๊มเงิน)" })
-    AutoSec:Dropdown({
-        Name = "Select Farm Unit 💰",
-        Options = {"None", "Unit 1", "Unit 2", "Unit 3", "Unit 4", "Unit 5", "Unit 6"},
-        Default = "None",
-        Callback = function(val)
-            if val == "None" then 
-                MoMoConfig.FarmUnit = 0
-            else 
-                MoMoConfig.FarmUnit = tonumber(val:match("%d+")) 
+    
+    -- ค้นหาโฟลเดอร์ UI ของ MacLib
+    for _, gui in pairs(targetGui:GetChildren()) do
+        if gui:IsA("ScreenGui") then
+            -- หา Frame หน้าต่างหลักของโปรแกรม
+            for _, child in pairs(gui:GetChildren()) do
+                if (child:IsA("Frame") or child:IsA("CanvasGroup")) and child.Size.X.Offset > 300 then
+                    -- ติดตั้งเครื่องย่อส่วน
+                    local scale = child:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+                    
+                    -- 📉 ปรับเปอร์เซ็นต์ความเล็กตรงนี้ครับ!
+                    -- 1.0 = 100% (ปกติ)
+                    -- 0.8 = 80% (เล็กลงนิดหน่อย กำลังสวย)
+                    -- 0.7 = 70% (เล็กกะทัดรัด)
+                    scale.Scale = 0.9
+                    
+                    scale.Parent = child
+                end
             end
         end
-    }, "MoMo_FarmUnit_Selector")
-
-    local LimitSec = tabs.Play:Section({ Side = "Right" })
-    LimitSec:Header({ Name = "Unit Placement Limits" })
-    for i = 1, 6 do
-        LimitSec:Slider({ 
-            Name = "Unit " .. i .. " Max Placements", 
-            Default = MoMoConfig.UnitLimits[i], 
-            Minimum = 0, 
-            Maximum = 15,
-            Precision = 0, 
-            DisplayMethod = "Value", 
-            Callback = function(val) 
-                MoMoConfig.UnitLimits[i] = val 
-            end 
-        }, "MoMo_Limit_U"..i)
     end
+end)
 
-    -- ⚙️ ====== Settings Tab ======
-    local PerfSec = tabs.Settings:Section({ Side = "Left" })
-    PerfSec:Header({ Name = "Performance" })
-    PerfSec:Toggle({ Name = "Enable FPS Boost (Smooth Plastic)", Default = MoMoConfig.AutoFpsBoost, Callback = function(val) MoMoConfig.AutoFpsBoost = val end }, "MoMo_FpsBoost")
+-- ฟังก์ชัน Notify
+local function MoMoNotify(data)
+    Window:Notify({
+        Title = data.Title or "MoMoHub",
+        Description = data.Desc or "",
+        Lifetime = data.Time or 3
+    })
+end
 
-    local PlSec = tabs.Settings:Section({ Side = "Right" })
-    PlSec:Header({ Name = "Local Player" })
-    PlSec:Slider({ Name = "WalkSpeed", Default = MoMoConfig.WalkSpeed, Minimum = 16, Maximum = 250, Precision = 1, DisplayMethod = "Value", Callback = function(val) MoMoConfig.WalkSpeed = val end }, "MoMo_WalkSpd")
-    PlSec:Slider({ Name = "JumpPower", Default = MoMoConfig.JumpPower, Minimum = 50, Maximum = 300, Precision = 1, DisplayMethod = "Value", Callback = function(val) MoMoConfig.JumpPower = val end }, "MoMo_JumpPwr")
+local globalSettings = {
+    UIBlurToggle = Window:GlobalSetting({
+        Name = "UI Blur",
+        Default = Window:GetAcrylicBlurState(),
+        Callback = function(bool)
+            Window:SetAcrylicBlurState(bool)
+            MoMoNotify({
+                Title = "Settings",
+                Desc = (bool and "Enabled" or "Disabled") .. " UI Blur",
+                Time = 5
+            })
+        end,
+    }),
+    NotificationToggler = Window:GlobalSetting({
+        Name = "Notifications",
+        Default = Window:GetNotificationsState(),
+        Callback = function(bool)
+            Window:SetNotificationsState(bool)
+            MoMoNotify({
+                Title = "Settings",
+                Desc = (bool and "Enabled" or "Disabled") .. " Notifications",
+                Time = 5
+            })
+        end,
+    }),
+    ShowUserInfo = Window:GlobalSetting({
+        Name = "Show User Info",
+        Default = Window:GetUserInfoState(),
+        Callback = function(bool)
+            Window:SetUserInfoState(bool)
+            MoMoNotify({
+                Title = "Settings",
+                Desc = (bool and "Showing" or "Redacted") .. " User Info",
+                Time = 5
+            })
+        end,
+    })
+}
 
-    PlSec:Toggle({ Name = "Anti-AFK", Default = MoMoConfig.AntiAFK, Callback = function(val) MoMoConfig.AntiAFK = val end }, "MoMo_AntiAFK")
-    PlSec:Toggle({ Name = "Auto Rejoin", Default = MoMoConfig.AutoRejoin, Callback = function(val) MoMoConfig.AutoRejoin = val end }, "MoMo_AutoRejoin")
+-- ==========================================
+-- 📌 ปุ่มเปิด/ปิด UI สำหรับผู้เล่นมือถือ
+-- ==========================================
+local targetGui = (gethui and gethui()) or game:GetService("CoreGui") or Players.LocalPlayer:WaitForChild("PlayerGui")
+local CustomGui = Instance.new("ScreenGui")
+CustomGui.Name = "MoMoHubToggleUI"
+CustomGui.ResetOnSpawn = false
+CustomGui.Parent = targetGui
 
-    local DisSec = tabs.Settings:Section({ Side = "Left" })
-    DisSec:Header({ Name = "Discord" })
-    DisSec:Button({ Name = "Join Discord", Callback = function() if setclipboard then setclipboard("https://discord.gg/k2wdyy8QMN"); MoMoNotify({Title = "MoMoHub", Desc = "Discord link copied!", Time = 3}) end end })
+local ToggleBtn = Instance.new("ImageButton")
+ToggleBtn.Name = "MoMoHubToggle"
+ToggleBtn.Parent = CustomGui
+ToggleBtn.Position = UDim2.new(0.5, -25, 0, 5) 
+ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+ToggleBtn.BackgroundTransparency = 1
+ToggleBtn.Image = MoMoLogo
 
-    -- ==========================================
-    -- 💾 Config System 
-    -- ==========================================
-    MacLib:SetFolder("MoMoHub_AnimeOverlord")
-    tabs.Settings:InsertConfigSection("Right")
-
-    -- เปิดหน้า Auto Join เป็นหน้าแรก
-    tabs.Join:Select()
-    MacLib:LoadAutoLoadConfig()
-
-    MoMoNotify({Title = "MoMoHub", Desc = "Script Loaded Successfully!", Time = 4})
-
-    -- =====================================================================
-    -- 🧠 [Network Setup & Logic]
-    -- =====================================================================
-    local syncModule = nil
-    local function getSync()
-        if syncModule then return syncModule end
-        pcall(function() syncModule = require(ReplicatedStorage.gameClient.net.sync) end)
-        return syncModule
+local dragging, dragInput, dragStart, startPos
+ToggleBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = ToggleBtn.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
     end
+end)
+ToggleBtn.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        ToggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
 
-    -- 💰 [อัปเกรด V7]: ระบบสแกนกระเป๋าตังค์แบบทะลุทะลวง (Deep Find)
-    local function getRealMoney()
-        local m = 0
+local vim = game:GetService("VirtualInputManager")
+local isClicking = false
+ToggleBtn.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isClicking = true end end)
+ToggleBtn.InputChanged:Connect(function(input) if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then isClicking = false end end)
+ToggleBtn.InputEnded:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and isClicking then
+        pcall(function() vim:SendKeyEvent(true, Enum.KeyCode.LeftControl, false, game); task.wait(0.05); vim:SendKeyEvent(false, Enum.KeyCode.LeftControl, false, game) end)
+    end
+end)
+
+-- ==========================================
+-- 📑 สร้าง Tabs & Sections (MacLib)
+-- ==========================================
+local tabGroups = { Main = Window:TabGroup() }
+
+local tabs = {
+    AutoFarm = tabGroups.Main:Tab({ Name = "Auto Farm", Image = "rbxassetid://10734950309" }),
+    SettingFarm = tabGroups.Main:Tab({ Name = "Setting Farm", Image = "rbxassetid://10734950309" }),
+    Boss = tabGroups.Main:Tab({ Name = "Boss", Image = "rbxassetid://10747360675" }),
+    Dungeon = tabGroups.Main:Tab({ Name = "Dungeon", Image = "rbxassetid://10747360675" }),
+    Tower = tabGroups.Main:Tab({ Name = "Tower", Image = "rbxassetid://10709773755" }),
+    Quest = tabGroups.Main:Tab({ Name = "Quest", Image = "rbxassetid://10723367380" }),
+    Stats = tabGroups.Main:Tab({ Name = "Stats", Image = "rbxassetid://10709752035" }),
+    Shop = tabGroups.Main:Tab({ Name = "Shop", Image = "rbxassetid://10709811110" }),
+    Settings = tabGroups.Main:Tab({ Name = "Settings", Image = "rbxassetid://10709810948" }),
+}
+
+-- ====== 1. Auto Farm Tab ======
+local FarmSec = tabs.AutoFarm:Section({ Side = "Left" })
+FarmSec:Header({ Name = "Auto Level Farm" })
+FarmSec:Toggle({ Name = "Start Auto Level Farm", Default = MoMoConfig.AutoFarm, Callback = function(val) MoMoConfig.AutoFarm = val end }, "MoMo_AutoFarm")
+
+local IslandSec = tabs.AutoFarm:Section({ Side = "Right" })
+IslandSec:Header({ Name = "Auto Island Farm" })
+IslandSec:Dropdown({ Name = "Select Islands", Multi = true, Options = IslandList, Default = MoMoConfig.SelectedIslands, Callback = function(val) MoMoConfig.SelectedIslands = val; _G.IslandRoundRobinIndex = 1 end }, "MoMo_IslandList")
+IslandSec:Toggle({ Name = "Enable Auto Island Farm", Default = MoMoConfig.AutoIsland, Callback = function(val) MoMoConfig.AutoIsland = val; if val then _G.IslandRoundRobinIndex = 1; _G.LastIslandTeleportTime = tick() end end }, "MoMo_AutoIsland")
+
+local HakiSec = tabs.AutoFarm:Section({ Side = "Left" })
+HakiSec:Header({ Name = "Setting Haki" })
+HakiSec:Toggle({ Name = "Auto Observation Haki", Default = MoMoConfig.AutoHaki, Callback = function(val) MoMoConfig.AutoHaki = val; _G.HakiIsActive = false end }, "MoMo_ObsHaki")
+HakiSec:Toggle({ Name = "Auto Armament Haki", Default = MoMoConfig.AutoArmamentHaki, Callback = function(val) MoMoConfig.AutoArmamentHaki = val; _G.ArmamentHakiIsActive = false end }, "MoMo_ArmHaki")
+
+-- ====== 2. Setting Farm Tab ======
+local CombatSec = tabs.SettingFarm:Section({ Side = "Left" })
+CombatSec:Header({ Name = "Combat Configuration" })
+CombatSec:Dropdown({ Name = "Select Weapon Type", Options = {"None", "Melee", "Sword"}, Default = 1, Callback = function(val) MoMoConfig.WeaponType = val end }, "MoMo_Weapon")
+CombatSec:Slider({ Name = "Farm Height", Default = MoMoConfig.FarmHeight, Minimum = -15, Maximum = 30, Precision = 1, DisplayMethod = "Value", Callback = function(val) MoMoConfig.FarmHeight = val end }, "MoMo_FarmHeight")
+
+local TweenSec = tabs.SettingFarm:Section({ Side = "Right" })
+TweenSec:Header({ Name = "Tween Movement" })
+TweenSec:Toggle({ Name = "Enable Auto Tween (Smooth Move)", Default = MoMoConfig.AutoTween, Callback = function(val) MoMoConfig.AutoTween = val end }, "MoMo_Tween")
+TweenSec:Slider({ Name = "Tween / Warp Speed", Default = MoMoConfig.TweenSpeed, Minimum = 100, Maximum = 150, Precision = 1, DisplayMethod = "Value", Callback = function(val) MoMoConfig.TweenSpeed = val end }, "MoMo_TweenSpd")
+
+local NoclipSec = tabs.SettingFarm:Section({ Side = "Left" })
+NoclipSec:Header({ Name = "No Clip" })
+NoclipSec:Toggle({ Name = "Enable No Clip", Default = MoMoConfig.NoClip, Callback = function(val) MoMoConfig.NoClip = val; if not val then local char = LP.Character; if char then for _, part in pairs(char:GetDescendants()) do if part:IsA("BasePart") then part.CanCollide = true end end end end end }, "MoMo_NoClip")
+
+local SkillSec = tabs.SettingFarm:Section({ Side = "Right" })
+SkillSec:Header({ Name = "Auto Skills" })
+SkillSec:Dropdown({ Name = "Select Skills to Use", Multi = true, Options = {"Z", "X", "C", "V", "F"}, Default = MoMoConfig.SelectedSkills, Callback = function(val) MoMoConfig.SelectedSkills = val end }, "MoMo_Skills")
+SkillSec:Toggle({ Name = "Enable Auto Skill", Default = MoMoConfig.AutoSkill, Callback = function(val) MoMoConfig.AutoSkill = val end }, "MoMo_AutoSkill")
+
+-- ====== 3. Boss Tab ======
+local ABossSec = tabs.Boss:Section({ Side = "Left" })
+ABossSec:Header({ Name = "Auto Boss Farm" })
+ABossSec:Dropdown({ Name = "Select Bosses", Multi = true, Options = BossList, Default = MoMoConfig.SelectedBosses, Callback = function(val) MoMoConfig.SelectedBosses = val; _G.BossRoundRobinIndex = 1 end }, "MoMo_BossList")
+ABossSec:Toggle({ Name = "Enable Auto Boss", Default = MoMoConfig.AutoBoss, Callback = function(val) MoMoConfig.AutoBoss = val; if val then _G.BossRoundRobinIndex = 1; _G.LastBossKilledTime = 0; _G.BossNoMobAfterTeleport = {} end end }, "MoMo_AutoBoss")
+
+local ASummonSec = tabs.Boss:Section({ Side = "Right" })
+ASummonSec:Header({ Name = "Auto Summon Boss" })
+ASummonSec:Dropdown({ Name = "Select Boss", Options = AllSummonBosses, Default = 1, Callback = function(val) MoMoConfig.SelectedSummonBoss = val end }, "MoMo_SummonBoss")
+ASummonSec:Dropdown({ Name = "Select Difficulty", Options = SummonBossDifficulties, Default = 1, Callback = function(val) MoMoConfig.SelectedSummonDiff = val end }, "MoMo_SummonDiff")
+ASummonSec:Toggle({ Name = "Enable Auto Summon Boss", Default = MoMoConfig.AutoSummon, Callback = function(val) MoMoConfig.AutoSummon = val; if val then _G.LastSummonTime = 0 end end }, "MoMo_AutoSummon")
+
+local AStrongSec = tabs.Boss:Section({ Side = "Left" })
+AStrongSec:Header({ Name = "Auto Strongest Boss" })
+AStrongSec:Dropdown({ Name = "Select Boss", Options = StrongestBossTypes, Default = 1, Callback = function(val) MoMoConfig.SelectedStrongestBoss = val end }, "MoMo_StrongestBoss")
+AStrongSec:Dropdown({ Name = "Select Difficulty", Options = StrongestBossDifficulties, Default = 1, Callback = function(val) MoMoConfig.SelectedStrongestDiff = val end }, "MoMo_StrongestDiff")
+AStrongSec:Toggle({ Name = "Enable Auto Strongest Boss", Default = MoMoConfig.AutoStrongestBoss, Callback = function(val) MoMoConfig.AutoStrongestBoss = val; if val then _G.LastStrongestBossSummonTime = 0; _G.StrongestBossPhase = "teleport" end end }, "MoMo_AutoStrongest")
+
+local AAizenSec = tabs.Boss:Section({ Side = "Right" })
+AAizenSec:Header({ Name = "Auto True Aizen" })
+AAizenSec:Dropdown({ Name = "Select Difficulty", Options = TrueAizenDifficulties, Default = 1, Callback = function(val) MoMoConfig.SelectedTrueAizenDiff = val end }, "MoMo_AizenDiff")
+AAizenSec:Toggle({ Name = "Enable Auto True Aizen", Default = MoMoConfig.AutoTrueAizen, Callback = function(val) MoMoConfig.AutoTrueAizen = val; if val then _G.LastTrueAizenSummonTime = 0; _G.TrueAizenPhase = "teleport" end end }, "MoMo_AutoAizen")
+
+local AAtomicSec = tabs.Boss:Section({ Side = "Left" })
+AAtomicSec:Header({ Name = "Auto Atomic Boss" })
+AAtomicSec:Dropdown({ Name = "Select Difficulty", Options = {"Normal", "Medium", "Hard", "Extreme"}, Default = 1, Callback = function(val) MoMoConfig.SelectedAtomicDiff = val end }, "MoMo_AtomicDiff")
+AAtomicSec:Toggle({ Name = "Enable Auto Atomic Boss", Default = MoMoConfig.AutoAtomicBoss, Callback = function(val) MoMoConfig.AutoAtomicBoss = val; if val then _G.LastAtomicSummonTime = 0; _G.AtomicBossPhase = "teleport" end end }, "MoMo_AutoAtomic")
+
+-- ====== 4. Dungeon Tab ======
+local ADunSec = tabs.Dungeon:Section({ Side = "Left" })
+ADunSec:Header({ Name = "Auto Dungeon Farm" })
+ADunSec:Dropdown({ Name = "Dungeon Type", Options = {"RuneDungeon", "CidDungeon", "DoubleDungeon", "BossRush"}, Default = 1, Callback = function(val) MoMoConfig.SelectedDungeonType = val end }, "MoMo_DunType")
+ADunSec:Dropdown({ Name = "Difficulty", Options = {"Easy", "Medium", "Hard", "Extreme"}, Default = 1, Callback = function(val) MoMoConfig.SelectedDungeonDiff = val end }, "MoMo_DunDiff")
+ADunSec:Toggle({ Name = "Enable Auto Dungeon", Default = MoMoConfig.AutoDungeon, Callback = function(val) MoMoConfig.AutoDungeon = val end }, "MoMo_AutoDungeon")
+
+local ADunRepSec = tabs.Dungeon:Section({ Side = "Right" })
+ADunRepSec:Header({ Name = "Auto Replay" })
+ADunRepSec:Toggle({ Name = "Enable Auto Replay Dungeon", Default = MoMoConfig.AutoReplayDungeon, Callback = function(val) MoMoConfig.AutoReplayDungeon = val end }, "MoMo_AutoRepDun")
+
+-- ====== 5. Tower Tab ======
+local ATowSec = tabs.Tower:Section({ Side = "Left" })
+ATowSec:Header({ Name = "Auto Infinite Tower" })
+ATowSec:Toggle({ Name = "Enable Auto Tower", Default = MoMoConfig.AutoTower, Callback = function(val) MoMoConfig.AutoTower = val; if val then MoMoNotify({Title = "Tower", Desc = "⚔️ Auto Tower เปิดทำงาน!", Time = 3}) end end }, "MoMo_AutoTower")
+
+local ATowResSec = tabs.Tower:Section({ Side = "Right" })
+ATowResSec:Header({ Name = "Auto Restart Settings" })
+ATowResSec:Toggle({ Name = "Enable Auto Restart at Floor", Default = MoMoConfig.AutoRestartTower, Callback = function(val) MoMoConfig.AutoRestartTower = val end }, "MoMo_AutoResTow")
+ATowResSec:Slider({ Name = "Target Floor to Restart", Default = MoMoConfig.RestartTowerFloor or 1, Minimum = 1, Maximum = 100, Precision = 0, DisplayMethod = "Value", Callback = function(val) MoMoConfig.RestartTowerFloor = math.floor(val) end }, "MoMo_ResTowFlr")
+
+local ATowLeavSec = tabs.Tower:Section({ Side = "Left" })
+ATowLeavSec:Header({ Name = "Auto Leave Settings" })
+ATowLeavSec:Toggle({ Name = "Enable Auto Leave at Floor", Default = MoMoConfig.AutoLeaveTower, Callback = function(val) MoMoConfig.AutoLeaveTower = val end }, "MoMo_AutoLeavTow")
+ATowLeavSec:Slider({ Name = "Target Floor to Leave", Default = MoMoConfig.TargetTowerFloor or 1, Minimum = 1, Maximum = 100, Precision = 0, DisplayMethod = "Value", Callback = function(val) MoMoConfig.TargetTowerFloor = math.floor(val) end }, "MoMo_LeavTowFlr")
+
+local ATowRepSec = tabs.Tower:Section({ Side = "Right" })
+ATowRepSec:Header({ Name = "Auto Replay" })
+ATowRepSec:Toggle({ Name = "Enable Auto Replay Tower", Default = MoMoConfig.AutoReplayTower, Callback = function(val) MoMoConfig.AutoReplayTower = val end }, "MoMo_AutoRepTow")
+
+-- ====== 6. Quest Tab ======
+local AQSec = tabs.Quest:Section({ Side = "Left" })
+AQSec:Header({ Name = "Auto Hogyoku Quest (Lv 8500+)" })
+AQSec:Toggle({ Name = "Enable Auto Hogyoku Quest", Default = MoMoConfig.AutoHogyokuQuest, Callback = function(val) MoMoConfig.AutoHogyokuQuest = val; if val then _G.HogyokuQuestPhase = "teleportToHueco"; _G.HogyokuSearchTarget = nil; _G.IslandRoundRobinIndex = 1; _G.CollectedHogyokuFragments = {} end end }, "MoMo_Hogyoku")
+
+-- ====== 7. Stats Tab ======
+local PntSec = tabs.Stats:Section({ Side = "Left" })
+PntSec:Header({ Name = "Points Configuration" })
+PntSec:Slider({ Name = "Points Per Tick", Default = MoMoConfig.StatAmount, Minimum = 1, Maximum = 100, Precision = 1, DisplayMethod = "Value", Callback = function(val) MoMoConfig.StatAmount = val end }, "MoMo_StatAmt")
+
+local UpSec = tabs.Stats:Section({ Side = "Right" })
+UpSec:Header({ Name = "Select Stats to Upgrade" })
+UpSec:Dropdown({ Name = "Select Categories", Multi = true, Options = {"Melee", "Defense", "Sword", "Power"}, Default = MoMoConfig.SelectedStats, Callback = function(val) MoMoConfig.SelectedStats = val end }, "MoMo_StatList")
+UpSec:Toggle({ Name = "Enable Auto Stats", Default = MoMoConfig.AutoStats, Callback = function(val) MoMoConfig.AutoStats = val end }, "MoMo_AutoStats")
+
+-- ====== 8. Shop Tab ======
+local MerchSec = tabs.Shop:Section({ Side = "Left" })
+MerchSec:Header({ Name = "Auto Merchant Settings" })
+MerchSec:Dropdown({ Name = "Select Items", Multi = true, Options = MerchantItemsList, Default = MoMoConfig.SelectedMerchantItems, Callback = function(val) MoMoConfig.SelectedMerchantItems = val end }, "MoMo_MerchList")
+MerchSec:Input({ Name = "Amount to Buy", Default = tostring(MoMoConfig.MerchantAmount or 1), Placeholder = "Enter Amount...", Callback = function(val) MoMoConfig.MerchantAmount = tonumber(val) or 1 end }, "MoMo_MerchAmt")
+MerchSec:Toggle({ Name = "Enable Auto Buy Merchant", Default = MoMoConfig.AutoMerchant, Callback = function(val) MoMoConfig.AutoMerchant = val end }, "MoMo_AutoMerch")
+
+local ChestSec = tabs.Shop:Section({ Side = "Right" })
+ChestSec:Header({ Name = "Auto Chest Settings" })
+ChestSec:Dropdown({ Name = "Select Chests", Multi = true, Options = ChestsList, Default = MoMoConfig.SelectedChests, Callback = function(val) MoMoConfig.SelectedChests = val end }, "MoMo_ChestList")
+ChestSec:Input({ Name = "Amount to Open", Default = tostring(MoMoConfig.ChestAmount or 1), Placeholder = "Enter Amount...", Callback = function(val) MoMoConfig.ChestAmount = tonumber(val) or 1 end }, "MoMo_ChestAmt")
+ChestSec:Toggle({ Name = "Enable Auto Chest", Default = MoMoConfig.AutoChest, Callback = function(val) MoMoConfig.AutoChest = val end }, "MoMo_AutoChest")
+
+-- ====== 9. Settings Tab ======
+local PerfSec = tabs.Settings:Section({ Side = "Left" })
+PerfSec:Header({ Name = "Performance" })
+PerfSec:Toggle({ Name = "Enable FPS Boost (Smooth Plastic)", Default = MoMoConfig.AutoFpsBoost, Callback = function(val) MoMoConfig.AutoFpsBoost = val; if val then ApplyFpsBoost(); MoMoNotify({Title = "FPS Boost", Desc = "🚀 FPS Boost Enabled!", Time = 3}) else MoMoNotify({Title = "FPS Boost", Desc = "⚠️ Rejoin to restore graphics", Time = 4}) end end }, "MoMo_FpsBoost")
+
+local PlSec = tabs.Settings:Section({ Side = "Right" })
+PlSec:Header({ Name = "Local Player" })
+PlSec:Slider({ Name = "WalkSpeed", Default = MoMoConfig.WalkSpeed, Minimum = 16, Maximum = 250, Precision = 1, DisplayMethod = "Value", Callback = function(val) MoMoConfig.WalkSpeed = val; if not MoMoConfig.BypassTP and LP.Character and LP.Character:FindFirstChild("Humanoid") then LP.Character.Humanoid.WalkSpeed = val end end }, "MoMo_WalkSpd")
+PlSec:Slider({ Name = "JumpPower", Default = MoMoConfig.JumpPower, Minimum = 50, Maximum = 300, Precision = 1, DisplayMethod = "Value", Callback = function(val) MoMoConfig.JumpPower = val; if not MoMoConfig.BypassTP and LP.Character and LP.Character:FindFirstChild("Humanoid") then LP.Character.Humanoid.JumpPower = val end end }, "MoMo_JumpPwr")
+
+local AntiAfkConnection
+PlSec:Toggle({ Name = "Anti-AFK", Default = MoMoConfig.AntiAFK, Callback = function(State) MoMoConfig.AntiAFK = State; if State then AntiAfkConnection = LP.Idled:Connect(function() VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame); task.wait(1); VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame) end) else if AntiAfkConnection then AntiAfkConnection:Disconnect(); AntiAfkConnection = nil end end end }, "MoMo_AntiAFK")
+PlSec:Toggle({ Name = "Auto Rejoin", Default = MoMoConfig.AutoRejoin, Callback = function(val) MoMoConfig.AutoRejoin = val end }, "MoMo_AutoRejoin")
+
+local DisSec = tabs.Settings:Section({ Side = "Left" })
+DisSec:Header({ Name = "Discord" })
+DisSec:Button({ Name = "Join Discord", Callback = function() if setclipboard then setclipboard("https://discord.gg/k2wdyy8QMN"); MoMoNotify({Title = "MoMoHub", Desc = "Discord link copied!", Time = 3}) end end })
+
+-- ==========================================
+-- 🛠️ Advanced Config Manager (Delete & Reset)
+-- ==========================================
+local ConfigFolder = "MoMoHub"
+local selectedConfigToDelete = "None"
+local configDeleteDropdown
+
+local AdvConfigSec = tabs.Settings:Section({ Side = "Left" })
+
+AdvConfigSec:Header({
+    Name = "Advanced Config Utilities"
+})
+
+local function getConfigList()
+    local files = {}
+
+    if listfiles and isfolder and isfolder(ConfigFolder) then
         pcall(function()
-            -- 1. เจาะเข้าไปที่หน้าต่าง hotbarGui
-            local gui = LocalPlayer.PlayerGui:FindFirstChild("hotbarGui")
-            
-            -- 2. สแกนหา Object ที่ชื่อ "yen" แบบเจาะลึกทุกชั้น (true)
-            local yenNode = gui and gui:FindFirstChild("yen", true)
-            
-            if yenNode then
-                -- 3. หา TextLabel ที่ชื่อ "value"
-                local label = yenNode:FindFirstChild("value")
-                if label and label:IsA("TextLabel") then
-                    -- 4. ใช้ %D เพื่อล้าง "ทุกอย่าง" ที่ไม่ใช่ตัวเลข (ลบลูกน้ำ, ช่องว่าง, ตัวอักษร)
-                    local cleanNumber = label.Text:gsub("%D", "")
-                    m = tonumber(cleanNumber) or 0
+            for _, file in ipairs(listfiles(ConfigFolder)) do
+                if type(file) == "string" and file:match("%.json$") then
+                    local name = file:match("([^/\\]+)%.json$")
+                    if name then
+                        table.insert(files, name)
+                    end
                 end
             end
         end)
-        return m
     end
 
-    local function getDeckUUIDs()
-        local deck = {}
-        pcall(function()
-            local container = LocalPlayer.PlayerGui.hotbarGui.scalingFrame.background.container
-            for _, slot in pairs(container:GetChildren()) do
-                -- 1. สกัดเลข Slot
-                local slotStr = slot.Name:match("%d+") 
-                local slotNum = slotStr and tonumber(slotStr) or nil
-                
-                -- 2. ดึง UUID
-                local uuid = slot:GetAttribute("heroUUID")
-                
-                if uuid and slotNum then
-                    local cost = 0
-                    
-                    -- 🌟 3. ดึงราคาจาก Object "PlacementPrice" ที่เราสแกนเจอ
-                    local priceLabel = slot:FindFirstChild("PlacementPrice", true)
-                    if priceLabel and priceLabel:IsA("TextLabel") then
-                        -- ใช้ gsub("%D", "") เพื่อลบอักษรทุกตัวที่ไม่ใช่ตัวเลขออก (ลบ ¥ และ ,)
-                        cost = tonumber(priceLabel.Text:gsub("%D", "")) or 0
-                    end
-                    
-                    -- 4. ตั้งชื่อจำลอง (เพราะเกมไม่มี Text ชื่อตัวละคร)
-                    local unitName = "Unit " .. slotNum
-                    
-                    table.insert(deck, {UUID = uuid, Cost = cost, Slot = slotNum, Name = unitName})
-                end
-            end
-        end)
-        return deck
+    table.sort(files, function(a, b)
+        return tostring(a):lower() < tostring(b):lower()
+    end)
+
+    if #files == 0 then
+        return {"None"}
     end
 
-    -- =========================================================
-    -- [PATH PATCH V2] Replace old getPathFolder/getProgressScore
-    -- =========================================================
+    return files
+end
 
-    local _cachedPathFolder = nil
-    local _cachedPathFolderAt = 0
-    local _cachedWaypointMap = setmetatable({}, { __mode = "k" })
+local function refreshConfigDeleteDropdown(forceSelection)
+    local currentList = getConfigList()
 
-    local function _extractNumericOrder(name)
-        if not name then return nil end
-        return tonumber(name) or tonumber(tostring(name):match("(%d+)"))
-    end
-
-    local function _getObjectWorldPosition(obj)
-        if not obj then return nil end
-
-        if obj:IsA("BasePart") then
-            return obj.Position
-        elseif obj:IsA("Attachment") then
-            return obj.WorldPosition
-        elseif obj:IsA("Model") then
-            local primary = obj.PrimaryPart
-            if primary then
-                return primary.Position
-            end
-            local ok, pivot = pcall(function()
-                return obj:GetPivot()
-            end)
-            if ok and pivot then
-                return pivot.Position
-            end
-        end
-
-        return nil
-    end
-
-    local function _collectWaypointCandidates(container, results, visited)
-        if not container or visited[container] then return end
-        visited[container] = true
-
-        for _, child in ipairs(container:GetChildren()) do
-            local pos = _getObjectWorldPosition(child)
-            local lowerName = child.Name:lower()
-
-            if pos then
-                local order = _extractNumericOrder(child.Name)
-                local looksLikeWaypoint =
-                    order ~= nil or
-                    lowerName:find("way") or
-                    lowerName:find("node") or
-                    lowerName:find("point") or
-                    lowerName:find("wp")
-
-                if looksLikeWaypoint then
-                    table.insert(results, {
-                        obj = child,
-                        pos = pos,
-                        order = order,
-                        name = child.Name
-                    })
-                end
-            end
-
-            if child:IsA("Folder") or child:IsA("Model") then
-                _collectWaypointCandidates(child, results, visited)
-            end
-        end
-    end
-
-    local function _getOrderedWaypoints(pathFolder)
-        if not pathFolder then
-            return {}
-        end
-
-        local cached = _cachedWaypointMap[pathFolder]
-        if cached and cached.parent == pathFolder and tick() - cached.time < 3 then
-            return cached.points
-        end
-
-        local raw = {}
-        _collectWaypointCandidates(pathFolder, raw, {})
-
-        if #raw == 0 then
-            _cachedWaypointMap[pathFolder] = {
-                parent = pathFolder,
-                points = {},
-                time = tick()
-            }
-            return {}
-        end
-
-        local numericCount = 0
-        for _, item in ipairs(raw) do
-            if item.order ~= nil then
-                numericCount += 1
-            end
-        end
-
-        if numericCount >= math.max(2, math.floor(#raw * 0.35)) then
-            table.sort(raw, function(a, b)
-                local ao = a.order or math.huge
-                local bo = b.order or math.huge
-                if ao == bo then
-                    return a.name < b.name
-                end
-                return ao < bo
-            end)
-        else
-            -- fallback: nearest-neighbor chain from a reasonable start point
-            local startIndex = 1
-            for i, item in ipairs(raw) do
-                local lowerName = item.name:lower()
-                if lowerName:find("start") or lowerName == "0" or lowerName == "1" then
-                    startIndex = i
-                    break
-                end
-            end
-
-            local ordered = {}
-            local used = {}
-            local current = raw[startIndex]
-            table.insert(ordered, current)
-            used[startIndex] = true
-
-            for _ = 2, #raw do
-                local bestIdx, bestDist = nil, math.huge
-                for i, item in ipairs(raw) do
-                    if not used[i] then
-                        local dist = (item.pos - current.pos).Magnitude
-                        if dist < bestDist then
-                            bestDist = dist
-                            bestIdx = i
-                        end
-                    end
-                end
-
-                if not bestIdx then break end
-                current = raw[bestIdx]
-                used[bestIdx] = true
-                table.insert(ordered, current)
-            end
-
-            raw = ordered
-        end
-
-        _cachedWaypointMap[pathFolder] = {
-            parent = pathFolder,
-            points = raw,
-            time = tick()
-        }
-
-        return raw
-    end
-
-    local function _countDirectPosChildren(obj)
-        if not obj then return 0 end
-        local count = 0
-        for _, child in ipairs(obj:GetChildren()) do
-            if _getObjectWorldPosition(child) then
-                count += 1
-            end
-        end
-        return count
-    end
-
-    local function getPathFolder(forceRefresh)
-        if not forceRefresh and _cachedPathFolder and _cachedPathFolder.Parent and tick() - _cachedPathFolderAt < 3 then
-            return _cachedPathFolder
-        end
-
-        local candidates = {}
-
-        local function consider(obj, bonus)
-            if not obj then return end
-
-            local lowerName = obj.Name:lower()
-            local score = 0
-            local directCount = _countDirectPosChildren(obj)
-            local orderedCount = #_getOrderedWaypoints(obj)
-
-            if lowerName == "path" or lowerName == "paths" or lowerName == "waypoints" then
-                score += 120
-            elseif lowerName:find("path") or lowerName:find("way") or lowerName:find("track") then
-                score += 80
-            end
-
-            score += directCount * 6
-            score += orderedCount * 10
-            score += (bonus or 0)
-
-            if orderedCount >= 3 then
-                table.insert(candidates, {
-                    obj = obj,
-                    score = score
-                })
-            end
-        end
-
-        local roots = {
-            workspace,
-            workspace:FindFirstChild("map"),
-            workspace:FindFirstChild("Map"),
-            workspace:FindFirstChild("workspace"),
-            workspace:FindFirstChild("Workspace"),
-        }
-
-        for _, root in ipairs(roots) do
-            if root then
-                consider(root:FindFirstChild("path"), 50)
-                consider(root:FindFirstChild("Path"), 50)
-                consider(root:FindFirstChild("paths"), 45)
-                consider(root:FindFirstChild("Paths"), 45)
-                consider(root:FindFirstChild("waypoints"), 40)
-                consider(root:FindFirstChild("Waypoints"), 40)
-
-                for _, d in ipairs(root:GetDescendants()) do
-                    if d:IsA("Folder") or d:IsA("Model") then
-                        consider(d, 0)
-                    end
-                end
-            end
-        end
-
-        table.sort(candidates, function(a, b)
-            return a.score > b.score
-        end)
-
-        _cachedPathFolder = candidates[1] and candidates[1].obj or nil
-        _cachedPathFolderAt = tick()
-
-        if _cachedPathFolder then
-            local pts = _getOrderedWaypoints(_cachedPathFolder)
-            print("[PathPatch] Selected path folder:", _cachedPathFolder:GetFullName(), "| waypoints =", #pts)
-        else
-            warn("[PathPatch] No valid path folder found")
-        end
-
-        return _cachedPathFolder
-    end
-
-    local function getProgressScore(worldPos, pathFolder)
-        if not worldPos then
-            return -1
-        end
-
-        pathFolder = pathFolder or getPathFolder()
-        if not pathFolder then
-            return -1
-        end
-
-        local waypoints = _getOrderedWaypoints(pathFolder)
-        if #waypoints == 0 then
-            return -1
-        end
-
-        if #waypoints == 1 then
-            return 0
-        end
-
-        local bestSegmentIndex = 1
-        local bestDistance = math.huge
-        local bestT = 0
-
-        for i = 1, #waypoints - 1 do
-            local a = waypoints[i].pos
-            local b = waypoints[i + 1].pos
-            local ab = b - a
-            local ap = worldPos - a
-
-            local abLenSq = ab:Dot(ab)
-            local t = 0
-            if abLenSq > 0 then
-                t = math.clamp(ap:Dot(ab) / abLenSq, 0, 1)
-            end
-
-            local closest = a + ab * t
-            local dist = (worldPos - closest).Magnitude
-
-            if dist < bestDistance then
-                bestDistance = dist
-                bestSegmentIndex = i
-                bestT = t
-            end
-        end
-
-        -- progress เป็นเลขต่อเนื่อง: segment index + offset ใน segment
-        return (bestSegmentIndex - 1) + bestT
-    end
-
-    -- 4. หาจุดวางป้อม (ล็อกเป้ามอนสเตอร์ที่คะแนนจุดตรวจ "สูงสุด")
-    local function findSpot()
-        local map = workspace:FindFirstChild("mapFolder") or workspace:FindFirstChild("Map")
-        local areas = map and map:FindFirstChild("PlaceAreas")
-        local pathFolder = getPathFolder()
-        
-        if not areas or not pathFolder then return nil, "ไม่เจอ PlaceAreas หรือ PathFolder" end
-
-        local targetEnemy = nil
-        local maxProgress = -1
-        local enemies = workspace:FindFirstChild("enemiesModels")
-        
-        -- 🌟 [New Logic]: หามอนสเตอร์ที่คะแนน Waypoint สูงที่สุด (หัวขบวน)
-        if enemies then
-            for _, e in pairs(enemies:GetChildren()) do
-                local hrp = e:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local prog = getProgressScore(hrp.Position, pathFolder)
-                    if prog > maxProgress then
-                        maxProgress = prog
-                        targetEnemy = e
-                    end
-                end
-            end
-        end
-
-        if not targetEnemy or not targetEnemy:FindFirstChild("HumanoidRootPart") then return nil, "ไม่มีมอนสเตอร์บนแมพ" end
-
-        local enemyHRP = targetEnemy.HumanoidRootPart
-        
-        -- สุ่มจุดวาง 360 องศารอบตัวมอนสเตอร์ (แก้บั๊กจุดซ้ำ)
-        local checkRadius = math.random(4, 9)
-        local angle = math.random(0, 360)
-        local rad = math.rad(angle)
-        local randomOffset = Vector3.new(math.cos(rad) * checkRadius, 0, math.sin(rad) * checkRadius)
-        local checkPos = enemyHRP.Position + randomOffset
-
-        for _, pType in ipairs({"ground", "air"}) do
-            local folder = areas:FindFirstChild(pType)
-            if folder then
-                local rP = RaycastParams.new()
-                rP.FilterType = Enum.RaycastFilterType.Include
-                rP.FilterDescendantsInstances = {folder}
-
-                local res = workspace:Raycast(checkPos + Vector3.new(0, 50, 0), Vector3.new(0, -100, 0), rP)
-
-                if res then
-                    local cf = CFrame.new(res.Position + Vector3.new(0, 1, 0))
-                    local occupied = false
-                    
-                    for _, p in pairs(workspace:GetPartBoundsInBox(cf, Vector3.new(3.5, 3.5, 3.5))) do
-                        if p.Parent and p.Parent.Name:match("^tower%-") then occupied = true break end
-                    end
-                    
-                    if not occupied then 
-                        pcall(function()
-                            local p = Instance.new("Part", workspace)
-                            p.Size, p.Color, p.Anchored, p.CanCollide = Vector3.new(1.5,1.5,1.5), Color3.fromRGB(0,255,100), true, false
-                            p.CFrame = cf
-                            game.Debris:AddItem(p, 1.5)
-                        end)
-                        return cf, pType 
-                    end
-                end
-            end
-        end
-        return nil, "สุ่มจุดแล้วแต่พื้นที่ไม่ว่าง"
-    end
-
-    -- 🧠 สมุดบัญชีจำแนกตัวฟาร์ม (พิกัด)
-    local farmPositions = {} 
-
-    -- 🚜 ฟังก์ชันหาพื้นที่ฟาร์ม (หลบฉากอยู่หลังยานอวกาศ ไม่แย่งที่แนวหน้า)
-    local function findFarmSpot()
-        local map = workspace:FindFirstChild("mapFolder") or workspace:FindFirstChild("Map")
-        local areas = map and map:FindFirstChild("PlaceAreas")
-        if not areas then return nil end
-
-        local base = workspace:FindFirstChild("Base") or workspace:FindFirstChild("base")
-        local basePos = base and base.Position or Vector3.new(0,0,0)
-
-        -- สุ่มระยะให้ไกลจากฐาน (20-40 เมตร) เพื่อหลบเส้นทางมอนสเตอร์
-        local checkRadius = math.random(20, 40) 
-        local angle = math.random(0, 360)
-        local checkPos = basePos + Vector3.new(math.cos(math.rad(angle)) * checkRadius, 0, math.sin(math.rad(angle)) * checkRadius)
-
-        local groundFolder = areas:FindFirstChild("ground")
-        if groundFolder then
-            local rP = RaycastParams.new()
-            rP.FilterType = Enum.RaycastFilterType.Include
-            rP.FilterDescendantsInstances = {groundFolder}
-
-            local res = workspace:Raycast(checkPos + Vector3.new(0, 50, 0), Vector3.new(0, -100, 0), rP)
-            if res then
-                local cf = CFrame.new(res.Position + Vector3.new(0, 1, 0))
-                local occupied = false
-                for _, p in pairs(workspace:GetPartBoundsInBox(cf, Vector3.new(3.5, 3.5, 3.5))) do
-                    if p.Parent and p.Parent.Name:match("^tower%-") then occupied = true break end
-                end
-                if not occupied then return cf end
-            end
-        end
-        return nil
-    end
-
-    -- 5. ตรวจจับมอนหลุดแนว (เปรียบเทียบคะแนน ป้อม VS มอนสเตอร์)
-    -- 5. ตรวจจับมอนหลุดแนว (ระบบผสม V.PRO: จุดตรวจ + สายวัดระยะห่างฟิสิกส์)
-    local function isDefenseBreached()
-        local pathFolder = getPathFolder()
-        if not pathFolder then return true end 
-
-        local placedFolder = workspace:FindFirstChild("placedTowers")
-        if not placedFolder or #placedFolder:GetChildren() == 0 then 
-            return true 
-        end
-
-        -- 🌟 หาคะแนนป้อมที่ด่านหน้าสุด พร้อม "จำพิกัด" เอาไว้
-        local maxTowerProgress = -1
-        local frontTowerPos = nil
-        for _, obj in pairs(placedFolder:GetChildren()) do
-            if obj:IsA("Model") and obj.Name:match("^tower%-") then
-                local pos = obj:GetPivot().Position
-                local prog = getProgressScore(pos, pathFolder)
-                if prog > maxTowerProgress then 
-                    maxTowerProgress = prog 
-                    frontTowerPos = pos
-                end
-            end
-        end
-
-        -- 🌟 หาคะแนนมอนสเตอร์หัวขบวน พร้อม "จำพิกัด" เอาไว้
-        local maxEnemyProgress = -1
-        local frontEnemyPos = nil
-        local enemies = workspace:FindFirstChild("enemiesModels")
-        if enemies then
-            for _, e in pairs(enemies:GetChildren()) do
-                local hrp = e:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local prog = getProgressScore(hrp.Position, pathFolder)
-                    if prog > maxEnemyProgress then 
-                        maxEnemyProgress = prog 
-                        frontEnemyPos = hrp.Position
-                    end
-                end
-            end
-        end
-
-        -- 🚨 การตัดสินใจ (The Hybrid Verdict)
-        if maxEnemyProgress > maxTowerProgress then 
-            -- กรณี 1: มอนเดินข้ามไปโซนเสาต้นใหม่แล้ว = หลุดแน่นอน วางดักเลย!
-            return true 
-        elseif maxEnemyProgress == maxTowerProgress and frontTowerPos and frontEnemyPos then
-            -- กรณี 2: มอนอยู่โซนเสาเดียวกับป้อม ให้ควัก "ตลับเมตร" ออกมาวัด!
-            local dist = (frontEnemyPos - frontTowerPos).Magnitude
-            
-            -- 📏 จุดปรับแต่งระยะห่าง: ถ้ามอนเดินห่างจากป้อมสุดท้ายเกิน X เมตร ให้วางป้อมใหม่
-            if dist > 15 then 
-                return true
-            end
-        end
-        
-        return false
-    end
-
-    local placedTracking = {0, 0, 0, 0, 0, 0}
-    local lastJoinAttempt = 0
-
-    -- [Auto Join Logic]
-    -- 🛑 ย้าย roomsReliable ไปดึงค่าตอนจะใช้งานเท่านั้น เพื่อกันสคริปต์ค้าง!
-    local mapList = {
-        ["Ninja Leaf"] = "\003\n\t\000ninjaLeaf",
-        ["Marine Fortress"] = "\003\v\014\000marineFortress",
-        ["Namok"] = "\003\f\005\000namok",
-        ["Sky Island"] = "\003\r\t\000skyIsland",
-        ["Cursed Arena"] = "\003\014\v\000cursedArena"
-    }
-
-    local difficultyList = {
-        ["Normal"] = "\004\n\006\000normal",
-        ["Nightmare"] = "\004\r\t\000nightmare"
-    }
-
-    local legendModeString = "\004\025\a\000legends"
-    local requestCounter = 100 
-
-    local function isInLobby()
-        local inLobby = workspace:FindFirstChild("StoryDoor") ~= nil
-        return inLobby
-    end
-
-    local function isRoomUIVisible()
+    if forceSelection and forceSelection ~= "" then
         local found = false
-        pcall(function()
-            for _, gui in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
-                if (gui:IsA("TextLabel") or gui:IsA("TextButton")) and gui.Text:upper() == "CREATE MATCH" then
-                    local current = gui
-                    local trulyVisible = true
-                    while current and current.Parent do
-                        if current:IsA("GuiObject") and not current.Visible then
-                            trulyVisible = false
-                            break
-                        elseif current:IsA("ScreenGui") and not current.Enabled then
-                            trulyVisible = false
-                            break
-                        end
-                        current = current.Parent
-                    end
-                    if trulyVisible then found = true break end
-                end
-            end
-        end)
-        return found
-    end
-
-    local function AutoJoinMatch(targetMode, targetMapName, targetAct, targetDifficulty)
-        targetMode = targetMode or "Story"
-        targetMapName = targetMapName or "Ninja Leaf"
-        targetAct = tonumber(targetAct) or 1
-        targetDifficulty = targetDifficulty or "Normal"
-
-        if not mapList[targetMapName] then return end
-        if targetMode == "Legend" and targetAct > 3 then targetAct = 3 end
-
-        -- ดึงค่า Remote ตรงนี้แทน เพื่อไม่ให้ Error ถ้าวิ่งอยู่ในด่าน
-        local rooms = ReplicatedStorage:FindFirstChild("rooms")
-        local roomsReliable = rooms and rooms:FindFirstChild("rooms_RELIABLE")
-        if not roomsReliable then warn("❌ [System Error] หา Remote สร้างห้องไม่เจอ!") return end
-
-        if isInLobby() then
-            local storyDoors = workspace:FindFirstChild("StoryDoor")
-            local enteredRoom = false
-            
-            if storyDoors then
-                for i = 1, 10 do
-                    local doorName = string.format("%03d", i)
-                    local doorFolder = storyDoors:FindFirstChild(doorName)
-                    local doorPart = doorFolder and doorFolder:FindFirstChild("Door")
-                    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    
-                    if hrp and doorPart then
-                        hrp.CFrame = doorPart.CFrame
-                        if firetouchinterest then
-                            firetouchinterest(hrp, doorPart, 0)
-                            task.wait(0.1)
-                            firetouchinterest(hrp, doorPart, 1)
-                        end
-                        task.wait(1.5) 
-                        
-                        if isRoomUIVisible() then 
-                            enteredRoom = true
-                            break 
-                        end
-                    end
-                end
-            end
-            
-            if enteredRoom or isRoomUIVisible() then
-                roomsReliable:FireServer(buffer.fromstring("\b\a\001"), {})
-                task.wait(2.5)
-                
-                if targetMode == "Legend" then
-                    roomsReliable:FireServer(buffer.fromstring(legendModeString), {})
-                else
-                    if difficultyList[targetDifficulty] then 
-                        roomsReliable:FireServer(buffer.fromstring(difficultyList[targetDifficulty]), {}) 
-                    end
-                end
-                task.wait(1)
-
-                roomsReliable:FireServer(buffer.fromstring(mapList[targetMapName]), {})
-                task.wait(1)
-                
-                requestCounter = (requestCounter + 1) % 256
-                local actString = string.char(2, requestCounter, targetAct)
-                roomsReliable:FireServer(buffer.fromstring(actString), {})
-                task.wait(1)
-                
-                roomsReliable:FireServer(buffer.fromstring("\001!\001"), {})
-                task.wait(2.5) 
-                
-                roomsReliable:FireServer(buffer.fromstring("\005\004"), {}) 
-            end
-        end
-    end
-
-
-    -- =========================================================
-    -- SMART AUTO PLAY RESET : FARM-FIRST / PRIORITY-FIRST
-    -- Replace old Auto Play block with this whole section
-    -- =========================================================
-
-    local recentFailedSpots = {}
-
-    local lastAutoActionAt = 0
-    local lastPlaceAttemptAt = 0
-    local lastFarmAttemptAt = 0
-    local lastUpgradeBurstAt = 0
-    local placementFailStreak = 0
-    local lastJoinAttempt = 0
-
-    local AUTO_LOOP_INTERVAL = 0.6
-    local GLOBAL_ACTION_COOLDOWN = 0.25
-    local PLACE_COOLDOWN = 0.75
-    local FARM_COOLDOWN = 0.75
-    local UPGRADE_BURST_COOLDOWN = 0.4
-    local FAIL_BACKOFF_BASE = 0.5
-    local FAIL_BACKOFF_MAX = 2.0
-
-    local function getFailBackoff()
-        return math.min(FAIL_BACKOFF_BASE + (placementFailStreak * 0.25), FAIL_BACKOFF_MAX)
-    end
-
-    local function canDoGlobalAction()
-        return (tick() - lastAutoActionAt) >= GLOBAL_ACTION_COOLDOWN
-    end
-
-    local function markGlobalAction()
-        lastAutoActionAt = tick()
-    end
-
-    local function canAttemptFarm()
-        return (tick() - lastFarmAttemptAt) >= FARM_COOLDOWN and canDoGlobalAction()
-    end
-
-    local function canAttemptPlacement()
-        return (tick() - lastPlaceAttemptAt) >= (PLACE_COOLDOWN + getFailBackoff()) and canDoGlobalAction()
-    end
-
-    local function canBurstUpgrade()
-        return (tick() - lastUpgradeBurstAt) >= UPGRADE_BURST_COOLDOWN and canDoGlobalAction()
-    end
-
-    local function markFarmAttempt(success)
-        lastFarmAttemptAt = tick()
-        markGlobalAction()
-        if success then
-            placementFailStreak = 0
-        else
-            placementFailStreak += 1
-        end
-    end
-
-    local function markPlacementAttempt(success)
-        lastPlaceAttemptAt = tick()
-        markGlobalAction()
-        if success then
-            placementFailStreak = 0
-        else
-            placementFailStreak += 1
-        end
-    end
-
-    local function markUpgradeBurst()
-        lastUpgradeBurstAt = tick()
-        markGlobalAction()
-    end
-
-    local function trimFailedSpots()
-        local now = tick()
-        local kept = {}
-        for _, item in ipairs(recentFailedSpots) do
-            if now - item.t < 8 then
-                table.insert(kept, item)
-            end
-        end
-        recentFailedSpots = kept
-    end
-
-    local function markFailedSpot(pos)
-        if pos then
-            table.insert(recentFailedSpots, {pos = pos, t = tick()})
-        end
-    end
-
-    local function isNearFailedSpot(pos, radius)
-        radius = radius or 4
-        trimFailedSpots()
-        for _, item in ipairs(recentFailedSpots) do
-            if (item.pos - pos).Magnitude <= radius then
-                return true
-            end
-        end
-        return false
-    end
-
-    local function softResync()
-        local placedFolder = workspace:FindFirstChild("placedTowers")
-        local liveCount = placedFolder and #placedFolder:GetChildren() or 0
-        local tracked = 0
-
-        for i = 1, 6 do
-            tracked += (placedTracking[i] or 0)
-        end
-
-        if liveCount == 0 then
-            placedTracking = {0, 0, 0, 0, 0, 0}
-            farmPositions = {}
-            recentFailedSpots = {}
-            placementFailStreak = 0
-            lastAutoActionAt = 0
-            lastPlaceAttemptAt = 0
-            lastFarmAttemptAt = 0
-            lastUpgradeBurstAt = 0
-            return
-        end
-
-        if tracked > liveCount + 2 then
-            placedTracking = {0, 0, 0, 0, 0, 0}
-            farmPositions = {}
-            recentFailedSpots = {}
-            placementFailStreak = 0
-            print("♻️ [ResetAI] Tracking desync detected, reset local counters.")
-        end
-    end
-
-    local function getDeckCardBySlot(deck, slot)
-        for _, card in ipairs(deck) do
-            if card.Slot == slot then
-                return card
-            end
-        end
-        return nil
-    end
-
-    local function getOrderedPriorityCards(deck, farmSlot)
-        local result = {}
-
-        for _, slotNum in ipairs(MoMoConfig.UnitPriority) do
-            if slotNum ~= farmSlot then
-                local card = getDeckCardBySlot(deck, slotNum)
-                if card then
-                    table.insert(result, card)
-                end
-            end
-        end
-
-        for _, card in ipairs(deck) do
-            local exists = false
-            for _, picked in ipairs(result) do
-                if picked.Slot == card.Slot then
-                    exists = true
-                    break
-                end
-            end
-            if not exists and card.Slot ~= farmSlot then
-                table.insert(result, card)
-            end
-        end
-
-        return result
-    end
-
-    local function classifyPlacedTowers()
-        local attackTowers = {}
-        local farmTowers = {}
-        local placedFolder = workspace:FindFirstChild("placedTowers")
-
-        if placedFolder then
-            for _, obj in pairs(placedFolder:GetChildren()) do
-                if obj:IsA("Model") and obj.Name:match("^tower%-") then
-                    local pos = obj:GetPivot().Position
-                    local isFarm = false
-
-                    for _, fPos in ipairs(farmPositions) do
-                        if (pos - fPos).Magnitude < 3 then
-                            isFarm = true
-                            break
-                        end
-                    end
-
-                    if isFarm then
-                        table.insert(farmTowers, obj)
-                    else
-                        table.insert(attackTowers, obj)
-                    end
-                end
-            end
-        end
-
-        return attackTowers, farmTowers, placedFolder
-    end
-
-    local function getLatestEnemyAnchor()
-        local enemies = workspace:FindFirstChild("enemiesModels")
-        if not enemies then
-            return nil, nil
-        end
-
-        local bestEnemy = nil
-        local bestPos = nil
-        local bestScore = -math.huge
-
-        for _, enemy in ipairs(enemies:GetChildren()) do
-            local hrp = enemy:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local pos = hrp.Position
-
-                -- heuristic ง่าย ๆ: ใช้แกน Z เป็นตัวประมาณ "ตัวที่อยู่หน้าสุด"
-                -- ถ้าแมพไหนทิศทางเดินไม่ใช่ Z ค่อยเปลี่ยน logic นี้ทีหลัง
-                if pos.Z > bestScore then
-                    bestScore = pos.Z
-                    bestEnemy = enemy
-                    bestPos = pos
-                end
-            end
-        end
-
-        return bestEnemy, bestPos
-    end
-
-    local function findSpotNearLatestEnemy(minDist, maxDist, tries)
-        minDist = minDist or 5
-        maxDist = maxDist or 18
-        tries = tries or 10
-
-        local _, enemyPos = getLatestEnemyAnchor()
-        if not enemyPos then
-            return findSpot()
-        end
-
-        local bestSpot = nil
-        local bestScore = math.huge
-
-        for _ = 1, tries do
-            local spot = findSpot()
-            if spot and spot.Position and not isNearFailedSpot(spot.Position, 4) then
-                local dist = (spot.Position - enemyPos).Magnitude
-
-                if dist >= minDist and dist <= maxDist then
-                    local targetDist = (minDist + maxDist) / 2
-                    local score = math.abs(dist - targetDist)
-
-                    if score < bestScore then
-                        bestScore = score
-                        bestSpot = spot
-                    end
-                end
-            end
-        end
-
-        -- fallback: ถ้าไม่มีจุดในช่วงที่ต้องการจริง ๆ ค่อยยอมใช้ spot ที่ใกล้สุด
-        if not bestSpot then
-            local fallbackScore = math.huge
-
-            for _ = 1, math.max(tries // 2, 4) do
-                local spot = findSpot()
-                if spot and spot.Position and not isNearFailedSpot(spot.Position, 4) then
-                    local dist = (spot.Position - enemyPos).Magnitude
-                    local score = math.abs(dist - maxDist)
-
-                    if score < fallbackScore then
-                        fallbackScore = score
-                        bestSpot = spot
-                    end
-                end
-            end
-        end
-
-        return bestSpot
-    end
-
-    local function tryPlaceFarm(sync, farmCard, placedFolder, farmLimit)
-        if not sync or not farmCard then return false end
-
-        local placedFarm = placedTracking[farmCard.Slot] or 0
-        if placedFarm >= farmLimit then return false end
-        if not canAttemptFarm() then return false end
-        if getRealMoney() < farmCard.Cost then return false end
-
-        local success = false
-
-        for _ = 1, 6 do
-            local spot = findFarmSpot()
-            if spot and not isNearFailedSpot(spot.Position, 5) then
-                local countBefore = placedFolder and #placedFolder:GetChildren() or 0
-                local ok = pcall(function()
-                    sync.clientTowerPlacement.call(farmCard.UUID, spot)
-                end)
-
-                if ok then
-                    task.wait(0.7)
-                    local countAfter = placedFolder and #placedFolder:GetChildren() or 0
-                    if countAfter > countBefore then
-                        placedTracking[farmCard.Slot] = (placedTracking[farmCard.Slot] or 0) + 1
-                        table.insert(farmPositions, spot.Position)
-                        success = true
-                        print("🤑 [FarmFirst] วางตัวฟาร์มสำเร็จ (" .. placedTracking[farmCard.Slot] .. "/" .. farmLimit .. ")")
-                        break
-                    else
-                        markFailedSpot(spot.Position)
-                    end
-                else
-                    markFailedSpot(spot.Position)
-                end
-            end
-        end
-
-        markFarmAttempt(success)
-        return success
-    end
-
-    local function tryPlacePriorityAttack(sync, deck, farmSlot, placedFolder)
-        if not sync or #deck == 0 then return false end
-        if not canAttemptPlacement() then return false end
-
-        local money = getRealMoney()
-        local priorityCards = getOrderedPriorityCards(deck, farmSlot)
-        local success = false
-
-        for _, card in ipairs(priorityCards) do
-            local limit = MoMoConfig.UnitLimits[card.Slot] or 0
-            local placed = placedTracking[card.Slot] or 0
-
-            if placed < limit and money >= card.Cost then
-                for _ = 1, 6 do
-                    local spot = findSpotNearLatestEnemy(4, 14, 8)
-                    if spot and spot.Position and not isNearFailedSpot(spot.Position, 4) then
-                        local countBefore = placedFolder and #placedFolder:GetChildren() or 0
-                        local ok = pcall(function()
-                            sync.clientTowerPlacement.call(card.UUID, spot)
-                        end)
-
-                        if ok then
-                            task.wait(0.7)
-                            local countAfter = placedFolder and #placedFolder:GetChildren() or 0
-                            if countAfter > countBefore then
-                                placedTracking[card.Slot] = (placedTracking[card.Slot] or 0) + 1
-                                success = true
-                                print("✅ [Priority] วาง Unit Slot " .. card.Slot .. " สำเร็จ (" .. placedTracking[card.Slot] .. "/" .. limit .. ")")
-                                break
-                            else
-                                markFailedSpot(spot.Position)
-                            end
-                        else
-                            markFailedSpot(spot.Position)
-                        end
-                    end
-                end
-            end
-
-            if success then
+        for _, v in ipairs(currentList) do
+            if v == forceSelection then
+                found = true
                 break
             end
         end
-
-        markPlacementAttempt(success)
-        return success
-    end
-
-    local function tryUpgradeObject(obj)
-        local ok = pcall(function()
-            ReplicatedStorage.towers.towers_RELIABLE:FireServer(
-                buffer.fromstring("\001\031+\000" .. obj.Name),
-                {}
-            )
-        end)
-        return ok
-    end
-
-    local function tryUpgradeFarmFirst(attackTowers, farmTowers, deck, farmSlot)
-        if not canBurstUpgrade() then return false end
-
-        local acted = false
-
-        -- 1) อัปฟาร์มก่อนเสมอ
-        for _, obj in ipairs(farmTowers) do
-            if tryUpgradeObject(obj) then
-                acted = true
+        selectedConfigToDelete = found and forceSelection or "None"
+    else
+        local stillExists = false
+        for _, v in ipairs(currentList) do
+            if v == selectedConfigToDelete then
+                stillExists = true
+                break
             end
         end
-
-        -- 2) แล้วค่อยอัปตาม Priority ของผู้เล่น
-        local orderedPrioritySlots = {}
-        for _, slotNum in ipairs(MoMoConfig.UnitPriority) do
-            if slotNum ~= farmSlot then
-                table.insert(orderedPrioritySlots, slotNum)
-            end
+        if not stillExists then
+            selectedConfigToDelete = "None"
         end
+    end
 
-        for _, slotNum in ipairs(orderedPrioritySlots) do
-            for _, obj in ipairs(attackTowers) do
-                -- ใช้ heuristic ว่า slot tracking นี้มีของอยู่ก็ยิง upgrade ทุกตัวในสนามก่อน
-                if (placedTracking[slotNum] or 0) > 0 then
-                    if tryUpgradeObject(obj) then
-                        acted = true
+    if configDeleteDropdown then
+        local refreshed = false
+
+        for funcName, func in pairs(configDeleteDropdown) do
+            if type(func) == "function" then
+                local lowerName = string.lower(funcName)
+
+                if lowerName:find("option") or lowerName:find("refresh") or lowerName:find("updatelist") or lowerName:find("setlist") or lowerName:find("reload") then
+                    local ok = pcall(function()
+                        func(configDeleteDropdown, currentList)
+                    end)
+                    if ok then
+                        refreshed = true
                     end
                 end
             end
         end
 
-        markUpgradeBurst()
-        return acted
+        if selectedConfigToDelete and selectedConfigToDelete ~= "None" then
+            pcall(function()
+                if configDeleteDropdown.UpdateSelection then
+                    configDeleteDropdown:UpdateSelection(selectedConfigToDelete)
+                end
+            end)
+        end
+
+        if not refreshed then
+            warn("[ConfigManager] Could not auto-refresh config dropdown methods.")
+        end
+    end
+end
+
+configDeleteDropdown = AdvConfigSec:Dropdown({
+    Name = "Select Config to Delete",
+    Options = getConfigList(),
+    Default = "None",
+    Callback = function(val)
+        selectedConfigToDelete = val
+    end
+}, "MoMoConfigDeleteDropdown")
+
+AdvConfigSec:Button({
+    Name = "Delete Selected Config",
+    Callback = function()
+        if not selectedConfigToDelete or selectedConfigToDelete == "None" then
+            MoMoNotify({Title = "Error", Desc = "กรุณาเลือกไฟล์ Config ก่อนกดลบ!", Time = 3})
+            return
+        end
+
+        local filepath = ConfigFolder .. "/" .. selectedConfigToDelete .. ".json"
+
+        if isfile and delfile and isfile(filepath) then
+            local ok = pcall(function() delfile(filepath) end)
+            if ok then
+                MoMoNotify({Title = "Config Deleted", Desc = "ลบไฟล์ " .. selectedConfigToDelete .. " เรียบร้อย!", Time = 3})
+                selectedConfigToDelete = "None"
+                refreshConfigDeleteDropdown("None")
+            else
+                MoMoNotify({Title = "Error", Desc = "ลบไฟล์ Config ไม่สำเร็จ!", Time = 3})
+            end
+        else
+            MoMoNotify({Title = "Notice", Desc = "ไม่พบไฟล์ Config ที่เลือก", Time = 3})
+            selectedConfigToDelete = "None"
+            refreshConfigDeleteDropdown("None")
+        end
+    end
+})
+
+AdvConfigSec:Button({
+    Name = "Reset Auto Load Config",
+    Callback = function()
+        local autoloadPath = ConfigFolder .. "/autoload.txt"
+
+        if isfile and delfile and isfile(autoloadPath) then
+            local ok = pcall(function() delfile(autoloadPath) end)
+            if ok then
+                MoMoNotify({Title = "Auto Load Cleared", Desc = "ล้างค่า Auto Load แล้ว! รันรอบหน้าจะไม่มีการโหลดออโต้", Time = 4})
+            else
+                MoMoNotify({Title = "Error", Desc = "ล้าง Auto Load ไม่สำเร็จ!", Time = 3})
+            end
+        else
+            MoMoNotify({Title = "Notice", Desc = "ไม่มีไฟล์ Auto Load ให้ล้าง (ปกติ)", Time = 3})
+        end
+    end
+})
+
+AdvConfigSec:Button({
+    Name = "Refresh Config List",
+    Callback = function()
+        refreshConfigDeleteDropdown(selectedConfigToDelete)
+        MoMoNotify({Title = "Refreshed", Desc = "อัปเดตรายชื่อ Config แล้ว!", Time = 2})
+    end
+})
+
+-- ==========================================
+-- 💾 Config System (MacLib Built-in)
+-- ==========================================
+MacLib:SetFolder("MoMoHub")
+tabs.Settings:InsertConfigSection("Right")
+
+tabs.AutoFarm:Select()
+MacLib:LoadAutoLoadConfig()
+
+MoMoNotify({Title = "MoMoHub", Desc = "Script Loaded!", Time = 4})
+
+-- ==========================================
+-- 🛡️ [ วิชามาร 2 & 3: INSTANT WARP + ANTI-RUBBERBAND SPAM ]
+-- ==========================================
+local function SafeBypassWarp(targetPos, lookTarget, customSpeed)
+    local char = LP.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChild("Humanoid")
+    if not root or not hum then return end
+    
+    local dist = (root.Position - targetPos).Magnitude
+    
+    if dist < 300 then
+        if lookTarget and (targetPos - lookTarget).Magnitude > 0.01 then char:PivotTo(CFrame.lookAt(targetPos, lookTarget))
+        else char:PivotTo(CFrame.new(targetPos)) end
+        if root then root.Velocity = Vector3.new(0, 0, 0); root.RotVelocity = Vector3.new(0, 0, 0) end
+        return
     end
 
-    task.spawn(function()
-        while true do
-            task.wait(AUTO_LOOP_INTERVAL)
+    local steps = math.ceil(dist / 15)
+    local startPos = root.Position
 
-            if MoMoConfig.AutoJoin and isInLobby() and tick() - lastJoinAttempt > 10 then
-                lastJoinAttempt = tick()
-                AutoJoinMatch(MoMoConfig.SelectedMode, MoMoConfig.SelectedMap, MoMoConfig.SelectedAct, MoMoConfig.SelectedDifficulty)
-                continue
+    for i = 1, steps do
+        if not root or not root.Parent then break end
+        
+        local farmActive = (MoMoConfig.AutoFarm or MoMoConfig.AutoBoss or MoMoConfig.AutoIsland or MoMoConfig.AutoSummon or MoMoConfig.AutoDungeon or MoMoConfig.AutoTower or MoMoConfig.AutoStrongestBoss or MoMoConfig.AutoTrueAizen or MoMoConfig.AutoAtomicBoss or MoMoConfig.AutoHogyokuQuest)
+        if not farmActive then break end
+        
+        local nextPos = startPos:Lerp(targetPos, i / steps)
+        
+        if lookTarget and (targetPos - lookTarget).Magnitude > 0.01 then char:PivotTo(CFrame.lookAt(nextPos, lookTarget))
+        else char:PivotTo(CFrame.new(nextPos)) end
+        
+        root.Velocity = Vector3.new(0, 0, 0); root.RotVelocity = Vector3.new(0, 0, 0)
+        task.wait(0.1)
+    end
+end
+
+-- ==========================================
+-- 🛡️ ควบคุม Collision & Bypass TP
+-- ==========================================
+RunService.Stepped:Connect(function()
+    local char = LP.Character
+    if not char then return end
+
+    local farmActive = (MoMoConfig.AutoFarm or MoMoConfig.AutoBoss or MoMoConfig.AutoIsland or MoMoConfig.AutoSummon or MoMoConfig.AutoDungeon or MoMoConfig.AutoTower or MoMoConfig.AutoStrongestBoss or MoMoConfig.AutoTrueAizen or MoMoConfig.AutoAtomicBoss or MoMoConfig.AutoHogyokuQuest)
+    local hasTarget = (_G.TargetMob or _G.TargetPosition)
+
+    if (farmActive and hasTarget) or MoMoConfig.NoClip then
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+    else
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = true end
+        end
+    end
+    
+    local hum = char:FindFirstChild("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    
+    if hum and root then
+        if farmActive and hasTarget and MoMoConfig.BypassTP then
+            hum.WalkSpeed = 0; hum.JumpPower = 0
+            root.Velocity = Vector3.new(0, -0.1, 0)
+            root.RotVelocity = Vector3.new(0, 0, 0)
+        else
+            hum.WalkSpeed = MoMoConfig.WalkSpeed or 16
+            hum.JumpPower = MoMoConfig.JumpPower or 50
+        end
+    end
+end)
+
+-- ==========================================
+-- 🧠 ENGINE LOGIC START
+-- ==========================================
+local lastQuestNPC = nil 
+local lastQuestTime = 0 
+local lastIslandTeleport = 0
+
+local function HogyokuTweenFly(targetPos)
+    local char = LP.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChild("Humanoid")
+    if not root or not hum then return end
+    
+    local dist = (root.Position - targetPos).Magnitude
+    if dist < 5 then return end
+    
+    hum:ChangeState(11)
+    
+    local speed = 5 
+    local steps = math.ceil(dist / speed)
+    local startPos = root.Position
+    
+    for i = 1, steps do
+        if not root or not root.Parent then break end
+        if not MoMoConfig.AutoHogyokuQuest then break end
+        
+        local nextPos = startPos:Lerp(targetPos, i / steps)
+        char:PivotTo(CFrame.new(nextPos))
+        
+        root.Velocity = Vector3.new(0, 0, 0); root.RotVelocity = Vector3.new(0, 0, 0)
+        RunService.Heartbeat:Wait()
+    end
+    if hum then hum:ChangeState(8) end
+end
+
+local function getSelectedIslandList()
+    local list = {}
+    for k, v in pairs(MoMoConfig.SelectedIslands) do
+        local name = (v == true) and k or (type(v) == "string" and v or nil)
+        if name and table.find(IslandList, name) then table.insert(list, name) end
+    end
+    table.sort(list, function(a, b) return table.find(IslandList, a) < table.find(IslandList, b) end)
+    return list
+end
+
+local function getClosestTargetMobForIsland(islandName)
+    local targetNames = IslandMobDatabase[islandName]
+    if not targetNames then return nil end
+
+    local char = LP.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+
+    local closest = nil
+    local minDist = math.huge
+    local npcsFolder = workspace:FindFirstChild("NPCs")
+    
+    if npcsFolder then
+        for _, mob in pairs(npcsFolder:GetChildren()) do
+            local isTarget = false
+            for _, name in ipairs(targetNames) do
+                if string.find(mob.Name, name) then isTarget = true; break end
             end
-
-            if not MoMoConfig.AutoPlay then
-                continue
+            if isTarget and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 and mob:FindFirstChild("HumanoidRootPart") then
+                local dist = (mob.HumanoidRootPart.Position - root.Position).Magnitude
+                if dist < minDist then minDist = dist; closest = mob end
             end
+        end
+    end
+    return closest
+end
 
-            softResync()
+local function getSelectedBossList()
+    local list = {}
+    for k, v in pairs(MoMoConfig.SelectedBosses) do
+        local name = (v == true) and k or (type(v) == "string" and v or nil)
+        if name and BossDatabase[name] then table.insert(list, name) end
+    end
+    table.sort(list) 
+    return list
+end
 
-            local sync = getSync()
-            local deck = getDeckUUIDs()
-            local attackTowers, farmTowers, placedFolder = classifyPlacedTowers()
-            local farmSlot = MoMoConfig.FarmUnit or 0
-            local farmCard = nil
+local function findBossMob(mobName)
+    local function checkMob(mob) return mob and string.find(mob.Name, mobName) and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 and mob:FindFirstChild("HumanoidRootPart") end
+    local npcsFolder = workspace:FindFirstChild("NPCs")
+    if npcsFolder then for _, mob in pairs(npcsFolder:GetChildren()) do if checkMob(mob) then return mob end end end
+    local bossesFolder = workspace:FindFirstChild("Bosses")
+    if bossesFolder then for _, mob in pairs(bossesFolder:GetChildren()) do if checkMob(mob) then return mob end; for _, child in pairs(mob:GetChildren()) do if checkMob(child) then return child end end end end
+    local container = workspace:FindFirstChild("TimedBossSpawn_" .. mobName .. "_Container")
+    if container then for _, child in pairs(container:GetDescendants()) do if checkMob(child) then return child end end end
+    for _, obj in pairs(workspace:GetChildren()) do if checkMob(obj) then return obj end end
+    return nil
+end
 
-            if farmSlot > 0 then
-                farmCard = getDeckCardBySlot(deck, farmSlot)
+local function isYamatoSpawned()
+    local container = workspace:FindFirstChild("TimedBossSpawn_Yamato_Container")
+    if not container then return false end
+    for _, child in pairs(container:GetDescendants()) do
+        if child:IsA("Model") and string.find(child.Name, "Yamato") and child:FindFirstChild("Humanoid") and child.Humanoid.Health > 0 and child:FindFirstChild("HumanoidRootPart") then return true end
+    end
+    return false
+end
+
+local function getDungeonMob()
+    local function isValidDungeonMob(mob)
+        if mob:IsA("Model") and mob:FindFirstChild("Humanoid") then
+            local part = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChild("Torso") or mob.PrimaryPart
+            if part and mob.Humanoid.Health > 0 and not Players:GetPlayerFromCharacter(mob) and mob.Name ~= LP.Name then return true end
+        end
+        return false
+    end
+    local foldersToCheck = {"NPCs", "Bosses", "Mobs", "Enemies", "DungeonMobs"}
+    for _, folderName in pairs(foldersToCheck) do
+        local folder = workspace:FindFirstChild(folderName)
+        if folder then
+            for _, mob in pairs(folder:GetChildren()) do
+                if isValidDungeonMob(mob) then return mob end
+                for _, subMob in pairs(mob:GetChildren()) do if isValidDungeonMob(subMob) then return subMob end end
             end
+        end
+    end
+    for _, obj in pairs(workspace:GetChildren()) do if obj.Name ~= "ServiceNPCs" and obj.Name ~= "Map" and not obj:IsA("Camera") then if isValidDungeonMob(obj) then return obj end end end
+    return nil
+end
 
-            if not sync or #deck == 0 then
-                continue
+local function isBossSpawningSoon(bossName)
+    local bData = BossDatabase[bossName]
+    local timerKey = (bData and bData.TimerName) or bossName
+    local spawnerName = (bData and bData.SpawnerName) or ("TimedBossSpawn_" .. timerKey)
+
+    if bossName == "YamatoBoss" then if isYamatoSpawned() then return true end end
+    local container = workspace:FindFirstChild("TimedBossSpawn_" .. timerKey .. "_Container")
+    if not container then return false end
+    local spawner = container:FindFirstChild(spawnerName)
+    if not spawner then return false end
+    local bb = spawner:FindFirstChild("BossTimerBillboard")
+    if not bb then return false end
+    local frame = bb:FindFirstChild("Frame")
+    if not frame then return false end
+    local timer = frame:FindFirstChild("Timer")
+    if not timer then return false end
+
+    local txt = string.lower(timer.Text)
+    if txt == "" then return true end
+    if string.find(txt, "spawn") then return true end
+    return false
+end
+
+-- 🌟 [ Fast Attack Loop ]
+task.spawn(function()
+    while true do
+        task.wait(0.1) 
+        if (MoMoConfig.AutoFarm or MoMoConfig.AutoBoss or MoMoConfig.AutoIsland or MoMoConfig.AutoSummon or MoMoConfig.AutoDungeon or MoMoConfig.AutoTower or MoMoConfig.AutoStrongestBoss or MoMoConfig.AutoTrueAizen or MoMoConfig.AutoHogyokuQuest) and _G.TargetMob then
+            local char = LP.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            local mobRoot = _G.TargetMob and (_G.TargetMob:FindFirstChild("HumanoidRootPart") or _G.TargetMob:FindFirstChild("Torso") or _G.TargetMob.PrimaryPart)
+            if root and mobRoot and _G.TargetMob:FindFirstChild("Humanoid") and _G.TargetMob.Humanoid.Health > 0 then
+                local dist = (root.Position - mobRoot.Position).Magnitude
+                if dist < 20 then pcall(function() RS.CombatSystem.Remotes.RequestHit:FireServer() end) end
             end
+        end
+    end
+end)
 
-            -- 1) วางฟาร์มก่อนเสมอจนเต็มลิมิต
-            if farmCard then
-                local farmLimit = MoMoConfig.UnitLimits[farmSlot] or 0
-                if tryPlaceFarm(sync, farmCard, placedFolder, farmLimit) then
-                    continue
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if MoMoConfig.AutoSkill and MoMoConfig.SelectedSkills and _G.TargetMob then
+            pcall(function()
+                local remote = RS:WaitForChild("AbilitySystem"):WaitForChild("Remotes"):WaitForChild("RequestAbility")
+                for k, v in pairs(MoMoConfig.SelectedSkills) do
+                    if v == "Z" or (k == "Z" and v == true) then remote:FireServer(1) end
+                    if v == "X" or (k == "X" and v == true) then remote:FireServer(2) end
+                    if v == "C" or (k == "C" and v == true) then remote:FireServer(3) end
+                    if v == "V" or (k == "V" and v == true) then remote:FireServer(4) end
+                    if v == "F" or (k == "F" and v == true) then remote:FireServer(5) end
+                end
+            end)
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if MoMoConfig.AutoStats and MoMoConfig.SelectedStats then
+            pcall(function()
+                for k, v in pairs(MoMoConfig.SelectedStats) do
+                    if v == true then RS.RemoteEvents.AllocateStat:FireServer(k, MoMoConfig.StatAmount)
+                    elseif type(v) == "string" then RS.RemoteEvents.AllocateStat:FireServer(v, MoMoConfig.StatAmount) end
+                end
+            end)
+        end
+    end
+end)
+
+-- ==========================================
+-- 🎒 ระบบ Smart Inventory Cache & Auto Chest
+-- ==========================================
+_G.MoMoInventory = _G.MoMoInventory or {
+    ["Items"] = {}, ["Melee"] = {}, ["Sword"] = {}, 
+    ["Power"] = {}, ["Accessories"] = {}, ["Runes"] = {}, 
+    ["Auras"] = {}, ["Cosmetics"] = {}
+}
+
+task.spawn(function()
+    local updateInvRemote = RS:WaitForChild("Remotes"):WaitForChild("UpdateInventory")
+    local requestInvRemote = RS:WaitForChild("Remotes"):WaitForChild("RequestInventory")
+    
+    updateInvRemote.OnClientEvent:Connect(function(category, itemsData)
+        if type(itemsData) == "table" then
+            _G.MoMoInventory[category] = itemsData
+        end
+    end)
+    
+    while true do
+        pcall(function() requestInvRemote:FireServer() end)
+        task.wait(15)
+    end
+end)
+
+local function hasItemInStorage(itemName)
+    if (LP.Backpack and LP.Backpack:FindFirstChild(itemName)) or (LP.Character and LP.Character:FindFirstChild(itemName)) then
+        return true
+    end
+    for category, items in pairs(_G.MoMoInventory) do
+        if type(items) == "table" then
+            for _, itemData in pairs(items) do
+                if type(itemData) == "table" then
+                    if itemData.name == itemName or itemData.displayName == itemName then
+                        if itemData.quantity then return itemData.quantity > 0 end
+                        return true 
+                    end
+                elseif type(itemData) == "string" and itemData == itemName then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- ==========================================
+-- 🛒 ลูป Auto Merchant & 📦 Auto Chest
+-- ==========================================
+task.spawn(function()
+    while true do
+        task.wait(1) 
+        
+        -- 🛒 ระบบซื้อของ Merchant
+        if MoMoConfig.AutoMerchant and MoMoConfig.SelectedMerchantItems then
+            for k, v in pairs(MoMoConfig.SelectedMerchantItems) do
+                local itemName = nil
+                if v == true then itemName = k elseif type(v) == "string" then itemName = v end
+                if itemName then 
+                    pcall(function() 
+                        RS:WaitForChild("Remotes"):WaitForChild("MerchantRemotes"):WaitForChild("PurchaseMerchantItem"):InvokeServer(itemName, MoMoConfig.MerchantAmount or 1) 
+                    end)
+                    task.wait(0.3) 
+                end
+            end
+        end
+        
+        -- 📦 ระบบเปิดกล่อง (แก้ไขรีโมทให้ถูกต้องแล้ว)
+        if MoMoConfig.AutoChest and MoMoConfig.SelectedChests then
+            local useItemRemote = RS:WaitForChild("Remotes"):WaitForChild("UseItem")
+            for k, v in pairs(MoMoConfig.SelectedChests) do
+                local chestName = nil
+                if v == true then chestName = k elseif type(v) == "string" then chestName = v end
+                
+                -- เช็คก่อนว่ามีกล่องอยู่ในตัวจริงๆ ค่อยส่งคำสั่งเปิด
+                if chestName and hasItemInStorage(chestName) then 
+                    pcall(function() 
+                        -- ยิงคำสั่ง "Use" กล่อง ตามจำนวนที่ตั้งไว้ใน Config
+                        useItemRemote:FireServer("Use", chestName, MoMoConfig.ChestAmount or 1, false) 
+                    end)
+                    task.wait(0.3) 
+                end
+            end
+        end
+        
+    end
+end)
+
+-- ==========================================
+-- 👁️ Auto Haki (Smart Detection)
+-- ==========================================
+_G.HakiIsActive = false; _G.HakiOnCooldown = false; _G.HakiCooldownEnd = 0
+local function isHakiCurrentlyActive()
+    local ok, result = pcall(function() return LP.PlayerGui:FindFirstChild("DodgeCounterUI").MainFrame.Visible == true end)
+    return ok and result == true
+end
+
+pcall(function()
+    RS.RemoteEvents.ObservationHakiRemote.OnClientEvent:Connect(function(action, data)
+        if action == "Activated" then _G.HakiIsActive = true; _G.HakiOnCooldown = false
+        elseif action == "Deactivated" then _G.HakiIsActive = false; if data and data.cooldown and data.cooldown > 0 then _G.HakiOnCooldown = true; _G.HakiCooldownEnd = tick() + data.cooldown end
+        elseif action == "Status" then _G.HakiIsActive = data and data.isActive or false; if data and data.cooldownRemaining and data.cooldownRemaining > 0 then _G.HakiOnCooldown = true; _G.HakiCooldownEnd = tick() + data.cooldownRemaining else _G.HakiOnCooldown = false end
+        end
+    end)
+end)
+
+task.spawn(function()
+    while true do task.wait(1)
+        if MoMoConfig.AutoHaki then
+            if _G.HakiOnCooldown and tick() >= _G.HakiCooldownEnd then _G.HakiOnCooldown = false end
+            local hakiActive = isHakiCurrentlyActive()
+            _G.HakiIsActive = hakiActive
+            if not hakiActive and not _G.HakiOnCooldown then pcall(function() RS.RemoteEvents.ObservationHakiRemote:FireServer("Toggle") end) end
+        end
+    end
+end)
+
+_G.ArmamentHakiIsActive = false
+pcall(function()
+    RS.RemoteEvents.HakiStateUpdate.OnClientEvent:Connect(function(p1, p2)
+        if p1 == true then _G.ArmamentHakiIsActive = true elseif p1 == false then _G.ArmamentHakiIsActive = false elseif typeof(p1) == "Instance" and p1:IsA("Player") and p1 == LP then _G.ArmamentHakiIsActive = (p2 == true) end
+    end)
+    RS.RemoteEvents.HakiRemote.OnClientEvent:Connect(function(action, data)
+        if action == "Status" and data then _G.ArmamentHakiIsActive = data.isActive or false end
+    end)
+end)
+
+task.spawn(function()
+    while true do task.wait(1)
+        if MoMoConfig.AutoArmamentHaki and not _G.ArmamentHakiIsActive then pcall(function() RS.RemoteEvents.HakiRemote:FireServer("Toggle") end) end
+    end
+end)
+
+-- ==========================================
+-- 🔄 Auto Rejoin System
+-- ==========================================
+task.spawn(function()
+    game:GetService("GuiService").ErrorMessageChanged:Connect(function()
+        if MoMoConfig.AutoRejoin then task.wait(5); game:GetService("TeleportService"):Teleport(game.PlaceId, LP) end
+    end)
+end)
+
+-- [ ENGINE 1: Logic & Target ]
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        local char = LP.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local hum = char and char:FindFirstChild("Humanoid")
+
+        if (MoMoConfig.AutoFarm or MoMoConfig.AutoBoss or MoMoConfig.AutoIsland or MoMoConfig.AutoSummon or MoMoConfig.AutoDungeon or MoMoConfig.AutoTower or MoMoConfig.AutoStrongestBoss or MoMoConfig.AutoTrueAizen or MoMoConfig.AutoAtomicBoss or MoMoConfig.AutoHogyokuQuest) and root then
+            
+            _G.TargetMob = nil
+            _G.TargetPosition = nil
+            local data = LP:FindFirstChild("Data")
+            local levelData = data and data:FindFirstChild("Level")
+            local currentLvl = levelData and levelData.Value or 0
+            local activeBoss = nil
+            local foundBossMob = nil
+
+            -- 🌟 0. ระบบ Auto Tower (Priority MAX)
+            if MoMoConfig.AutoTower then
+                local MAIN_GAME_PLACE_ID = 77747658251236 
+                local isTowerPlace = (game.PlaceId ~= MAIN_GAME_PLACE_ID)
+                
+                if not isTowerPlace then
+                    if tick() - (_G.LastTowerTeleport or 0) > 5 then
+                        pcall(function() MoMoNotify({Title = "Auto Tower", Desc = "🌀 กำลังวาร์ปไปหน้าประตู Tower...", Time = 3}) end)
+                        pcall(function() RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer("Tower") end)
+                        task.wait(1.5)
+                        pcall(function() MoMoNotify({Title = "Auto Tower", Desc = "🚪 กำลังขอเข้า Infinite Tower...", Time = 3}) end)
+                        pcall(function() RS:WaitForChild("Remotes"):WaitForChild("RequestDungeonPortal"):FireServer("InfiniteTower") end)
+                        _G.LastTowerTeleport = tick()
+                    end
+                else
+                    local currentFloor = 0
+                    local floorUI = LP.PlayerGui:FindFirstChild("DungeonUI") and LP.PlayerGui.DungeonUI:FindFirstChild("ContentFrame") and LP.PlayerGui.DungeonUI.ContentFrame:FindFirstChild("WaveFrame") and LP.PlayerGui.DungeonUI.ContentFrame.WaveFrame:FindFirstChild("Holder") and LP.PlayerGui.DungeonUI.ContentFrame.WaveFrame.Holder:FindFirstChild("TotalWavesAndCurrentWaveYouAreAt")
+                    if floorUI and floorUI.Text then local extractedNumber = string.match(floorUI.Text, "%d+"); if extractedNumber then currentFloor = tonumber(extractedNumber) end end
+
+                    if MoMoConfig.AutoLeaveTower and currentFloor > 0 and currentFloor >= MoMoConfig.TargetTowerFloor then
+                        if tick() - (_G.LastLeaveTeleport or 0) > 10 then
+                            pcall(function() MoMoNotify({Title = "Auto Tower", Desc = "✅ สำเร็จ! ถึงชั้น " .. currentFloor .. " กำลังวาร์ปกลับแมพหลัก...", Time = 5}) end)
+                            game:GetService("TeleportService"):Teleport(MAIN_GAME_PLACE_ID, LP)
+                            _G.LastLeaveTeleport = tick()
+                        end
+                        continue 
+                    end
+
+                    local npcsFolder = workspace:FindFirstChild("NPCs")
+                    local targetFound = nil
+                    if npcsFolder then for _, mob in pairs(npcsFolder:GetChildren()) do if mob:IsA("Model") and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 and mob:FindFirstChild("HumanoidRootPart") then if not Players:GetPlayerFromCharacter(mob) then targetFound = mob; break end end end end
+
+                    local isSuiciding = false
+                    if MoMoConfig.AutoRestartTower and currentFloor > 0 and currentFloor >= MoMoConfig.RestartTowerFloor then
+                        isSuiciding = true
+                        local h = char and char:FindFirstChild("Humanoid")
+                        if h and h.Health > 0 then
+                            if tick() - (_G.LastTowerSuicide or 0) > 4 then
+                                pcall(function() MoMoNotify({Title = "Auto Tower", Desc = "💀 ถึงชั้น " .. currentFloor .. " ตามเป้าหมาย! กำลังฆ่าตัวตายเพื่อรีรอบ...", Time = 3}) end)
+                                h.Health = 0; _G.LastTowerSuicide = tick()
+                            end
+                        end
+                        targetFound = nil; _G.TargetMob = nil
+                    end
+                    
+                    if targetFound and not isSuiciding then
+                        _G.TargetMob = targetFound; _G.TowerNoMobTimer = tick() 
+                    else
+                        if not _G.TowerNoMobTimer then _G.TowerNoMobTimer = tick() end
+                        local timeWithoutMobs = tick() - _G.TowerNoMobTimer
+                        if tick() - (_G.LastTowerStart or 0) > 4 then pcall(function() RS:WaitForChild("Remotes"):WaitForChild("DungeonWaveVote"):FireServer("start") end); _G.LastTowerStart = tick() end
+                        if timeWithoutMobs > 5 then
+                            if MoMoConfig.AutoReplayTower then
+                                if tick() - (_G.LastTowerReplay or 0) > 5 then
+                                    pcall(function() MoMoNotify({Title = "Auto Tower", Desc = "🔁 จบรอบแล้ว! กำลัง Auto Replay เริ่มรอบใหม่...", Time = 3}) end)
+                                    pcall(function() RS:WaitForChild("Remotes"):WaitForChild("DungeonWaveReplayVote"):FireServer("sponsor") end)
+                                    _G.LastTowerReplay = tick()
+                                end
+                            else
+                                if tick() - (_G.LastTowerEndNotify or 0) > 10 then pcall(function() MoMoNotify({Title = "Auto Tower", Desc = "🏁 จบรอบแล้ว! (Auto Replay ปิดอยู่)", Time = 3}) end); _G.LastTowerEndNotify = tick() end
+                            end
+                        end
+                    end
+                end
+                
+            -- 🌟 0.1 ระบบ Auto Dungeon & Boss Rush
+            elseif MoMoConfig.AutoDungeon then
+                local isInDungeon = workspace:FindFirstChild("DungeonModel") or workspace:FindFirstChild("DungeonSpawns")
+                if not isInDungeon then
+                    if not workspace:FindFirstChild("ActiveDungeonPortal") then
+                        if MoMoConfig.SelectedDungeonType == "BossRush" then pcall(function() RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer("Sailor") end)
+                        else pcall(function() RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer("Dungeon") end) end
+                        task.wait(1)
+                        pcall(function() RS:WaitForChild("Remotes"):WaitForChild("RequestDungeonPortal"):FireServer(MoMoConfig.SelectedDungeonType) end)
+                        task.wait(1)
+                    end
+                else
+                    local dungeonMob = getDungeonMob()
+                    if dungeonMob then _G.TargetMob = dungeonMob else
+                        pcall(function() RS:WaitForChild("Remotes"):WaitForChild("DungeonWaveVote"):FireServer(MoMoConfig.SelectedDungeonDiff) end)
+                        if MoMoConfig.AutoReplayDungeon then
+                            if tick() - (_G.LastDungeonReplay or 0) > 5 then pcall(function() RS:WaitForChild("Remotes"):WaitForChild("DungeonWaveReplayVote"):FireServer("sponsor") end); _G.LastDungeonReplay = tick() end
+                        end
+                    end
+                end
+
+            -- 🌟 0.5 ระบบ Auto Strongest Boss
+            elseif MoMoConfig.AutoStrongestBoss then
+                local diff = MoMoConfig.SelectedStrongestDiff or "Normal"
+                local bossType = MoMoConfig.SelectedStrongestBoss or "StrongestToday"
+                local bossData = StrongestBossData[bossType] or StrongestBossData["StrongestToday"]
+                local strongestMobName = bossData.MobPrefix .. diff
+                local remoteArg = bossData.RemoteArg
+                local foundMob = findBossMob(strongestMobName)
+                
+                if foundMob then _G.TargetMob = foundMob; _G.StrongestBossPhase = "fight"
+                else
+                    if _G.StrongestBossPhase == "teleport" then
+                        pcall(function() RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer("Shinjuku") end)
+                        pcall(function() MoMoNotify({Title = "Strongest Boss", Desc = "🌀 Teleporting to Shinjuku...", Time = 3}) end)
+                        task.wait(3); _G.StrongestBossPhase = "walkToNPC"
+                    elseif _G.StrongestBossPhase == "walkToNPC" then
+                        local serviceNPCs = workspace:FindFirstChild("ServiceNPCs")
+                        local npc = serviceNPCs and serviceNPCs:FindFirstChild("StrongestBossSummonerNPC")
+                        if npc then
+                            local npcPart = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc:FindFirstChild("Head") or npc.PrimaryPart or npc:FindFirstChildWhichIsA("BasePart", true)
+                            if npcPart then
+                                local npcPos = npcPart.Position; local dist = (root.Position - npcPos).Magnitude
+                                if dist > 10 then pcall(function() MoMoNotify({Title = "Strongest Boss", Desc = "🚶 Walking to NPC...", Time = 3}) end); SafeBypassWarp(npcPos + Vector3.new(0, 3, 0), npcPos); task.wait(0.5) end
+                                _G.StrongestBossPhase = "summon"
+                            else pcall(function() local cf = npc:GetPivot(); if cf then SafeBypassWarp(cf.Position + Vector3.new(0, 3, 0), cf.Position); task.wait(0.5) end end); _G.StrongestBossPhase = "summon" end
+                        else
+                            task.wait(1)
+                            local retryNPCs = workspace:FindFirstChild("ServiceNPCs")
+                            if not (retryNPCs and retryNPCs:FindFirstChild("StrongestBossSummonerNPC")) then pcall(function() MoMoNotify({Title = "Strongest Boss", Desc = "⚠️ NPC not found, retrying...", Time = 3}) end); _G.StrongestBossPhase = "teleport" end
+                        end
+                    elseif _G.StrongestBossPhase == "summon" then
+                        if tick() - _G.LastStrongestBossSummonTime > 6 then
+                            pcall(function() RS:WaitForChild("Remotes"):WaitForChild("RequestSpawnStrongestBoss"):FireServer(remoteArg, diff) end)
+                            _G.LastStrongestBossSummonTime = tick()
+                            pcall(function() MoMoNotify({Title = "Strongest Boss", Desc = "🔥 Summoning " .. bossType .. " (" .. diff .. ")", Time = 3}) end)
+                            task.wait(2)
+                            local checkMob = findBossMob(strongestMobName)
+                            if checkMob then _G.TargetMob = checkMob; _G.StrongestBossPhase = "fight"; _G.StrongestBossRetryCount = 0 
+                            else _G.StrongestBossRetryCount = (_G.StrongestBossRetryCount or 0) + 1; if _G.StrongestBossRetryCount > 3 then _G.StrongestBossPhase = "teleport"; _G.StrongestBossRetryCount = 0 else _G.StrongestBossPhase = "walkToNPC" end end
+                        end
+                    elseif _G.StrongestBossPhase == "fight" then _G.StrongestBossPhase = "walkToNPC" end
+                end
+
+            -- 🌟 0.6 ระบบ Auto True Aizen
+            elseif MoMoConfig.AutoTrueAizen then
+                local diff = MoMoConfig.SelectedTrueAizenDiff or "Normal"
+                local mobName = "TrueAizenBoss_" .. diff
+                local foundMob = findBossMob(mobName)
+                
+                if foundMob then _G.TargetMob = foundMob; _G.TrueAizenPhase = "fight"
+                else
+                    if _G.TrueAizenPhase == "teleport" then
+                        pcall(function() RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer("SoulDominion") end)
+                        pcall(function() MoMoNotify({Title = "True Aizen", Desc = "🌀 Teleporting to Soul Dominion...", Time = 3}) end); task.wait(3); _G.TrueAizenPhase = "walkToNPC"
+                    elseif _G.TrueAizenPhase == "walkToNPC" then
+                        local serviceNPCs = workspace:FindFirstChild("ServiceNPCs")
+                        local npc = serviceNPCs and serviceNPCs:FindFirstChild("TrueAizenBossSummonerNPC")
+                        if npc then
+                            local npcPart = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc:FindFirstChild("Head") or npc.PrimaryPart or npc:FindFirstChildWhichIsA("BasePart", true)
+                            if npcPart then
+                                local dist = (root.Position - npcPart.Position).Magnitude
+                                if dist > 10 then pcall(function() MoMoNotify({Title = "True Aizen", Desc = "🚶 Walking to NPC...", Time = 3}) end); SafeBypassWarp(npcPart.Position + Vector3.new(0, 3, 0), npcPart.Position); task.wait(0.5) end
+                                _G.TrueAizenPhase = "summon"
+                            else pcall(function() local cf = npc:GetPivot(); if cf then SafeBypassWarp(cf.Position + Vector3.new(0, 3, 0), cf.Position); task.wait(0.5) end end); _G.TrueAizenPhase = "summon" end
+                        else task.wait(1); local rNPC = workspace:FindFirstChild("ServiceNPCs"); if not (rNPC and rNPC:FindFirstChild("TrueAizenBossSummonerNPC")) then _G.TrueAizenPhase = "teleport" end end
+                    elseif _G.TrueAizenPhase == "summon" then
+                        if tick() - _G.LastTrueAizenSummonTime > 6 then
+                            pcall(function() RS:WaitForChild("RemoteEvents"):WaitForChild("RequestSpawnTrueAizen"):FireServer(diff) end)
+                            _G.LastTrueAizenSummonTime = tick(); task.wait(2)
+                            local checkMob = findBossMob(mobName); if checkMob then _G.TargetMob = checkMob; _G.TrueAizenPhase = "fight" else _G.TrueAizenPhase = "walkToNPC" end
+                        end
+                    elseif _G.TrueAizenPhase == "fight" then _G.TrueAizenPhase = "walkToNPC" end
+                end
+                
+            -- 🌟 0.65 ระบบ Auto Atomic Boss
+            elseif MoMoConfig.AutoAtomicBoss then
+                local diff = MoMoConfig.SelectedAtomicDiff or "Normal"
+                local mobName = "AtomicBoss_" .. diff
+                local foundMob = findBossMob(mobName)
+                
+                if foundMob then _G.TargetMob = foundMob; _G.AtomicBossPhase = "fight"
+                else
+                    if _G.AtomicBossPhase == "teleport" then
+                        pcall(function() RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer("Lawless") end); task.wait(3); _G.AtomicBossPhase = "walkToNPC"
+                    elseif _G.AtomicBossPhase == "walkToNPC" then
+                        local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild("AtomicBossSummonerNPC")
+                        if npc then
+                            local npcPart = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart or npc:FindFirstChildWhichIsA("BasePart", true)
+                            if npcPart then
+                                if (root.Position - npcPart.Position).Magnitude > 10 then SafeBypassWarp(npcPart.Position + Vector3.new(0, 3, 0), npcPart.Position); task.wait(0.5) end
+                                _G.AtomicBossPhase = "summon"
+                            else pcall(function() SafeBypassWarp(npc:GetPivot().Position + Vector3.new(0, 3, 0), npc:GetPivot().Position); task.wait(0.5) end); _G.AtomicBossPhase = "summon" end
+                        else task.wait(1); _G.AtomicBossPhase = "teleport" end
+                    elseif _G.AtomicBossPhase == "summon" then
+                        if tick() - (_G.LastAtomicSummonTime or 0) > 6 then
+                            pcall(function() RS:WaitForChild("RemoteEvents"):WaitForChild("RequestSpawnAtomic"):FireServer(diff) end); _G.LastAtomicSummonTime = tick(); task.wait(2)
+                            local checkMob = findBossMob(mobName); if checkMob then _G.TargetMob = checkMob; _G.AtomicBossPhase = "fight" else _G.AtomicBossPhase = "walkToNPC" end
+                        end
+                    elseif _G.AtomicBossPhase == "fight" then _G.AtomicBossPhase = "walkToNPC" end
+                end
+
+            -- 🌟 0.7 ระบบ Auto Hogyoku Quest
+            elseif MoMoConfig.AutoHogyokuQuest then
+                if currentLvl < 8500 then
+                    pcall(function() MoMoNotify({Title = "Hogyoku Quest", Desc = "⚠️ Level 8500+ Required!", Time = 3}) end); task.wait(3)
+                else
+                    if _G.HogyokuQuestPhase == "teleportToHueco" then pcall(function() RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer("HollowIsland") end); task.wait(3); _G.HogyokuQuestPhase = "walkToNPC"
+                    elseif _G.HogyokuQuestPhase == "walkToNPC" then
+                        local npc = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild("HogyokuQuestNPC")
+                        if npc then
+                            local npcPart = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart or npc:FindFirstChildWhichIsA("BasePart", true)
+                            if npcPart then
+                                if (root.Position - npcPart.Position).Magnitude > 10 then HogyokuTweenFly(npcPart.Position + Vector3.new(0, 3, 0)); task.wait(0.5)
+                                else pcall(function() fireproximityprompt(npc:FindFirstChildWhichIsA("ProximityPrompt", true)) end); task.wait(1); _G.HogyokuQuestPhase = "searchIslands"; _G.IslandRoundRobinIndex = 1 end
+                            end
+                        else task.wait(1) end
+                    elseif _G.HogyokuQuestPhase == "searchIslands" then
+                        local fragment = nil
+                        for i = 1, 6 do local f = workspace:FindFirstChild("HogyokuFragment" .. i); if f and not _G.CollectedHogyokuFragments[f.Name] then fragment = f; break end end
+                        if not fragment then for _, child in pairs(workspace:GetChildren()) do if string.find(child.Name, "HogyokuFragment") and not _G.CollectedHogyokuFragments[child.Name] then fragment = child; break end end end
+                        if fragment then
+                            local fragPart = fragment:IsA("BasePart") and fragment or fragment:FindFirstChildWhichIsA("BasePart", true)
+                            if fragPart then
+                                if (root.Position - fragPart.Position).Magnitude > 10 then HogyokuTweenFly(fragPart.Position); task.wait(0.5)
+                                else pcall(function() fireproximityprompt(fragment:FindFirstChildWhichIsA("ProximityPrompt", true)) end); _G.CollectedHogyokuFragments[fragment.Name] = true; local count = 0; for _, _ in pairs(_G.CollectedHogyokuFragments) do count = count + 1 end; if count >= 6 then MoMoConfig.AutoHogyokuQuest = false; pcall(function() MoMoNotify({Title = "Hogyoku Quest", Desc = "🎉 You have collected all 6 Fragments!", Time = 5}) end) else pcall(function() MoMoNotify({Title = "Hogyoku Quest", Desc = "✨ Fragment Collected! (" .. count .. "/6)", Time = 3}) end) end; task.wait(2) end
+                            end
+                        else
+                            if tick() - _G.LastIslandTeleportTime > 3 then _G.IslandRoundRobinIndex = (_G.IslandRoundRobinIndex % #IslandList) + 1; local nextIsland = IslandList[_G.IslandRoundRobinIndex]; pcall(function() RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(nextIsland) end); _G.LastIslandTeleportTime = tick(); task.wait(3) end
+                        end
+                    end
+                end
+
+            -- 🌟 1. ระบบ Auto Summon Boss
+            elseif MoMoConfig.AutoSummon and MoMoConfig.SelectedSummonBoss then
+                local bossName = MoMoConfig.SelectedSummonBoss
+                local diff = MoMoConfig.SelectedSummonDiff
+                local mobNamePrefix = SummonMobNames[bossName] or string.gsub(bossName, "Boss", "")
+                local foundMob = findBossMob(mobNamePrefix)
+                if foundMob then _G.TargetMob = foundMob else
+                    if tick() - _G.LastSummonTime > 6 then
+                        local bossIsland = workspace:FindFirstChild("Boss"); local needTeleport = true
+                        if bossIsland and root then local anyPart = bossIsland:FindFirstChildWhichIsA("BasePart", true); if anyPart and (root.Position - anyPart.Position).Magnitude < 3000 then needTeleport = false end end
+                        if needTeleport then pcall(function() RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer("Boss") end); task.wait(1.5) end
+                        if bossName == "GilgameshBoss" or bossName == "BlessedMaidenBoss" or bossName == "SaberAlterBoss" then pcall(function() RS:WaitForChild("Remotes"):WaitForChild("RequestSummonBoss"):FireServer(bossName, diff) end) else pcall(function() RS:WaitForChild("Remotes"):WaitForChild("RequestSummonBoss"):FireServer(bossName) end) end
+                        _G.LastSummonTime = tick()
+                    end
+                end
+
+            -- 🌟 2. เช็ค Auto Boss ก่อน (Priority)
+            elseif MoMoConfig.AutoBoss and MoMoConfig.SelectedBosses then
+                local selectedList = getSelectedBossList()
+                if #selectedList > 0 then
+                    if _G.BossRoundRobinIndex > #selectedList then _G.BossRoundRobinIndex = 1 end
+                    local maxTry = #selectedList; local tried = 0
+                    while tried < maxTry do
+                        tried = tried + 1; local currentBossName = selectedList[_G.BossRoundRobinIndex]; local bData = BossDatabase[currentBossName]; local foundMob = nil; local isReady = false
+                        if currentBossName == "GojoBoss" then foundMob = findBossMob(bData.MobName); isReady = foundMob ~= nil or isBossSpawningSoon("GojoBoss")
+                        elseif currentBossName == "JinwooBoss" or currentBossName == "AlucardBoss" then foundMob = findBossMob(bData.MobName); if _G.BossNoMobAfterTeleport[currentBossName] then if foundMob then _G.BossNoMobAfterTeleport[currentBossName] = false; isReady = true else isReady = false end else isReady = foundMob ~= nil or isBossSpawningSoon(currentBossName) end
+                        else foundMob = findBossMob(bData.MobName); isReady = foundMob ~= nil or isBossSpawningSoon(currentBossName) end
+                        if isReady then activeBoss = currentBossName; foundBossMob = foundMob; break else _G.BossRoundRobinIndex = (_G.BossRoundRobinIndex % #selectedList) + 1; _G.CurrentActiveBoss = nil end
+                    end
+                    if activeBoss and _G.CurrentActiveBoss ~= activeBoss then _G.CurrentActiveBoss = activeBoss; pcall(function() MoMoNotify({Title = "Auto Boss", Desc = "🎯 Targeting: " .. activeBoss, Time = 3}) end) end
                 end
             end
 
-            -- 2) วางตัวตาม Priority ผู้เล่นเสมอ ที่ตำแหน่งมอนล่าสุด
-            if tryPlacePriorityAttack(sync, deck, farmSlot, placedFolder) then
-                continue
+            if activeBoss and not MoMoConfig.AutoSummon and not MoMoConfig.AutoStrongestBoss and not MoMoConfig.AutoTrueAizen then
+                local bData = BossDatabase[activeBoss]
+                local function doTeleport(prefix) pcall(function() RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(prefix) end); task.wait(3) end
+                if activeBoss == "GojoBoss" then
+                    local gojo = findBossMob(bData.MobName)
+                    if gojo then _G.TargetMob = gojo elseif isBossSpawningSoon("GojoBoss") then
+                        local shibuya = workspace:FindFirstChild("ShibuyaStation"); local needTeleport = true
+                        if shibuya and root then local anyPart = shibuya:FindFirstChildWhichIsA("BasePart", true); if anyPart and (root.Position - anyPart.Position).Magnitude < 3000 then needTeleport = false end end
+                        if needTeleport then doTeleport(bData.Prefix) end
+                        pcall(function() local q9 = workspace:FindFirstChild("ServiceNPCs") and workspace.ServiceNPCs:FindFirstChild("QuestNPC9"); if q9 then _G.TargetPosition = (q9:FindFirstChild("HumanoidRootPart") or q9.PrimaryPart or q9:FindFirstChildWhichIsA("BasePart", true)).Position end end)
+                    end
+                elseif activeBoss == "JinwooBoss" or activeBoss == "AlucardBoss" then
+                    local thisMob = findBossMob(bData.MobName)
+                    if thisMob then _G.BossNoMobAfterTeleport[activeBoss] = false; _G.TargetMob = thisMob elseif isBossSpawningSoon(activeBoss) then
+                        doTeleport(bData.Prefix); local mobAfterTeleport = findBossMob(bData.MobName)
+                        if mobAfterTeleport then _G.BossNoMobAfterTeleport[activeBoss] = false; _G.TargetMob = mobAfterTeleport else _G.BossNoMobAfterTeleport[activeBoss] = true; local selectedList = getSelectedBossList(); _G.BossRoundRobinIndex = (_G.BossRoundRobinIndex % #selectedList) + 1; _G.CurrentActiveBoss = nil end
+                    end
+                else
+                    local mob = findBossMob(bData.MobName)
+                    if mob then _G.TargetMob = mob elseif isBossSpawningSoon(activeBoss) then doTeleport(bData.Prefix) end
+                end
+
+            -- 🌟 3. ถ้าระบบ Boss/Summon ว่าง ให้มาระบบ Auto Island Farm
+            elseif MoMoConfig.AutoIsland and not MoMoConfig.AutoSummon and not MoMoConfig.AutoStrongestBoss and not MoMoConfig.AutoTrueAizen then
+                local selectedList = getSelectedIslandList()
+                if #selectedList > 0 then
+                    if _G.IslandRoundRobinIndex > #selectedList then _G.IslandRoundRobinIndex = 1 end
+                    local currentIsland = selectedList[_G.IslandRoundRobinIndex]
+                    local closestTargetMob = getClosestTargetMobForIsland(currentIsland)
+                    if closestTargetMob then _G.TargetMob = closestTargetMob else
+                        if tick() - _G.LastIslandTeleportTime > 3 then
+                            _G.IslandRoundRobinIndex = (_G.IslandRoundRobinIndex % #selectedList) + 1; local nextIsland = selectedList[_G.IslandRoundRobinIndex]
+                            pcall(function() RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(nextIsland) end)
+                            _G.LastIslandTeleportTime = tick(); task.wait(0.5) 
+                        end
+                    end
+                end
+
+            -- 🌟 4. ระบบ Auto Level Farm ปกติ
+            elseif MoMoConfig.AutoFarm then
+                local npc, targetType, targetIsland = getFarmInfo()
+                if npc ~= lastQuestNPC then pcall(function() RS.RemoteEvents.QuestAbandon:FireServer("repeatable") end); lastQuestNPC = npc; lastQuestTime = 0; task.wait(0.3) end
+                if npc and (tick() - lastQuestTime > 5) then pcall(function() RS.RemoteEvents.QuestAccept:FireServer(npc) end); lastQuestTime = tick() end
+                local npcsFolder = workspace:FindFirstChild("NPCs")
+                if npcsFolder and targetType then
+                    for _, mob in pairs(npcsFolder:GetChildren()) do
+                        if string.find(mob.Name, targetType) and mob:FindFirstChild("Humanoid") and mob.Humanoid.Health > 0 and mob:FindFirstChild("HumanoidRootPart") then
+                            local isCorrectMob = true
+                            if not string.find(targetType, "Boss") and string.find(mob.Name, "Boss") then isCorrectMob = false end
+                            if not string.find(targetType, "Strong") and string.find(mob.Name, "Strong") then isCorrectMob = false end
+                            if isCorrectMob then _G.TargetMob = mob; break end
+                        end
+                    end
+                end
+                if not _G.TargetMob and targetIsland then
+                    if tick() - lastIslandTeleport > 5 then pcall(function() RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(targetIsland) end); lastIslandTeleport = tick(); task.wait(2) end
+                end
+            end 
+
+            -- ==========================================
+            -- ⚔️ [ FIX ] Auto Equip Weapon 
+            -- ==========================================
+            if MoMoConfig.WeaponType ~= "None" then
+                local weaponType = MoMoConfig.WeaponType; local isEquipped = false
+                if char then for _, tool in pairs(char:GetChildren()) do if tool:IsA("Tool") and WeaponDatabase[tool.Name] == weaponType then isEquipped = true; break end end end
+                if not isEquipped and char and hum then for _, tool in pairs(LP.Backpack:GetChildren()) do if tool:IsA("Tool") and WeaponDatabase[tool.Name] == weaponType then hum:EquipTool(tool); break end end end
             end
+        else
+            _G.TargetMob = nil; _G.TargetPosition = nil
+        end
+    end
+end)
 
-            -- 3) อัปเกรดฟาร์มก่อน แล้วอัปตัว Priority ทันทีเมื่อมีเงินถึง
-            tryUpgradeFarmFirst(attackTowers, farmTowers, deck, farmSlot)
+-- ==========================================
+-- 🚀 [ ENGINE 2: Movement Execution ]
+-- ==========================================
+task.spawn(function()
+    while true do
+        task.wait() 
+        local farmActive = (MoMoConfig.AutoFarm or MoMoConfig.AutoBoss or MoMoConfig.AutoIsland or MoMoConfig.AutoSummon or MoMoConfig.AutoDungeon or MoMoConfig.AutoTower or MoMoConfig.AutoStrongestBoss or MoMoConfig.AutoTrueAizen or MoMoConfig.AutoAtomicBoss or MoMoConfig.AutoHogyokuQuest)
+        local char = LP.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local hum = char and char:FindFirstChild("Humanoid")
 
-            if not _G.lastResetAIStateMsg or tick() - _G.lastResetAIStateMsg > 4 then
-                _G.lastResetAIStateMsg = tick()
-                print("🧠 [ResetAI] FarmFirst loop running | farmSlot = " .. tostring(farmSlot) .. " | farmCard = " .. tostring(farmCard and farmCard.UUID or "nil"))
+        if farmActive and root and hum then
+            local bv = root:FindFirstChild("MomoFloatBV")
+            if not bv then bv = Instance.new("BodyVelocity"); bv.Name = "MomoFloatBV"; bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge); bv.Velocity = Vector3.new(0, 0, 0); bv.Parent = root end
+            local hasTarget = (_G.TargetMob ~= nil) or (_G.TargetPosition ~= nil)
+            if hasTarget and ((_G.TargetMob and _G.TargetMob:FindFirstChild("HumanoidRootPart") and _G.TargetMob.Humanoid.Health > 0) or (_G.TargetPosition ~= nil)) then
+                root.Anchored = false; if hum then hum.PlatformStand = false end
+                local targetPos = nil; local lookAtTarget = nil
+                local mobRoot = _G.TargetMob and (_G.TargetMob:FindFirstChild("HumanoidRootPart") or _G.TargetMob:FindFirstChild("Torso") or _G.TargetMob.PrimaryPart)
+                if mobRoot and _G.TargetMob:FindFirstChild("Humanoid") and _G.TargetMob.Humanoid.Health > 0 then
+                    targetPos = mobRoot.Position + Vector3.new(0, MoMoConfig.FarmHeight, 0); lookAtTarget = mobRoot.Position
+                elseif _G.TargetPosition then targetPos = _G.TargetPosition end
+                if targetPos then lookAtTarget = lookAtTarget or targetPos; SafeBypassWarp(targetPos, lookAtTarget) end
+            else
+                root.Anchored = true; root.Velocity = Vector3.new(0,0,0)
+            end
+        else
+            if root then
+                for _, oldBv in pairs(root:GetChildren()) do if oldBv:IsA("BodyVelocity") and string.find(oldBv.Name, "Momo") then oldBv:Destroy() end end
+                root.Anchored = false; if hum then hum.PlatformStand = false; hum:ChangeState(8) end
             end
         end
-    end)
+    end
+end)
