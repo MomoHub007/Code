@@ -11,14 +11,26 @@ end
 _G.MoMoHubLoaded = true
 
 -- 🌟 UI Phase Initialization
-local OpFarmRoute = {
-    {Island = "Starter",      Targets = {"Thief4"}},
-    {Island = "Jungle",       Targets = {"Monkey2"}},
-    {Island = "Desert",       Targets = {"DesertBandit2"}},
-    {Island = "Snow",         Targets = {"FrostRogue3"}},
-    {Island = "Shibuya",      Targets = {"Sorcerer3"}},
-    {Island = "HollowIsland", Targets = {"Hollow2"}},
-    {Island = "Shinjuku",     Targets = {"Curse3", "StrongSorcerer4"}},
+-- 🌟 UI Phase Initialization
+local OpIslandList = {
+    "Starter", "Jungle", "Desert", "Snow", "Shibuya", "HollowIsland", 
+    "Shinjuku", "Slime", "Academy", "Judgement", "SoulDominion", "Ninja", "Lawless"
+}
+
+local OpIslandTargets = {
+    ["Starter"] = {"Thief2"},
+    ["Jungle"] = {"Monkey2"},
+    ["Desert"] = {"DesertBandit2"},
+    ["Snow"] = {"FrostRogue2"},
+    ["Shibuya"] = {"Sorcerer2"},
+    ["HollowIsland"] = {"Hollow2"},
+    ["Shinjuku"] = {"Curse3", "StrongSorcerer2"},
+    ["Slime"] = {"Slime2"},
+    ["Academy"] = {"AcademyTeacher2"},
+    ["Judgement"] = {"Swordsman2"},
+    ["SoulDominion"] = {"Quincy2"},
+    ["Ninja"] = {"Ninja2"},
+    ["Lawless"] = {"ArenaFighter2"}
 }
 
 _G.AtomicBossPhase = "teleport"
@@ -73,7 +85,7 @@ local MoMoConfig = {
     AutoDungeon = false, AutoTower = false, AutoLeaveTower = false, TargetTowerFloor = 1, 
     SelectedDungeonType = "RuneDungeon", SelectedDungeonDiff = "Easy", AutoReplayDungeon = false, MerchantAmount = 1,
     AutoChest = false, SelectedChests = {}, ChestAmount = 1, UltraDeleteMap = false,
-    OpFarmAllMap = false,
+    OpFarmAllMap = false, SelectedOpIslands = {},
     WalkSpeed = 16, JumpPower = 50, AntiAFK = false, AutoRejoin = false, AutoHaki = false, AutoArmamentHaki = false
 }
 
@@ -636,106 +648,116 @@ local function GetNpcTargetByName(targetName)
     local npcs = workspace:FindFirstChild("NPCs")
     if not npcs then return nil end
 
-    local mob = npcs:FindFirstChild(targetName)
-    if not mob then return nil end
-
-    local mobRoot = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChild("Torso") or mob.PrimaryPart
-    local hum = mob:FindFirstChild("Humanoid")
-    if mobRoot and hum then
-        return mob
+    -- ⚡ ค้นหาแบบวนลูปเช็คทุกตัว เพื่อข้าม "ศพ" ไปหา "ตัวเป็นๆ"
+    for _, mob in ipairs(npcs:GetChildren()) do
+        if string.find(mob.Name, targetName) then
+            local mobRoot = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChild("Torso") or mob.PrimaryPart
+            local hum = mob:FindFirstChild("Humanoid")
+            
+            -- ต้องมีเลือด�-- ฟังก์ชันช่วยเรียงลำดับเกาะที่เลือก
+local function getSelectedOpIslands()
+    local list = {}
+    for k, v in pairs(MoMoConfig.SelectedOpIslands) do
+        local name = (v == true) and k or (type(v) == "string" and v or nil)
+        if name and table.find(IslandList, name) then table.insert(list, name) end
     end
-
-    return nil
+    table.sort(list, function(a, b) return table.find(IslandList, a) < table.find(IslandList, b) end)
+    return list
 end
 
-local function EquipSelectedWeapon()
-    if MoMoConfig.WeaponType == "None" then return end
-
-    local char = LP.Character
-    local hum = char and char:FindFirstChild("Humanoid")
-    if not char or not hum then return end
-
-    for _, tool in pairs(char:GetChildren()) do
-        if tool:IsA("Tool") and WeaponDatabase[tool.Name] == MoMoConfig.WeaponType then
-            return
-        end
-    end
-
-    for _, tool in pairs(LP.Backpack:GetChildren()) do
-        if tool:IsA("Tool") and WeaponDatabase[tool.Name] == MoMoConfig.WeaponType then
-            pcall(function()
-                hum:EquipTool(tool)
-            end)
-            return
-        end
-    end
-end
-
-local function WarpBehindAndHit(mob)
-    local char = LP.Character
-    local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not char or not root or not mob then return end
-
-    EquipSelectedWeapon()
-
-    local mobRoot = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChild("Torso") or mob.PrimaryPart
-    if not mobRoot then return end
-
-    local lookVector = mobRoot.CFrame.LookVector
-    local flatLookVector = Vector3.new(lookVector.X, 0, lookVector.Z)
-
-    if flatLookVector.Magnitude < 0.001 then
-        flatLookVector = Vector3.new(0, 0, -1)
-    else
-        flatLookVector = flatLookVector.Unit
-    end
-
-    local OP_DISTANCE = 2   -- ระยะใกล้ไกล
-    local OP_HEIGHT = 3   -- ความสูงต่ำ
-
-    local targetPos = mobRoot.Position - (flatLookVector * OP_DISTANCE) + Vector3.new(0, OP_HEIGHT, 0)
-
-    char:PivotTo(CFrame.lookAt(targetPos, mobRoot.Position))
-    root.Velocity = Vector3.zero
-    root.RotVelocity = Vector3.zero
-
-    task.wait(OP_POST_WARP_DELAY)
-
-    _G.TargetMob = mob
-
-    for _ = 1, OP_HIT_BURST do
-        if not MoMoConfig.OpFarmAllMap then break end
-
-        pcall(function()
-            RS.CombatSystem.Remotes.RequestHit:FireServer()
-        end)
-
-        task.wait(OP_HIT_INTERVAL)
-    end
-
-    _G.TargetMob = nil
-end
+_G.OpIslandRoundRobinIndex = 1
 
 task.spawn(function()
     while true do
-        task.wait(0.05)
+        RunService.Heartbeat:Wait()
 
         if MoMoConfig.OpFarmAllMap then
-            for _, route in ipairs(OpFarmRoute) do
-                if not MoMoConfig.OpFarmAllMap then break end
+            local selectedList = getSelectedOpIslands()
+            
+            if #selectedList > 0 then
+                if _G.OpIslandRoundRobinIndex > #selectedList then
+                    _G.OpIslandRoundRobinIndex = 1
+                end
 
-                pcall(function()
-                    RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(route.Island)
-                end)
+                local currentIsland = selectedList[_G.OpIslandRoundRobinIndex]
+                
+                -- ⚡ หามอนสเตอร์ "ทุกตัว" ที่อยู่บนเกาะนี้
+                local foundMob = getClosestTargetMobForIsland(currentIsland)
 
-                task.wait(OP_LOAD_DELAY)
+                if foundMob then
+                    -- ✅ เจอมอนเป็นๆ ส่งเป้าหมายให้ ENGINE 2 วาร์ป และรอจนกว่ามอนจะตาย
+                    EquipSelectedWeapon()
+                    _G.TargetMob = foundMob
+                    local hum = foundMob:FindFirstChild("Humanoid")
+                    
+                    while foundMob and foundMob.Parent and hum and hum.Health > 0 do
+                        if not MoMoConfig.OpFarmAllMap then break end
+                        RunService.Heartbeat:Wait()
+                    end
+                    
+                    _G.TargetMob = nil
+                else
+                    -- ❌ มอนตาย "เกลี้ยงเกาะ" -> เปลี่ยนเกาะแบบ 0 Delay
+                    _G.OpIslandRoundRobinIndex = (_G.OpIslandRoundRobinIndex % #selectedList) + 1
+                    local nextIsland = selectedList[_G.OpIslandRoundRobinIndex]
 
-                for _, targetName in ipairs(route.Targets) do
-                    if not MoMoConfig.OpFarmAllMap then break end
+                    -- ถ้าคิวต่อไปเป็นคนละเกาะ ค่อยทำการย้ายเกาะ
+                    if currentIsland ~= nextIsland then
+                        local char = LP.Character
+                        local root = char and char:FindFirstChild("HumanoidRootPart")
+                        local oldPos = root and root.Position or Vector3.zero
 
-                    local mob = GetNpcTargetByName(targetName)
-                    if mob then
-                        WarpBehindAndHit(mob)
+                        pcall(function()
+                            RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(nextIsland)
+                        end)
+
+                        -- ⚡ 🛑 แก้บั๊กค้าง: ต้องรออย่างน้อย 5 วินาทีเผื่อเซิร์ฟเวอร์กระตุก ห้ามปรับเป็น 0.1 เด็ดขาด!
+                        local timeout = tick() + 5 
+                        while tick() < timeout do
+                            if not MoMoConfig.OpFarmAllMap then break end
+                            local currentRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                            -- ถ้าระยะทางเปลี่ยนไปเกิน 300 Studs แปลว่าวาร์ปเปลี่ยนเกาะเสร็จสมบูรณ์จริงๆ
+                            if currentRoot and (currentRoot.Position - oldPos).Magnitude > 300 then
+                                break 
+                            end
+                            RunService.Heartbeat:Wait()
+                        end
+                    else
+                        -- กรณีเลือกฟาร์มแค่เกาะเดียว (รอเกิด)
+                        task.wait(0.2)
+                    end
+                end
+            end
+        end
+    end
+end)แล้วจริงๆ -> เปลี่ยนเกาะแบบ 0 Delay
+                    _G.OpIslandRoundRobinIndex = (_G.OpIslandRoundRobinIndex % #selectedList) + 1
+                    local nextIsland = selectedList[_G.OpIslandRoundRobinIndex]
+
+                    -- ถ้าคิวต่อไปเป็นคนละเกาะ ค่อยทำการย้ายเกาะ
+                    if currentIsland ~= nextIsland then
+                        local char = LP.Character
+                        local root = char and char:FindFirstChild("HumanoidRootPart")
+                        local oldPos = root and root.Position or Vector3.zero
+
+                        pcall(function()
+                            RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(nextIsland)
+                        end)
+
+                        -- ⚡ รอให้เซิร์ฟเวอร์ย้ายตัวละครข้ามเกาะสำเร็จจริงๆ ก่อน
+                        local timeout = tick() + 0.1
+                        while tick() < timeout do
+                            if not MoMoConfig.OpFarmAllMap then break end
+                            local currentRoot = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+                            -- ถ้าระยะทางเปลี่ยนไปเกิน 300 Studs แปลว่าวาร์ปเปลี่ยนเกาะเสร็จสมบูรณ์
+                            if currentRoot and (currentRoot.Position - oldPos).Magnitude > 300 then
+                                break 
+                            end
+                            RunService.Heartbeat:Wait()
+                        end
+                    else
+                        -- กรณีเลือกฟาร์มแค่เกาะเดียว (รอเกิด)
+                        task.wait(0.2)
                     end
                 end
             end
@@ -761,8 +783,22 @@ local tabs = {
 local FarmSec = tabs.AutoFarm:Section({ Side = "Left" })
 FarmSec:Header({ Name = "Auto Level Farm" })
 FarmSec:Toggle({ Name = "Start Auto Level Farm", Default = MoMoConfig.AutoFarm, Callback = function(val) MoMoConfig.AutoFarm = val end }, "MoMo_AutoFarm")
+
+FarmSec:Header({ Name = "OP Farm All Map (0 Delay)" })
+-- ✅ เพิ่ม Dropdown เลือกเกาะตรงนี้
+FarmSec:Dropdown({ 
+    Name = "Select OP Farm Islands", 
+    Multi = true, 
+    Options = OpIslandList, 
+    Default = MoMoConfig.SelectedOpIslands, 
+    Callback = function(val) 
+        MoMoConfig.SelectedOpIslands = val
+        _G.OpIslandRoundRobinIndex = 1 -- รีเซ็ตลูปใหม่เมื่อเปลี่ยนเกาะ
+    end 
+}, "MoMo_OpIslandList")
+
 FarmSec:Toggle({
-    Name = "OP Farm All Map",
+    Name = "Start OP Farm",
     Default = MoMoConfig.OpFarmAllMap,
     Callback = function(val)
         MoMoConfig.OpFarmAllMap = val
@@ -1090,6 +1126,9 @@ MoMoNotify({Title = "MoMoHub", Desc = "Script Loaded!", Time = 4})
 -- ==========================================
 local function SafeBypassWarp(targetPos, lookTarget, customSpeed)
     if MoMoConfig.OpFarmAllMap then
+        -- ✅ FIX: ถ้า WarpBehindAndHit กำลัง Warp อยู่ ไม่ต้อง Warp ซ้ำ
+        if _G.WarpInProgress then return end
+
         local char = LP.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         if not char or not root then return end
@@ -1823,18 +1862,54 @@ task.spawn(function()
                     if mob then _G.TargetMob = mob elseif isBossSpawningSoon(activeBoss) then doTeleport(bData.Prefix) end
                 end
 
-            -- 🌟 3. ถ้าระบบ Boss/Summon ว่าง ให้มาระบบ Auto Island Farm
-            elseif MoMoConfig.AutoIsland and not MoMoConfig.AutoSummon and not MoMoConfig.AutoStrongestBoss and not MoMoConfig.AutoTrueAizen then
+            -- 🌟 3. AUTO ISLAND FARM — Smart Map Load Detector
+            elseif MoMoConfig.AutoIsland and not MoMoConfig.AutoSummon 
+                and not MoMoConfig.AutoStrongestBoss and not MoMoConfig.AutoTrueAizen then
+
                 local selectedList = getSelectedIslandList()
                 if #selectedList > 0 then
-                    if _G.IslandRoundRobinIndex > #selectedList then _G.IslandRoundRobinIndex = 1 end
+                    if _G.IslandRoundRobinIndex > #selectedList then 
+                        _G.IslandRoundRobinIndex = 1 
+                    end
+
                     local currentIsland = selectedList[_G.IslandRoundRobinIndex]
                     local closestTargetMob = getClosestTargetMobForIsland(currentIsland)
-                    if closestTargetMob then _G.TargetMob = closestTargetMob else
+
+                    if closestTargetMob then
+                        -- ✅ มีมอนสเตอร์อยู่ ทำงานได้เลย
+                        _G.TargetMob = closestTargetMob
+                    else
+                        -- ❌ ไม่มีมอนสเตอร์ = ต้องเปลี่ยนเกาะ
                         if tick() - _G.LastIslandTeleportTime > 3 then
-                            _G.IslandRoundRobinIndex = (_G.IslandRoundRobinIndex % #selectedList) + 1; local nextIsland = selectedList[_G.IslandRoundRobinIndex]
-                            pcall(function() RS:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(nextIsland) end)
-                            _G.LastIslandTeleportTime = tick(); task.wait(0.5) 
+
+                            -- 1. วนไปเกาะถัดไป
+                            _G.IslandRoundRobinIndex = (_G.IslandRoundRobinIndex % #selectedList) + 1
+                            local nextIsland = selectedList[_G.IslandRoundRobinIndex]
+
+                            -- 2. State Reset — ล้าง Target เดิมทิ้งก่อนข้ามเกาะ
+                            _G.TargetMob = nil
+
+                            -- 3. ยิง Teleport Remote
+                            pcall(function()
+                                RS:WaitForChild("Remotes")
+                                  :WaitForChild("TeleportToPortal")
+                                  :FireServer(nextIsland)
+                            end)
+
+                            -- 4. Dynamic Polling Loop — รอแมพโหลดจริง แทน task.wait ตายตัว
+                            local timeout = tick() + 5  -- Absolute fallback 5 วิ
+                            while tick() < timeout do
+                                local newMob = getClosestTargetMobForIsland(nextIsland)
+                                if newMob and newMob:FindFirstChild("HumanoidRootPart") then
+                                    -- ✅ แมพและมอนสเตอร์โหลดเสร็จแล้ว!
+                                    _G.TargetMob = newMob
+                                    break
+                                end
+                                task.wait(0.1)  -- Poll ทุก 100ms
+                            end
+
+                            -- 5. Reset Cooldown Timer หลังจาก Farm กลับมาทำงานจริง
+                            _G.LastIslandTeleportTime = tick()
                         end
                     end
                 end
@@ -1880,7 +1955,7 @@ end)
 task.spawn(function()
     while true do
         task.wait() 
-        local farmActive = (MoMoConfig.AutoFarm or MoMoConfig.AutoBoss or MoMoConfig.AutoIsland or MoMoConfig.AutoSummon or MoMoConfig.AutoDungeon or MoMoConfig.AutoTower or MoMoConfig.AutoStrongestBoss or MoMoConfig.AutoTrueAizen or MoMoConfig.AutoHogyokuQuest or MoMoConfig.OpFarmAllMap)
+        local farmActive = IsAnyFarmActive()
         local char = LP.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local hum = char and char:FindFirstChild("Humanoid")
@@ -1899,18 +1974,24 @@ task.spawn(function()
                 -- 🌟 โหมด OP Farm All Map (วาร์ปครั้งเดียวจบ)
                 if MoMoConfig.OpFarmAllMap and mobRoot then
                     local targetCFrame = mobRoot.CFrame
+                    
                     -- ล็อกแกน Y ไว้ไม่ให้มุดดิน
-                    local flatLook = Vector3.new(targetCFrame.LookVector.X, 0, targetCFrame.LookVector.Z).Unit
+                    local flatLook = Vector3.new(targetCFrame.LookVector.X, 0, targetCFrame.LookVector.Z)
+                    if flatLook.Magnitude < 0.001 then
+                        flatLook = Vector3.new(0, 0, -1)
+                    else
+                        flatLook = flatLook.Unit
+                    end
                     
                     -- พิกัดด้านหลัง 5 Studs
                     local finalPos = targetCFrame.Position - (flatLook * 5)
-                    local lookAtPos = targetCFrame.Position
+                    -- ✅ แก้บั๊กหน้าทิ่ม: บังคับให้จุดโฟกัสสายตา (lookAt) มีแกน Y ระดับเดียวกับตัวเราเสมอ
+                    local lookAtPos = Vector3.new(targetCFrame.Position.X, finalPos.Y, targetCFrame.Position.Z)
                     
                     -- 🛑 หัวใจสำคัญ: เช็คระยะห่าง ถ้าเราอยู่ใกล้จุดด้านหลังแล้ว ให้ "หยุดวาร์ป"
                     local distFromOptimal = (root.Position - finalPos).Magnitude
                     
-                    if distFromOptimal > 1 then -- เปลี่ยนตรงนี้ให้เลขน้อยลง มันจะวาร์ปชิดหลังมอนสเตอร์มากขึ้น
-                        -- วาร์ปแค่ครั้งเดียวตอนที่เป้าหมายเปลี่ยน หรือมอนสเตอร์เดินหนีไปไกลเกินกำหนด
+                    if distFromOptimal > 1 then 
                         char:PivotTo(CFrame.lookAt(finalPos, lookAtPos))
                         root.Velocity = Vector3.new(0, 0, 0)
                         root.RotVelocity = Vector3.new(0, 0, 0)
