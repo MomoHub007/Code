@@ -61,9 +61,8 @@ local MoMoConfig = {
     AutoAtomicBoss = false, SelectedAtomicDiff = "Normal",
     AutoHogyokuQuest = false,
     AutoDungeon = false, AutoTower = false, AutoLeaveTower = false, TargetTowerFloor = 1, 
-    AutoRestartTower = false, RestartTowerFloor = 1, AutoReplayTower = false, NoClip = false, BypassTP = true,
     SelectedDungeonType = "RuneDungeon", SelectedDungeonDiff = "Easy", AutoReplayDungeon = false, MerchantAmount = 1,
-    AutoChest = false, SelectedChests = {}, ChestAmount = 1,
+    AutoChest = false, SelectedChests = {}, ChestAmount = 1, AutoDeleteMap = false,
     WalkSpeed = 16, JumpPower = 50, AntiAFK = false, AutoRejoin = false, AutoHaki = false, AutoArmamentHaki = false
 }
 
@@ -100,6 +99,382 @@ local function ApplyFpsBoost()
         for _, v in pairs(workspace:GetDescendants()) do CleanPart(v) end
         workspace.DescendantAdded:Connect(function(v) if MoMoConfig.AutoFpsBoost then CleanPart(v) end end)
     end)
+end
+
+--// Smart Map Caching System
+--// Optimized "Auto Delete Map" using cache + Parent = nil
+--// Do NOT use Destroy() so the map can be restored safely.
+
+_G.MapDeletionSystem = _G.MapDeletionSystem or {}
+local MapSystem = _G.MapDeletionSystem
+
+MapSystem.Enabled = MapSystem.Enabled or false
+MapSystem.Cache = MapSystem.Cache or {}          -- [instance] = originalParent
+MapSystem.Observer = MapSystem.Observer or nil
+MapSystem.BatchSize = MapSystem.BatchSize or 750 -- Safe range: 500 - 1000
+MapSystem.JobId = MapSystem.JobId or 0
+
+local TARGET_ROOT_NAMES = {
+    "Map",
+    "Islands",
+    "Environment"
+}
+
+local IGNORE_NAMES = {
+    NPCs = true,
+    Enemies = true,
+    Bosses = true,
+    Portals = true,
+    Hitboxes = true
+}
+
+local VISUAL_CLASS_WHITELIST = {
+    Decal = true,
+    Texture = true,
+    ParticleEmitter = true,
+    Trail = true,
+    Beam = true,
+    Smoke = true,
+    Fire = true,
+    Sparkles = true,
+    PointLight = true,
+    SpotLight = true,
+    SurfaceLight = true
+}
+
+local function notifyMapCache(text)
+    if typeof(MoMoNotify) == "function" then
+        MoMoNotify({
+            Title = "Map Cache",
+            Desc = text,
+            Time = 3
+        })
+    else
+        warn("[Map Cache] " .. tostring(text))
+    end
+end
+
+local function getTargetRoots()
+    local roots = {}
+
+    for _, rootName in ipairs(TARGET_ROOT_NAMES) do
+        local root = workspace:FindFirstChild(rootName)
+        if root then
+            table.insert(roots, root)
+        end
+    end
+
+    return roots
+end
+
+local function isTargetRoot(instance)
+    if not instance then
+        return false
+    end
+
+    for _, rootName in ipairs(TARGET_ROOT_NAMES) do
+        if instance.Name == rootName and instance.Parent == workspace then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function isInsideTargetRoots(instance)
+    if not instance then
+        return false
+    end
+
+    for _, root in ipairs(getTargetRoots()) do
+        if instance == root or instance:IsDescendantOf(root) then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function hasIgnoredAncestor(instance)
+    local current = instance
+
+    while current and current ~= workspace do
+        if current == workspace.Terrain then
+            return true
+        end
+
+        if IGNORE_NAMES[current.Name] then
+            return true
+        end
+
+        if current:IsA("SpawnLocation") then
+            return true
+        end
+
+        if current.Name == "HumanoidRootPart" then
+            return true
+        end
+
+        current = current.Parent
+    end
+
+    return false
+end
+
+local function isCharacterLike(instance)
+    local model = instance:FindFirstAncestorOfClass("Model")
+    if not model then
+        return false
+    end
+
+    return model:FindFirstChildOfClass("Humanoid") ~= nil
+end
+
+local function hasCachedAncestor(instance)
+    local current = instance.Parent
+
+    while current do
+        if MapSystem.Cache[current] ~= nil then
+            return true
+        end
+        current = current.Parent
+    end
+
+    return false
+end
+
+function isValidMapPart(instance)
+    if not instance then
+        return false
+    end
+
+    if MapSystem.Cache[instance] ~= nil then
+        return false
+    end
+
+    if instance == workspace then
+        return false
+    end
+
+    if instance == workspace.Terrain then
+        return false
+    end
+
+    if isTargetRoot(instance) then
+        return false
+    end
+
+    if not isInsideTargetRoots(instance) then
+        return false
+    end
+
+    if hasIgnoredAncestor(instance) then
+        return false
+    end
+
+    if isCharacterLike(instance) then
+        return false
+    end
+
+    if instance:IsA("Camera") or instance:IsA("Humanoid") or instance:IsA("Tool") then
+        return false
+    end
+
+    -- BasePart = MeshPart / Union / Part / Wedge / etc.
+    if instance:IsA("BasePart") then
+        return true
+    end
+
+    if VISUAL_CLASS_WHITELIST[instance.ClassName] then
+        return true
+    end
+
+    return false
+end
+
+local function cacheAndHide(instance)
+    if not instance or not instance.Parent then
+        return false
+    end
+
+    if MapSystem.Cache[instance] ~= nil then
+        return false
+    end
+
+    local originalParent = instance.Parent
+    MapSystem.Cache[instance] = originalParent
+
+    local ok = pcall(function()
+        instance.Parent = nil
+    end)
+
+    if not ok then
+        MapSystem.Cache[instance] = nil
+        return false
+    end
+
+    return true
+end
+
+local function restoreInstance(instance, originalParent)
+    if not instance then
+        return
+    end
+
+    pcall(function()
+        if originalParent and (originalParent == workspace or originalParent.Parent ~= nil) then
+            instance.Parent = originalParent
+        else
+            -- Fallback: if original parent no longer exists, restore to workspace
+            instance.Parent = workspace
+        end
+    end)
+end
+
+local function disconnectObserver()
+    if MapSystem.Observer then
+        MapSystem.Observer:Disconnect()
+        MapSystem.Observer = nil
+    end
+end
+
+local function connectObserver(jobId)
+    disconnectObserver()
+
+    MapSystem.Observer = workspace.DescendantAdded:Connect(function(instance)
+        if not MapSystem.Enabled then
+            return
+        end
+
+        -- task.defer lets Roblox finish parenting first before we inspect ancestry.
+        task.defer(function()
+            if not MapSystem.Enabled then
+                return
+            end
+
+            if jobId ~= MapSystem.JobId then
+                return
+            end
+
+            if not instance or instance.Parent == nil then
+                return
+            end
+
+            if hasCachedAncestor(instance) then
+                return
+            end
+
+            if isValidMapPart(instance) then
+                cacheAndHide(instance)
+            end
+        end)
+    end)
+end
+
+local function buildInitialScanList()
+    local list = {}
+
+    for _, root in ipairs(getTargetRoots()) do
+        for _, descendant in ipairs(root:GetDescendants()) do
+            table.insert(list, descendant)
+        end
+    end
+
+    return list
+end
+
+local function hideMapLoop(jobId)
+    local scanList = buildInitialScanList()
+    local processed = 0
+    local hiddenCount = 0
+
+    for _, instance in ipairs(scanList) do
+        if not MapSystem.Enabled then
+            return
+        end
+
+        if jobId ~= MapSystem.JobId then
+            return
+        end
+
+        -- If a parent was already cached, skip this child.
+        -- This avoids redundant work when Roblox fires descendants in bursts.
+        if not hasCachedAncestor(instance) then
+            if isValidMapPart(instance) then
+                if cacheAndHide(instance) then
+                    hiddenCount += 1
+                end
+            end
+        end
+
+        processed += 1
+
+        -- Anti-freeze yielding:
+        -- Large maps can contain tens of thousands of instances.
+        -- Yield every N items so the client UI stays responsive.
+        if processed % MapSystem.BatchSize == 0 then
+            RunService.Heartbeat:Wait()
+        end
+    end
+
+    notifyMapCache("Map hidden. Cached objects: " .. tostring(hiddenCount))
+end
+
+local function restoreMapLoop(jobId)
+    local restoreList = {}
+    local processed = 0
+    local restoredCount = 0
+
+    for instance, originalParent in pairs(MapSystem.Cache) do
+        table.insert(restoreList, {
+            Instance = instance,
+            OriginalParent = originalParent
+        })
+    end
+
+    for _, entry in ipairs(restoreList) do
+        if jobId ~= MapSystem.JobId then
+            return
+        end
+
+        restoreInstance(entry.Instance, entry.OriginalParent)
+        MapSystem.Cache[entry.Instance] = nil
+        restoredCount += 1
+        processed += 1
+
+        if processed % MapSystem.BatchSize == 0 then
+            RunService.Heartbeat:Wait()
+        end
+    end
+
+    notifyMapCache("Map restored. Restored objects: " .. tostring(restoredCount))
+end
+
+function ToggleMap(state: boolean)
+    state = state == true
+
+    if state == MapSystem.Enabled then
+        return
+    end
+
+    MapSystem.JobId += 1
+    local currentJob = MapSystem.JobId
+
+    if state then
+        MapSystem.Enabled = true
+        connectObserver(currentJob)
+
+        task.spawn(function()
+            hideMapLoop(currentJob)
+        end)
+    else
+        MapSystem.Enabled = false
+        disconnectObserver()
+
+        task.spawn(function()
+            restoreMapLoop(currentJob)
+        end)
+    end
 end
 
 -- ==========================================
@@ -484,6 +859,14 @@ ChestSec:Toggle({ Name = "Enable Auto Chest", Default = MoMoConfig.AutoChest, Ca
 local PerfSec = tabs.Settings:Section({ Side = "Left" })
 PerfSec:Header({ Name = "Performance" })
 PerfSec:Toggle({ Name = "Enable FPS Boost (Smooth Plastic)", Default = MoMoConfig.AutoFpsBoost, Callback = function(val) MoMoConfig.AutoFpsBoost = val; if val then ApplyFpsBoost(); MoMoNotify({Title = "FPS Boost", Desc = "🚀 FPS Boost Enabled!", Time = 3}) else MoMoNotify({Title = "FPS Boost", Desc = "⚠️ Rejoin to restore graphics", Time = 4}) end end }, "MoMo_FpsBoost")
+PerfSec:Toggle({
+    Name = "Auto Delete Map (Cache)",
+    Default = MoMoConfig.AutoDeleteMap,
+    Callback = function(val)
+        MoMoConfig.AutoDeleteMap = val
+        ToggleMap(val)
+    end
+}, "MoMo_AutoDeleteMap")
 
 local PlSec = tabs.Settings:Section({ Side = "Right" })
 PlSec:Header({ Name = "Local Player" })
