@@ -379,7 +379,7 @@ local WeaponDatabase = {
     ["Anos"] = "Melee", ["Shadow Monarch"] = "Sword", ["Escanor"] = "Sword", ["Blessed Maiden"] = "Melee",
     ["True Aizen"] = "Sword", ["Yamato"] = "Sword" , ["Gryphon"] = "Sword" , ["Manipulator"] = "Sword",
     ["Saber Alter"] = "Melee", ["Atomic"] = "Sword", ["Abyssal Empress"] = "Sword", ["Strongest Shinobi"] = "Melee",
-    ["True Manipulator"] = "Sword" , ["Excalibur"] = "Sword"
+    ["True Manipulator"] = "Sword" , ["Excalibur"] = "Sword" , ["Soul Reaper"] = "Sword"
 }
 
 local BossDatabase = {
@@ -403,7 +403,7 @@ local IslandMobDatabase = {
     ["Ninja"] = {"Ninja"}, ["Lawless"] = {"Arena"}
 }
 
-local AllSummonBosses = {"SaberBoss", "QinShiBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", "SaberAlterBoss"}
+local AllSummonBosses = {"SaberBoss", "QinShiBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", "SaberAlterBoss", "MoonSlayerBoss"}
 local SummonBossDifficulties = {"Normal", "Medium", "Hard", "Extreme"}
 local StrongestBossDifficulties = {"Normal", "Medium", "Hard", "Extreme"}
 local StrongestBossTypes = {"StrongestToday", "StrongestHistory"}
@@ -414,7 +414,8 @@ local StrongestBossData = {
 local TrueAizenDifficulties = {"Normal", "Medium", "Hard", "Extreme"}
 local SummonMobNames = {
     ["SaberBoss"] = "Saber", ["QinShiBoss"] = "QinShi", ["IchigoBoss"] = "Ichigo",
-    ["GilgameshBoss"] = "Gilgamesh", ["BlessedMaidenBoss"] = "BlessedMaiden", ["SaberAlterBoss"] = "SaberAlter"
+    ["GilgameshBoss"] = "Gilgamesh", ["BlessedMaidenBoss"] = "BlessedMaiden", ["SaberAlterBoss"] = "SaberAlter",
+    ["MoonSlayerBoss"] = "MoonSlayer"
 }
 
 local QuestData = {
@@ -475,7 +476,7 @@ end
 local MacLib = loadstring(game:HttpGet("https://github.com/biggaboy212/Maclib/releases/latest/download/maclib.txt"))()
 
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-local windowSize = isMobile and UDim2.fromOffset(420, 340) or UDim2.fromOffset(868, 550)
+local windowSize = isMobile and UDim2.fromOffset(868, 550) or UDim2.fromOffset(868, 550)
 
 local Window = MacLib:Window({
     Title = "MOMOHUB",
@@ -627,7 +628,9 @@ local function IsAnyFarmActive()
 end
 
 local OP_LOAD_DELAY = 1
-local OP_HIT_BURST = 10
+local OP_HIT_BURST = 4
+local OP_HIT_INTERVAL = 0.12
+local OP_POST_WARP_DELAY = 0.08
 
 local function GetNpcTargetByName(targetName)
     local npcs = workspace:FindFirstChild("NPCs")
@@ -645,10 +648,35 @@ local function GetNpcTargetByName(targetName)
     return nil
 end
 
+local function EquipSelectedWeapon()
+    if MoMoConfig.WeaponType == "None" then return end
+
+    local char = LP.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    if not char or not hum then return end
+
+    for _, tool in pairs(char:GetChildren()) do
+        if tool:IsA("Tool") and WeaponDatabase[tool.Name] == MoMoConfig.WeaponType then
+            return
+        end
+    end
+
+    for _, tool in pairs(LP.Backpack:GetChildren()) do
+        if tool:IsA("Tool") and WeaponDatabase[tool.Name] == MoMoConfig.WeaponType then
+            pcall(function()
+                hum:EquipTool(tool)
+            end)
+            return
+        end
+    end
+end
+
 local function WarpBehindAndHit(mob)
     local char = LP.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
     if not char or not root or not mob then return end
+
+    EquipSelectedWeapon()
 
     local mobRoot = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChild("Torso") or mob.PrimaryPart
     if not mobRoot then return end
@@ -662,11 +690,16 @@ local function WarpBehindAndHit(mob)
         flatLookVector = flatLookVector.Unit
     end
 
-    local targetPos = mobRoot.Position - (flatLookVector * 5)
+    local OP_DISTANCE = 2   -- ระยะใกล้ไกล
+    local OP_HEIGHT = 3   -- ความสูงต่ำ
+
+    local targetPos = mobRoot.Position - (flatLookVector * OP_DISTANCE) + Vector3.new(0, OP_HEIGHT, 0)
 
     char:PivotTo(CFrame.lookAt(targetPos, mobRoot.Position))
     root.Velocity = Vector3.zero
     root.RotVelocity = Vector3.zero
+
+    task.wait(OP_POST_WARP_DELAY)
 
     _G.TargetMob = mob
 
@@ -677,7 +710,7 @@ local function WarpBehindAndHit(mob)
             RS.CombatSystem.Remotes.RequestHit:FireServer()
         end)
 
-        RunService.Heartbeat:Wait()
+        task.wait(OP_HIT_INTERVAL)
     end
 
     _G.TargetMob = nil
@@ -1291,14 +1324,25 @@ end
 -- 🌟 [ Fast Attack Loop ]
 task.spawn(function()
     while true do
-        task.wait(0.1) 
-        if IsAnyFarmActive() and _G.TargetMob then
+        -- ⚡ ถ้าเปิด Op Farm ให้ลูปทำงานเร็วที่สุดแบบไร้ดีเลย์
+        if MoMoConfig.OpFarmAllMap then
+            task.wait() 
+        else
+            task.wait(0.1) 
+        end
+        
+        local farmActive = (MoMoConfig.AutoFarm or MoMoConfig.AutoBoss or MoMoConfig.AutoIsland or MoMoConfig.AutoSummon or MoMoConfig.AutoDungeon or MoMoConfig.AutoTower or MoMoConfig.AutoStrongestBoss or MoMoConfig.AutoTrueAizen or MoMoConfig.AutoHogyokuQuest or MoMoConfig.OpFarmAllMap)
+        
+        if farmActive and _G.TargetMob then
             local char = LP.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
             local mobRoot = _G.TargetMob and (_G.TargetMob:FindFirstChild("HumanoidRootPart") or _G.TargetMob:FindFirstChild("Torso") or _G.TargetMob.PrimaryPart)
+            
             if root and mobRoot and _G.TargetMob:FindFirstChild("Humanoid") and _G.TargetMob.Humanoid.Health > 0 then
                 local dist = (root.Position - mobRoot.Position).Magnitude
-                if dist < 20 then pcall(function() RS.CombatSystem.Remotes.RequestHit:FireServer() end) end
+                if dist < 20 then 
+                    pcall(function() RS.CombatSystem.Remotes.RequestHit:FireServer() end) 
+                end
             end
         end
     end
@@ -1481,10 +1525,11 @@ end)
 -- [ ENGINE 1: Logic & Target ]
 task.spawn(function()
     while true do
+        -- ⚡ ปลดลิมิตสมองกล: ถ้าเปิด Op Farm ให้สมองทำงานไวทะลุนรก (ไม่ต้องพัก 0.1 วิ)
         if MoMoConfig.OpFarmAllMap then
-            RunService.Heartbeat:Wait()
+            RunService.Heartbeat:Wait() -- ประมวลผลแบบ Frame-by-Frame (เร็วที่สุดในเกม)
         else
-            task.wait(0.1)
+            task.wait(0.1) -- โหมดปกติหน่วงไว้กันแลค
         end
 
         local char = LP.Character
@@ -1834,80 +1879,63 @@ end)
 -- ==========================================
 task.spawn(function()
     while true do
-        task.wait()
-
-        local farmActive = IsAnyFarmActive()
+        task.wait() 
+        local farmActive = (MoMoConfig.AutoFarm or MoMoConfig.AutoBoss or MoMoConfig.AutoIsland or MoMoConfig.AutoSummon or MoMoConfig.AutoDungeon or MoMoConfig.AutoTower or MoMoConfig.AutoStrongestBoss or MoMoConfig.AutoTrueAizen or MoMoConfig.AutoHogyokuQuest or MoMoConfig.OpFarmAllMap)
         local char = LP.Character
         local root = char and char:FindFirstChild("HumanoidRootPart")
         local hum = char and char:FindFirstChild("Humanoid")
 
         if farmActive and root and hum then
             local bv = root:FindFirstChild("MomoFloatBV")
-            if not bv then
-                bv = Instance.new("BodyVelocity")
-                bv.Name = "MomoFloatBV"
-                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-                bv.Velocity = Vector3.zero
-                bv.Parent = root
-            end
-
+            if not bv then bv = Instance.new("BodyVelocity"); bv.Name = "MomoFloatBV"; bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge); bv.Velocity = Vector3.new(0, 0, 0); bv.Parent = root end
+            
             local hasTarget = (_G.TargetMob ~= nil) or (_G.TargetPosition ~= nil)
-            local mobRoot = _G.TargetMob and (_G.TargetMob:FindFirstChild("HumanoidRootPart") or _G.TargetMob:FindFirstChild("Torso") or _G.TargetMob.PrimaryPart)
-
-            if hasTarget and ((_G.TargetMob and mobRoot and _G.TargetMob:FindFirstChild("Humanoid") and _G.TargetMob.Humanoid.Health > 0) or (_G.TargetPosition ~= nil)) then
-                root.Anchored = false
-                hum.PlatformStand = false
-
-                local targetPos = nil
-                local lookAtTarget = nil
-
+            
+            if hasTarget and ((_G.TargetMob and _G.TargetMob:FindFirstChild("HumanoidRootPart") and _G.TargetMob.Humanoid.Health > 0) or (_G.TargetPosition ~= nil)) then
+                root.Anchored = false; if hum then hum.PlatformStand = false end
+                
+                local mobRoot = _G.TargetMob and (_G.TargetMob:FindFirstChild("HumanoidRootPart") or _G.TargetMob:FindFirstChild("Torso") or _G.TargetMob.PrimaryPart)
+                
+                -- 🌟 โหมด OP Farm All Map (วาร์ปครั้งเดียวจบ)
                 if MoMoConfig.OpFarmAllMap and mobRoot then
-                    local lookVector = mobRoot.CFrame.LookVector
-                    local flatLookVector = Vector3.new(lookVector.X, 0, lookVector.Z)
-
-                    if flatLookVector.Magnitude < 0.001 then
-                        flatLookVector = Vector3.new(0, 0, -1)
-                    else
-                        flatLookVector = flatLookVector.Unit
+                    local targetCFrame = mobRoot.CFrame
+                    -- ล็อกแกน Y ไว้ไม่ให้มุดดิน
+                    local flatLook = Vector3.new(targetCFrame.LookVector.X, 0, targetCFrame.LookVector.Z).Unit
+                    
+                    -- พิกัดด้านหลัง 5 Studs
+                    local finalPos = targetCFrame.Position - (flatLook * 5)
+                    local lookAtPos = targetCFrame.Position
+                    
+                    -- 🛑 หัวใจสำคัญ: เช็คระยะห่าง ถ้าเราอยู่ใกล้จุดด้านหลังแล้ว ให้ "หยุดวาร์ป"
+                    local distFromOptimal = (root.Position - finalPos).Magnitude
+                    
+                    if distFromOptimal > 1 then -- เปลี่ยนตรงนี้ให้เลขน้อยลง มันจะวาร์ปชิดหลังมอนสเตอร์มากขึ้น
+                        -- วาร์ปแค่ครั้งเดียวตอนที่เป้าหมายเปลี่ยน หรือมอนสเตอร์เดินหนีไปไกลเกินกำหนด
+                        char:PivotTo(CFrame.lookAt(finalPos, lookAtPos))
+                        root.Velocity = Vector3.new(0, 0, 0)
+                        root.RotVelocity = Vector3.new(0, 0, 0)
                     end
-
-                    targetPos = mobRoot.Position - (flatLookVector * 5)
-                    lookAtTarget = mobRoot.Position
-
-                    char:PivotTo(CFrame.lookAt(targetPos, lookAtTarget))
-                    root.Velocity = Vector3.zero
-                    root.RotVelocity = Vector3.zero
-                    bv.Velocity = Vector3.zero
+                    
+                -- 🥷 โหมด Farm ปกติ (ลอยบนหัว)
                 else
-                    if mobRoot and _G.TargetMob:FindFirstChild("Humanoid") and _G.TargetMob.Humanoid.Health > 0 then
-                        targetPos = mobRoot.Position + Vector3.new(0, MoMoConfig.FarmHeight, 0)
-                        lookAtTarget = mobRoot.Position
-                    elseif _G.TargetPosition then
-                        targetPos = _G.TargetPosition
-                        lookAtTarget = targetPos
+                    local targetPos = nil; local lookAtTarget = nil
+                    if mobRoot then
+                        targetPos = mobRoot.Position + Vector3.new(0, MoMoConfig.FarmHeight, 0); lookAtTarget = mobRoot.Position
+                    elseif _G.TargetPosition then 
+                        targetPos = _G.TargetPosition 
                     end
-
-                    if targetPos then
-                        SafeBypassWarp(targetPos, lookAtTarget)
+                    
+                    if targetPos then 
+                        lookAtTarget = lookAtTarget or targetPos; SafeBypassWarp(targetPos, lookAtTarget) 
                     end
                 end
             else
-                root.Anchored = true
-                root.Velocity = Vector3.zero
-                bv.Velocity = Vector3.zero
+                root.Anchored = true; root.Velocity = Vector3.new(0,0,0)
             end
         else
             if root then
-                for _, oldBv in pairs(root:GetChildren()) do
-                    if oldBv:IsA("BodyVelocity") and string.find(oldBv.Name, "Momo") then
-                        oldBv:Destroy()
-                    end
-                end
-                root.Anchored = false
-                if hum then
-                    hum.PlatformStand = false
-                    hum:ChangeState(8)
-                end
+                for _, oldBv in pairs(root:GetChildren()) do if oldBv:IsA("BodyVelocity") and string.find(oldBv.Name, "Momo") then oldBv:Destroy() end end
+                root.Anchored = false; if hum then hum.PlatformStand = false; hum:ChangeState(8) end
             end
         end
     end
