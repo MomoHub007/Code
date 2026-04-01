@@ -177,194 +177,217 @@ local function StartLobbyMaster()
     end
 
     function Tutorial.SmartEquip()
-        print("🔍 [SmartEquip V8.1] เริ่มสแกนแบบ Deep Memory...")
-        _G.MoMoStatus("เริ่มสแกนกระเป๋าแบบ Deep Memory...")
-        Tutorial.ForceLoadInventoryUI()
-        task.wait(3)
-        
-        -- 🎯 1. สแกน UI (ดึงชื่อยูนิตและดาว)
-        _G.MoMoStatus("กำลังค้นหายูนิตจากหน้าจอ...")
-        local unitUIList = {} 
-        local highStarCount = 0
-        local invV2 = hud:FindFirstChild("InventoryV2")
-        local scroll = invV2 and invV2:FindFirstChildWhichIsA("ScrollingFrame", true)
+        _G.MoMoStatus("กำลังวิเคราะห์และจัดทีมที่ดีที่สุด...")
 
-        if not scroll then
-            warn("❌ [UI] หา Scroll ไม่เจอ!")
-            return false
-        end
-        
-        for _, uiObj in pairs(scroll:GetChildren()) do
-            if uiObj:IsA("GuiObject") then
+        -- ════════════════════════════════════════════════════
+        -- PHASE 1: STATE RETRIEVAL
+        -- ════════════════════════════════════════════════════
+        local hud          = LocalPlayer.PlayerGui:WaitForChild("HUD")
+        local inventory    = {}
+        local currentTeam  = {}
+
+        -- 1a. ดึง CurrentTeam จาก BottomFrame
+        pcall(function()
+            local bF = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
+            if not bF then return end
+            for _, v in pairs(bF:GetDescendants()) do
+                if v:IsA("StringValue") and v.Value ~= "" and v.Value ~= "Empty" then
+                    table.insert(currentTeam, v.Value)
+                end
+            end
+        end)
+
+        -- 1b. ดึง Inventory จาก ScrollingFrame UI
+        pcall(function()
+            local invV2 = hud:FindFirstChild("InventoryV2")
+            local scroll = invV2 and invV2:FindFirstChildWhichIsA("ScrollingFrame", true)
+            if not scroll then return end
+
+            for _, uiObj in pairs(scroll:GetChildren()) do
+                if not uiObj:IsA("GuiObject") then continue end
+
+                -- งัดค่าดาว
                 local stars = 0
-                local starLabel = uiObj:FindFirstChild("StarFrame", true) and uiObj:FindFirstChild("StarFrame", true):FindFirstChildWhichIsA("TextLabel")
-                
-                -- งัดหาดาวจากลูกหลาน ถ้าหา StarFrame ไม่เจอ
-                if not starLabel then
-                    for _, desc in pairs(uiObj:GetDescendants()) do
-                        if desc:IsA("TextLabel") and (desc.Name:lower():find("star") or (desc.Parent and desc.Parent.Name:lower():find("star"))) then
-                            starLabel = desc; break
-                        end
+                local starLabel = nil
+                for _, desc in pairs(uiObj:GetDescendants()) do
+                    if desc:IsA("TextLabel") and
+                       (desc.Name:lower():find("star") or (desc.Parent and desc.Parent.Name:lower():find("star"))) then
+                        starLabel = desc; break
                     end
                 end
-                
                 if starLabel and tonumber(starLabel.Text) then
                     stars = tonumber(starLabel.Text)
                 end
-                
-                if stars > 0 then
-                    if stars >= 4 then highStarCount = highStarCount + 1 end
-                    
-                    local realName = uiObj.Name
-                    local nameLabel = uiObj:FindFirstChild("UnitName", true) or uiObj:FindFirstChild("MainName", true)
-                    if nameLabel and nameLabel:IsA("TextLabel") and nameLabel.Text ~= "" then 
-                        realName = nameLabel.Text 
-                    end
-                    
-                    -- งัดหา ID จาก UI (เผื่อเกมแนบมากับ Attribute)
-                    local uiID = nil
-                    pcall(function()
-                        uiID = uiObj:GetAttribute("uid") or uiObj:GetAttribute("uuid") or uiObj:GetAttribute("ID") or uiObj:GetAttribute("UUID")
-                    end)
-                    if not uiID then
-                        for _, child in pairs(uiObj:GetDescendants()) do
-                            local cn = child.Name:lower()
-                            if cn == "uid" or cn == "uuid" or cn == "id" then
-                                if child:IsA("IntValue") or child:IsA("NumberValue") or child:IsA("StringValue") then
-                                    uiID = child.Value; break
-                                end
-                            end
+                if stars == 0 then continue end
+
+                -- งัดชื่อยูนิต
+                local unitName = uiObj.Name
+                local nameLabel = uiObj:FindFirstChild("UnitName", true) or uiObj:FindFirstChild("MainName", true)
+                if nameLabel and nameLabel:IsA("TextLabel") and nameLabel.Text ~= "" then
+                    unitName = nameLabel.Text
+                end
+
+                -- งัด ID / UUID จาก Attribute
+                local unitID = nil
+                pcall(function()
+                    unitID = uiObj:GetAttribute("uid") or uiObj:GetAttribute("uuid")
+                           or uiObj:GetAttribute("ID") or uiObj:GetAttribute("UUID")
+                end)
+                -- Fallback: ขุดจาก Children
+                if not unitID then
+                    for _, child in pairs(uiObj:GetDescendants()) do
+                        local cn = child.Name:lower()
+                        if (cn == "uid" or cn == "uuid" or cn == "id") and
+                           (child:IsA("IntValue") or child:IsA("NumberValue") or child:IsA("StringValue")) then
+                            unitID = child.Value; break
                         end
                     end
-                    
-                    table.insert(unitUIList, {
-                        Name = realName, Stars = stars, UI = uiObj, 
-                        ID = uiID, Level = 1
+                end
+                -- Fallback สุดท้าย: getgc() Memory Scan
+                if not unitID then
+                    pcall(function()
+                        for _, v in pairs(getgc(true)) do
+                            if type(v) == "table" then
+                                pcall(function()
+                                    local id   = rawget(v,"uid") or rawget(v,"uuid") or rawget(v,"ID")
+                                    local name = rawget(v,"unitId") or rawget(v,"Name") or rawget(v,"UnitName")
+                                    if id and name == unitName then unitID = id end
+                                end)
+                            end
+                            if unitID then break end
+                        end
+                    end)
+                end
+
+                if unitID then
+                    table.insert(inventory, {
+                        Name  = unitName,
+                        Stars = stars,
+                        Level = 1, -- Default; อัปเดตถ้าเกมเก็บ Level ใน Attribute
+                        ID    = unitID,
                     })
                 end
             end
+        end)
+
+        if #inventory == 0 then
+            _G.MoMoStatus("ไม่พบยูนิตในกระเป๋า!")
+            return false
         end
-        
-        -- 🧠 2. ดึง ID จาก Memory แบบดุดันสุดขีด
-        local needMemory = false
-        for _, u in ipairs(unitUIList) do
-            if not u.ID then needMemory = true; break end
+
+        -- ════════════════════════════════════════════════════
+        -- PHASE 2: FILTERING & SORTING
+        -- ════════════════════════════════════════════════════
+        table.sort(inventory, function(a, b)
+            if a.Stars == b.Stars then return a.Level > b.Level end
+            return a.Stars > b.Stars
+        end)
+
+        -- ════════════════════════════════════════════════════
+        -- PHASE 3: IDEAL TEAM CALCULATION
+        -- ════════════════════════════════════════════════════
+        local idealTeam = {}
+        local usedUUIDs = {}
+
+        local function pickUnit(conditionFn)
+            for _, unit in ipairs(inventory) do
+                if not usedUUIDs[tostring(unit.ID)] and conditionFn(unit) then
+                    usedUUIDs[tostring(unit.ID)] = true
+                    return unit
+                end
+            end
+            return nil
         end
-        
-        if needMemory then
-            print("🧠 [Memory] UI ไม่มี ID... กำลังเจาะทะลวง getgc()...")
-            _G.MoMoStatus("UI ไม่มี ID... กำลังขุดหาจาก Memory...")
-            local memoryData = {}
-            local countMem = 0
-            
+
+        -- Slot 1 & 2: HighTier (ดาวสูงสุด)
+        local slot1 = pickUnit(function() return true end)
+        local slot2 = pickUnit(function() return true end)
+        if slot1 then table.insert(idealTeam, slot1) end
+        if slot2 then table.insert(idealTeam, slot2) end
+
+        -- Slot 3: MidTier (Stars ≤ 3)
+        local slot3 = pickUnit(function(u) return u.Stars <= 3 end)
+
+        -- Fallback: ไม่มีตัว ≤ 3 ดาว → หยิบตัวดาวน้อยสุดที่ยังไม่ถูกใช้
+        if not slot3 then
+            for i = #inventory, 1, -1 do
+                local fallback = inventory[i]
+                if not usedUUIDs[tostring(fallback.ID)] then
+                    usedUUIDs[tostring(fallback.ID)] = true
+                    slot3 = fallback
+                    break
+                end
+            end
+        end
+        if slot3 then table.insert(idealTeam, slot3) end
+
+        -- ════════════════════════════════════════════════════
+        -- PHASE 4: DELTA CHECK
+        -- ════════════════════════════════════════════════════
+        local isTeamPerfect = (#idealTeam == #currentTeam)
+        if isTeamPerfect then
+            local currentUUIDMap = {}
+            for _, v in ipairs(currentTeam) do currentUUIDMap[tostring(v)] = true end
+            for _, v in ipairs(idealTeam) do
+                if not currentUUIDMap[tostring(v.ID)] then
+                    isTeamPerfect = false; break
+                end
+            end
+        end
+
+        if isTeamPerfect then
+            print("✅ [PreMatchEquip] ทีมสมบูรณ์แบบอยู่แล้ว ไม่ต้องจัดใหม่")
+            _G.MoMoStatus("ทีมสมบูรณ์แบบ พร้อมลุยด่าน!")
+            return true
+        end
+
+        -- ════════════════════════════════════════════════════
+        -- PHASE 5: EXECUTION — Unequip → Equip
+        -- ════════════════════════════════════════════════════
+        _G.MoMoStatus("กำลังปรับโฉมทีมก่อนลงด่าน...")
+
+        -- Unequip ทีมเก่า
+        for _, currentID in ipairs(currentTeam) do
+            pcall(function() inputRemote:FireServer("Unequip", { Stats = currentID }) end)
+            task.wait(0.2)
+        end
+        task.wait(0.3)
+
+        -- Equip ทีมใหม่
+        for i, unit in ipairs(idealTeam) do
+            print(string.format("➕ [Slot %d] %s ⭐%d (ID: %s)", i, unit.Name, unit.Stars, tostring(unit.ID)))
             pcall(function()
-                for _, v in pairs(getgc(true)) do
-                    if type(v) == "table" then
-                        pcall(function()
-                            -- สแกนหา Key ทุกรูปแบบที่เกมส่วนใหญ่ใช้ (ขุดลึกทะลุ Metatable)
-                            local id = rawget(v, "uid") or rawget(v, "uuid") or rawget(v, "ID") or rawget(v, "UUID") or v.uid or v.uuid or v.ID or v.UUID
-                            local name = rawget(v, "unitId") or rawget(v, "Name") or rawget(v, "UnitName") or v.unitId or v.Name or v.UnitName
-                            local level = rawget(v, "level") or rawget(v, "Level") or v.level or v.Level or 1
-                            
-                            if id and type(name) == "string" then
-                                memoryData[name] = {ID = id, Level = level}
-                                memoryData[name:lower()] = {ID = id, Level = level} -- ดักเผื่อกรณีตัวพิมพ์เล็ก/ใหญ่ไม่ตรงกัน
-                                countMem = countMem + 1
-                            end
-                        end)
-                    end
-                end
+                local idStr = (type(unit.ID) == "string" and not tonumber(unit.ID))
+                    and ('"' .. unit.ID .. '"')
+                    or tostring(unit.ID)
+
+                local statsJson = string.format(
+                    '{"ID":%s,"Level":%d,"Name":"%s"}',
+                    idStr, unit.Level, unit.Name
+                )
+                serverRemote:InvokeServer("Equip", { Stats = statsJson })
             end)
-            
-            print("📦 [Memory] ขุดเจอข้อมูล " .. countMem .. " รายการ")
-            
-            -- จับคู่ข้อมูล Memory เข้ากับตัวละครใน UI
-            for _, u in ipairs(unitUIList) do
-                if not u.ID then
-                    local mem = memoryData[u.Name] or memoryData[u.Name:lower()]
-                    if mem then
-                        u.ID = mem.ID
-                        u.Level = mem.Level
-                        print("   🔗 จับคู่สำเร็จ: " .. u.Name .. " -> ID: " .. tostring(u.ID))
-                    end
-                end
-            end
-        end
-        
-        print("📊 [Scan] ตัว 4-5 ดาว: " .. highStarCount .. " | ยูนิตทั้งหมด: " .. #unitUIList)
-
-        -- 🎰 3. สุ่มกาชา (ตัดสินจากดาวเท่านั้น)
-        if highStarCount <= 1 then
-            print("🎰 [Auto Gacha] ตัวละครระดับสูงน้อยเกินไป... เริ่มสุ่ม 10 โรล!")
-            _G.MoMoStatus("ตัวตึงน้อยเกินไป! เริ่มสุ่มกาชา 10 โรล...")
-            local killAnim = task.spawn(function()
-                while task.wait(0.05) do
-                    for _, v in pairs(hud:GetChildren()) do
-                        if (v.Name:match("Summon") or v.Name:match("Animation")) and v.Name ~= "SummonBanners" then v:Destroy() end
-                    end
-                end
-            end)
-            pcall(function() serverRemote:InvokeServer("BannerSummon", 10, "Rerun101") end)
-            task.wait(3.5)
-            task.cancel(killAnim)
-            Tutorial.Rejoin()
-            return false 
+            task.wait(0.4)
         end
 
-        if #unitUIList == 0 then return false end
-
-        table.sort(unitUIList, function(a, b) return a.Stars > b.Stars end)
-        
-        -- 🔓 4. ถอดตัวละครเดิม
-        print("🔓 [Unequip] เคลียร์ทีมเดิม...")
-        _G.MoMoStatus("กำลังเคลียร์ทีมเดิม...")
-        local bF = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
-        if bF then
-            for _, v in pairs(bF:GetDescendants()) do
-                if v:IsA("StringValue") and v.Value ~= "" and v.Value ~= "Empty" then
-                    pcall(function() inputRemote:FireServer("Unequip", {Stats = v.Value}) end)
-                    task.wait(0.3)
-                end
-            end
-        end
-        task.wait(0.5)
-
-        -- ✨ 5. ใส่ตัวละคร (ฉลาดขึ้น: รองรับ UUID แบบอักษร)
-        print("🚀 [Auto Equip] สวมใส่ผ่าน Remote...")
-        local equipped = 0
-        for i = 1, math.min(6, #unitUIList) do
-            local u = unitUIList[i]
-            if u.ID then
-                print("   ➕ กำลังใส่: " .. u.Name .. " ⭐" .. u.Stars)
-                pcall(function() 
-                    -- ป้องกันบั๊ก JSON: ถ้า ID เป็นข้อความยาวๆ ต้องใส่เครื่องหมายคำพูดครอบด้วย ("uuid")
-                    local idStr
-                    if type(u.ID) == "string" and not tonumber(u.ID) then
-                        idStr = '"' .. u.ID .. '"'
-                    else
-                        idStr = tostring(u.ID)
-                    end
-                    
-                    local statsJson = string.format('{"ID":%s,"Level":%d,"Name":"%s"}', idStr, u.Level, u.Name)
-                    serverRemote:InvokeServer("Equip", { Stats = statsJson }) 
-                end)
-                task.wait(0.5)
-                equipped = equipped + 1
-            else
-                warn("   ⚠️ ข้าม " .. u.Name .. " เพราะระบบขุดหา ID ไม่เจอ (ข้อมูลขาดหาย)!")
-            end
-        end
-        
+        -- ════════════════════════════════════════════════════
+        -- PHASE 6: VALIDATION
+        -- ════════════════════════════════════════════════════
         task.wait(1)
         local finalCount = 0
-        bF = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
-        if bF then
+        pcall(function()
+            local bF = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
+            if not bF then return end
             for _, v in pairs(bF:GetDescendants()) do
-                if v:IsA("StringValue") and v.Value ~= "" and v.Value ~= "Empty" then finalCount = finalCount + 1 end
+                if v:IsA("StringValue") and v.Value ~= "" and v.Value ~= "Empty" then
+                    finalCount = finalCount + 1
+                end
             end
-        end
-        
-        print("🏁 [SmartEquip] สั่งใส่ไป " .. equipped .. " ตัว | ในทีมจริง: " .. finalCount .. " ตัว")
+        end)
+
+        print(string.format("🏁 [PreMatchEquip] จัดทีมเสร็จ | ในทีมจริง: %d/%d ตัว", finalCount, #idealTeam))
+        _G.MoMoStatus(string.format("จัดทีมเสร็จ! มีตัวในทีม %d ตัว", finalCount))
+
         return finalCount > 0
     end
 
@@ -469,6 +492,10 @@ local function StartLobbyMaster()
                     task.wait(0.5)
                 end
             end)
+
+            task.wait(0.5)
+            Tutorial.SmartEquip()
+            task.wait(0.5)
 
             -- 🟢 3. ทีมพร้อม กระเป๋าไม่เต็ม พุ่งเข้าตู้หมายเลข 37!
             pcall(function()
