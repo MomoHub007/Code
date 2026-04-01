@@ -8,7 +8,41 @@
     local UserInputService = game:GetService("UserInputService")
     local LP = LocalPlayer
 
-    print("🚀 [MoMo AutoPlay] เริ่มรัน V5.0 (Clean UI)...")
+-- =====================================================================
+-- 📛 [Visual Mod] ระบบเปลี่ยนป้ายชื่อบนหัว (Custom Overhead Nametag)
+-- =====================================================================
+local function applyCustomNameTag(character)
+    if not character then return end
+    task.spawn(function()
+        task.wait(0.5)
+        pcall(function()
+            local head = character:WaitForChild("Head", 5)
+            if not head then return end
+            local playerInfo = head:WaitForChild("playerInfo", 5)
+            if not playerInfo then return end
+            local nameText = playerInfo:WaitForChild("NameText", 5)
+            if not nameText or not nameText:IsA("TextLabel") then return end
+            nameText.Text = "MoMoHub"
+            nameText.TextColor3 = Color3.fromRGB(170, 0, 255)
+            local stroke = nameText:FindFirstChildOfClass("UIStroke")
+            if not stroke then
+                stroke = Instance.new("UIStroke")
+                stroke.Parent = nameText
+            end
+            stroke.Color = Color3.fromRGB(255, 255, 255)
+            stroke.Thickness = 1.5
+            print("📛 [Visual Mod] เปลี่ยนป้ายชื่อบนหัวเป็น MoMoHub สำเร็จ!")
+        end)
+    end)
+end
+
+if LocalPlayer.Character then
+    applyCustomNameTag(LocalPlayer.Character)
+end
+LocalPlayer.CharacterAdded:Connect(applyCustomNameTag)
+-- =====================================================================
+
+print("🚀 [MoMo AutoPlay] เริ่มรัน V5.0 (Clean UI)...")
 
     local MoMoLogo = "rbxthumb://type=Asset&id=121052363208302&w=150&h=150"
 
@@ -896,7 +930,10 @@
         return m
     end
 
+    local _cachedDeck = {}
+    local _cachedDeckAt = 0
     local function getDeckUUIDs()
+        if tick() - _cachedDeckAt < 1.5 then return _cachedDeck end
         local deck = {}
         pcall(function()
             local container = LocalPlayer.PlayerGui.hotbarGui.scalingFrame.background.container
@@ -925,6 +962,8 @@
                 end
             end
         end)
+        _cachedDeck = deck
+        _cachedDeckAt = tick()
         return deck
     end
 
@@ -1005,7 +1044,7 @@
         end
 
         local cached = _cachedWaypointMap[pathFolder]
-        if cached and cached.parent == pathFolder and tick() - cached.time < 3 then
+        if cached and cached.parent == pathFolder and tick() - cached.time < 10 then
             return cached.points
         end
 
@@ -1224,68 +1263,180 @@
         local map = workspace:FindFirstChild("mapFolder") or workspace:FindFirstChild("Map")
         local areas = map and map:FindFirstChild("PlaceAreas")
         local pathFolder = getPathFolder()
-        
-        if not areas or not pathFolder then return nil, "ไม่เจอ PlaceAreas หรือ PathFolder" end
+
+        if not areas or not pathFolder then
+            return nil, "ไม่เจอ PlaceAreas หรือ PathFolder"
+        end
+
+        local enemies = workspace:FindFirstChild("enemiesModels")
+        if not enemies then
+            return nil, "ไม่มี enemiesModels"
+        end
 
         local targetEnemy = nil
-        local maxProgress = -1
-        local enemies = workspace:FindFirstChild("enemiesModels")
-        
-        -- 🌟 [New Logic]: หามอนสเตอร์ที่คะแนน Waypoint สูงที่สุด (หัวขบวน)
-        if enemies then
-            for _, e in pairs(enemies:GetChildren()) do
-                local hrp = e:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local prog = getProgressScore(hrp.Position, pathFolder)
-                    if prog > maxProgress then
-                        maxProgress = prog
-                        targetEnemy = e
+        local targetPos = nil
+        local bestProgress = -1
+
+        for _, e in ipairs(enemies:GetChildren()) do
+            local hrp = e:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local prog = getProgressScore(hrp.Position, pathFolder)
+                if prog > bestProgress then
+                    bestProgress = prog
+                    targetEnemy = e
+                    targetPos = hrp.Position
+                end
+            end
+        end
+
+        if not targetEnemy or not targetPos then
+            return nil, "ไม่มีมอนสเตอร์บนแมพ"
+        end
+
+        local waypoints = _getOrderedWaypoints(pathFolder)
+        if #waypoints < 2 then
+            return nil, "waypoints ไม่พอ"
+        end
+
+        -- หา segment ที่ใกล้มอนที่สุด
+        local bestSegmentIndex = 1
+        local bestDistance = math.huge
+        local bestClosestPoint = nil
+        local bestDir = nil
+
+        for i = 1, #waypoints - 1 do
+            local a = waypoints[i].pos
+            local b = waypoints[i + 1].pos
+            local ab = b - a
+            local abLenSq = ab:Dot(ab)
+
+            if abLenSq > 0 then
+                local t = math.clamp((targetPos - a):Dot(ab) / abLenSq, 0, 1)
+                local closest = a + ab * t
+                local dist = (targetPos - closest).Magnitude
+
+                if dist < bestDistance then
+                    bestDistance = dist
+                    bestSegmentIndex = i
+                    bestClosestPoint = closest
+                    bestDir = ab.Unit
+                end
+            end
+        end
+
+        if not bestClosestPoint or not bestDir then
+            return nil, "หาแนว path ไม่เจอ"
+        end
+
+        -- เวกเตอร์ซ้าย/ขวา จากทิศทาง path
+        local right = bestDir:Cross(Vector3.new(0, 1, 0))
+        if right.Magnitude < 0.001 then
+            right = Vector3.new(1, 0, 0)
+        else
+            right = right.Unit
+        end
+
+        -- จุดฐาน = วางล่วงหน้าหน้ามอนตามแนว path
+        local baseForwardDistances = {8, 10, 6, 12}
+        local sideOffsets = {0, 3.5, -3.5, 5.5, -5.5, 7.5, -7.5}
+
+        local candidates = {}
+
+        for _, forwardDist in ipairs(baseForwardDistances) do
+            local basePos = bestClosestPoint + (bestDir * forwardDist)
+
+            for _, side in ipairs(sideOffsets) do
+                local candidatePos = basePos + (right * side)
+
+                -- กันจุดที่ถอยหลังมอน
+                local forwardDot = (candidatePos - targetPos):Dot(bestDir)
+                if forwardDot >= 2 then
+                    table.insert(candidates, candidatePos)
+                end
+            end
+        end
+
+        local bestCFrame = nil
+        local bestType = nil
+        local bestScore = -math.huge
+
+        for _, candidatePos in ipairs(candidates) do
+            if not isNearFailedSpot(candidatePos, 4.5) then
+                for _, pType in ipairs({"ground", "air"}) do
+                    local folder = areas:FindFirstChild(pType)
+                    if folder then
+                        local rayParams = RaycastParams.new()
+                        rayParams.FilterType = Enum.RaycastFilterType.Include
+                        rayParams.FilterDescendantsInstances = {folder}
+
+                        local result = workspace:Raycast(
+                            candidatePos + Vector3.new(0, 50, 0),
+                            Vector3.new(0, -100, 0),
+                            rayParams
+                        )
+
+                        if result then
+                            local pos = result.Position + Vector3.new(0, 1, 0)
+                            local cf = CFrame.new(pos)
+
+                            local occupied = false
+                            for _, part in ipairs(workspace:GetPartBoundsInBox(cf, Vector3.new(3.5, 3.5, 3.5))) do
+                                if part.Parent and part.Parent.Name:match("^tower%-") then
+                                    occupied = true
+                                    break
+                                end
+                            end
+
+                            if not occupied then
+                                local distToEnemy = (pos - targetPos).Magnitude
+                                local progressAtSpot = getProgressScore(pos, pathFolder)
+                                local forwardBonus = (pos - targetPos):Dot(bestDir)
+
+                                -- ให้คะแนนจุด:
+                                -- + ชอบจุดที่อยู่หน้า enemy
+                                -- + ชอบ progress พอๆ กับหรือมากกว่า enemy นิดหน่อย
+                                -- - ไม่ชอบไกล enemy เกินไป
+                                local score = 0
+                                score += forwardBonus * 2
+                                score -= distToEnemy * 0.35
+                                score -= math.abs(progressAtSpot - bestProgress) * 3
+
+                                if progressAtSpot >= bestProgress then
+                                    score += 10
+                                end
+
+                                if distToEnemy >= 5 and distToEnemy <= 12 then
+                                    score += 8
+                                end
+
+                                if score > bestScore then
+                                    bestScore = score
+                                    bestCFrame = cf
+                                    bestType = pType
+                                end
+                            end
+                        end
                     end
                 end
             end
         end
 
-        if not targetEnemy or not targetEnemy:FindFirstChild("HumanoidRootPart") then return nil, "ไม่มีมอนสเตอร์บนแมพ" end
+        if bestCFrame then
+            pcall(function()
+                local p = Instance.new("Part")
+                p.Size = Vector3.new(1.5, 1.5, 1.5)
+                p.Color = Color3.fromRGB(0, 255, 100)
+                p.Anchored = true
+                p.CanCollide = false
+                p.CFrame = bestCFrame
+                p.Parent = workspace
+                game:GetService("Debris"):AddItem(p, 1.2)
+            end)
 
-        local enemyHRP = targetEnemy.HumanoidRootPart
-        
-        -- สุ่มจุดวาง 360 องศารอบตัวมอนสเตอร์ (แก้บั๊กจุดซ้ำ)
-        local checkRadius = math.random(4, 9)
-        local angle = math.random(0, 360)
-        local rad = math.rad(angle)
-        local randomOffset = Vector3.new(math.cos(rad) * checkRadius, 0, math.sin(rad) * checkRadius)
-        local checkPos = enemyHRP.Position + randomOffset
-
-        for _, pType in ipairs({"ground", "air"}) do
-            local folder = areas:FindFirstChild(pType)
-            if folder then
-                local rP = RaycastParams.new()
-                rP.FilterType = Enum.RaycastFilterType.Include
-                rP.FilterDescendantsInstances = {folder}
-
-                local res = workspace:Raycast(checkPos + Vector3.new(0, 50, 0), Vector3.new(0, -100, 0), rP)
-
-                if res then
-                    local cf = CFrame.new(res.Position + Vector3.new(0, 1, 0))
-                    local occupied = false
-                    
-                    for _, p in pairs(workspace:GetPartBoundsInBox(cf, Vector3.new(3.5, 3.5, 3.5))) do
-                        if p.Parent and p.Parent.Name:match("^tower%-") then occupied = true break end
-                    end
-                    
-                    if not occupied then 
-                        pcall(function()
-                            local p = Instance.new("Part", workspace)
-                            p.Size, p.Color, p.Anchored, p.CanCollide = Vector3.new(1.5,1.5,1.5), Color3.fromRGB(0,255,100), true, false
-                            p.CFrame = cf
-                            game.Debris:AddItem(p, 1.5)
-                        end)
-                        return cf, pType 
-                    end
-                end
-            end
+            return bestCFrame, bestType
         end
-        return nil, "สุ่มจุดแล้วแต่พื้นที่ไม่ว่าง"
+
+        return nil, "ไม่มีจุดวางที่มีประสิทธิภาพ"
     end
 
     -- 🧠 สมุดบัญชีจำแนก Unit ทุกตัว (จำพิกัด + Slot)
@@ -1378,7 +1529,11 @@
         return inLobby
     end
 
+    local _lastRoomCheck = 0
+    local _lastRoomResult = false
     local function isRoomUIVisible()
+        if tick() - _lastRoomCheck < 1 then return _lastRoomResult end
+        _lastRoomCheck = tick()
         local found = false
         pcall(function()
             for _, gui in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
@@ -1399,6 +1554,7 @@
                 end
             end
         end)
+        _lastRoomResult = found
         return found
     end
 
@@ -1540,7 +1696,7 @@
     local placementFailStreak = 0
     local lastJoinAttempt = 0
 
-    local AUTO_LOOP_INTERVAL = 0.6
+    local AUTO_LOOP_INTERVAL = 0.35
     local GLOBAL_ACTION_COOLDOWN = 0.25
     local PLACE_COOLDOWN = 0.75
     local FARM_COOLDOWN = 0.75
@@ -1751,7 +1907,7 @@
                 end)
 
                 if ok then
-                    task.wait(0.7)
+                    task.wait(0.45)
                     local countAfter = placedFolder and #placedFolder:GetChildren() or 0
                     if countAfter > countBefore then
                         placedTracking[farmCard.Slot] = (placedTracking[farmCard.Slot] or 0) + 1
@@ -1796,7 +1952,7 @@
                         end)
 
                         if ok then
-                            task.wait(0.7)
+                            task.wait(0.45)
                             local countAfter = placedFolder and #placedFolder:GetChildren() or 0
                             if countAfter > countBefore then
                                 placedTracking[card.Slot] = (placedTracking[card.Slot] or 0) + 1
@@ -2331,6 +2487,41 @@
         return result == true
     end
 
+    local function shouldPlaceMoreAttack(attackTowersBySlot)
+        local totalAttack = 0
+        local activeSlots = 0
+
+        for slot = 1, 6 do
+            local towers = attackTowersBySlot[slot]
+            local count = towers and #towers or 0
+            totalAttack += count
+            if count > 0 then
+                activeSlots += 1
+            end
+        end
+
+        -- ยังไม่มีตัวตีเลย ต้องวาง
+        if totalAttack == 0 then
+            return true
+        end
+
+        -- ช่วงเปิดเกม: มีตัวตีน้อยเกินไป ให้ตั้งฐานก่อน
+        if totalAttack < 2 then
+            return true
+        end
+
+        -- ถ้ามีชนิดตัวตีน้อยมาก แต่อยากให้กระจายแนวอีกนิด
+        if activeSlots < 2 and totalAttack < 4 then
+            return true
+        end
+
+        -- ถ้าแนวรับเริ่มนิ่งแล้ว วางเพิ่มเฉพาะตอนมอนหลุดแนวจริงๆ
+        return isDefenseBreached()
+    end
+
+    local _towersClassifiedAt = 0
+    local _cachedClassified = nil
+
     -- [PATCH 4] MAIN LOOP (Modified to preserve valid state)
     task.spawn(function()
         while true do
@@ -2365,7 +2556,12 @@
 
             local sync = getSync()
             local deck = getDeckUUIDs()
-            local attackTowersBySlot, farmTowers, unknownTowers, placedFolder = classifyPlacedTowers()
+
+            if tick() - _towersClassifiedAt > 1 or not _cachedClassified then
+                _cachedClassified = {classifyPlacedTowers()}
+                _towersClassifiedAt = tick()
+            end
+            local attackTowersBySlot, farmTowers, unknownTowers, placedFolder = unpack(_cachedClassified)
             local farmSlot = MoMoConfig.FarmUnit or 0
             local farmCard = nil
 
@@ -2396,8 +2592,12 @@
             end
 
             -- 2) วางตัวตาม Priority ผู้เล่นเสมอ ที่ตำแหน่งมอนล่าสุด
-            if tryPlacePriorityAttack(sync, deck, farmSlot, placedFolder) then
-                continue
+            local allowMoreAttackPlacement = shouldPlaceMoreAttack(attackTowersBySlot)
+
+            if allowMoreAttackPlacement then
+                if tryPlacePriorityAttack(sync, deck, farmSlot, placedFolder) then
+                    continue
+                end
             end
 
             -- 3) อัปเกรดฟาร์มก่อน แล้วอัปตัว Priority ทันทีเมื่อมีเงินถึง
