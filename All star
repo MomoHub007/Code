@@ -653,25 +653,19 @@ end
 local function StartAutoPlay()
     -- ⚡ [SUB-MODULE]: Auto Game State (ควบคุมความเร็วด่าน & ข้ามเวฟ & เช็ค Speed UI)
     task.spawn(function()
-        while task.wait(1) do
-            if not _G.AutoPlayActive then continue end
-            pcall(function()
-                local enemiesFolder = workspace:FindFirstChild("Enemies")
-                local hasEnemies = enemiesFolder and #enemiesFolder:GetChildren() > 0
-                
-                -- 1. กด Normal ถ้ายูนิตเวฟแรกยังไม่มา
-                if not hasEnemies then
-                    inputRemote:FireServer("VoteGameMode", "Normal")
-                end
-                
-                -- 2. เช็ค Speed จาก UI เผื่อเกมรีเซ็ตกลับไปเป็น 1X (อ่านจาก FastForward)
-                local hud = LocalPlayer.PlayerGui:FindFirstChild("HUD")
-                if hud then
-                    local fastForward = hud:FindFirstChild("FastForward")
-                    if fastForward then
-                        -- รองรับทั้ง FastForward.TextLabel และ FastForward.SpeedText.TextLabel
-                        local speedTextObj = (fastForward:FindFirstChild("SpeedText") and fastForward.SpeedText:FindFirstChild("TextLabel")) or fastForward:FindFirstChild("TextLabel")
-                        
+    while task.wait(0.5) do
+        if not _G.AutoPlayActive then continue end
+        pcall(function()
+            -- 1. กด Normal ทุก 0.5 วิเมื่ออยู่ในด่าน
+            inputRemote:FireServer("VoteGameMode", "Normal")
+            
+            -- 2. เช็ค Speed จาก UI เผื่อเกมรีเซ็ตกลับไปเป็น 1X (อ่านจาก FastForward)
+            local hud = LocalPlayer.PlayerGui:FindFirstChild("HUD")
+            if hud then
+                local fastForward = hud:FindFirstChild("FastForward")
+                if fastForward then
+                    local speedTextObj = (fastForward:FindFirstChild("SpeedText") and fastForward.SpeedText:FindFirstChild("TextLabel")) or fastForward:FindFirstChild("TextLabel")
+                    
                         if speedTextObj and speedTextObj:IsA("TextLabel") then
                             local txt = speedTextObj.Text:upper()
                             if txt == "1X" then
