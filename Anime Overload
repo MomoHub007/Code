@@ -7,6 +7,36 @@
     local workspace = game:GetService("Workspace")
     local UserInputService = game:GetService("UserInputService")
     local LP = LocalPlayer
+    
+    local recentFailedSpots = {}
+
+    local function trimFailedSpots()
+        local now = tick()
+        local kept = {}
+        for _, item in ipairs(recentFailedSpots) do
+            if now - item.t < 8 then
+                table.insert(kept, item)
+            end
+        end
+        recentFailedSpots = kept
+    end
+
+    local function markFailedSpot(pos)
+        if pos then
+            table.insert(recentFailedSpots, {pos = pos, t = tick()})
+        end
+    end
+
+    local function isNearFailedSpot(pos, radius)
+        radius = radius or 4
+        trimFailedSpots()
+        for _, item in ipairs(recentFailedSpots) do
+            if (item.pos - pos).Magnitude <= radius then
+                return true
+            end
+        end
+        return false
+    end
 
 -- =====================================================================
 -- 📛 [Visual Mod] ระบบเปลี่ยนป้ายชื่อบนหัว (Custom Overhead Nametag)
@@ -1273,7 +1303,6 @@ print("🚀 [MoMo AutoPlay] เริ่มรัน V5.0 (Clean UI)...")
             return nil, "ไม่มี enemiesModels"
         end
 
-        local targetEnemy = nil
         local targetPos = nil
         local bestProgress = -1
 
@@ -1283,13 +1312,12 @@ print("🚀 [MoMo AutoPlay] เริ่มรัน V5.0 (Clean UI)...")
                 local prog = getProgressScore(hrp.Position, pathFolder)
                 if prog > bestProgress then
                     bestProgress = prog
-                    targetEnemy = e
                     targetPos = hrp.Position
                 end
             end
         end
 
-        if not targetEnemy or not targetPos then
+        if not targetPos then
             return nil, "ไม่มีมอนสเตอร์บนแมพ"
         end
 
@@ -1298,7 +1326,6 @@ print("🚀 [MoMo AutoPlay] เริ่มรัน V5.0 (Clean UI)...")
             return nil, "waypoints ไม่พอ"
         end
 
-        -- หา segment ที่ใกล้มอนที่สุด
         local bestSegmentIndex = 1
         local bestDistance = math.huge
         local bestClosestPoint = nil
@@ -1328,91 +1355,63 @@ print("🚀 [MoMo AutoPlay] เริ่มรัน V5.0 (Clean UI)...")
             return nil, "หาแนว path ไม่เจอ"
         end
 
-        -- เวกเตอร์ซ้าย/ขวา จากทิศทาง path
         local right = bestDir:Cross(Vector3.new(0, 1, 0))
-        if right.Magnitude < 0.001 then
-            right = Vector3.new(1, 0, 0)
-        else
-            right = right.Unit
-        end
+        right = right.Magnitude > 0 and right.Unit or Vector3.new(1, 0, 0)
 
-        -- จุดฐาน = วางล่วงหน้าหน้ามอนตามแนว path
-        local baseForwardDistances = {8, 10, 6, 12}
-        local sideOffsets = {0, 3.5, -3.5, 5.5, -5.5, 7.5, -7.5}
+        local forwardDistances = {4, 6, 3, 8}
+        local sideOffsets = {0, 2.5, -2.5, 4, -4, 5.5, -5.5}
 
-        local candidates = {}
+        local bestCFrame, bestType, bestScore = nil, nil, -math.huge
 
-        for _, forwardDist in ipairs(baseForwardDistances) do
+        for _, forwardDist in ipairs(forwardDistances) do
             local basePos = bestClosestPoint + (bestDir * forwardDist)
 
             for _, side in ipairs(sideOffsets) do
                 local candidatePos = basePos + (right * side)
 
-                -- กันจุดที่ถอยหลังมอน
-                local forwardDot = (candidatePos - targetPos):Dot(bestDir)
-                if forwardDot >= 2 then
-                    table.insert(candidates, candidatePos)
-                end
-            end
-        end
+                if not isNearFailedSpot(candidatePos, 4) then
+                    for _, pType in ipairs({"ground", "air"}) do
+                        local folder = areas:FindFirstChild(pType)
+                        if folder then
+                            local rayParams = RaycastParams.new()
+                            rayParams.FilterType = Enum.RaycastFilterType.Include
+                            rayParams.FilterDescendantsInstances = {folder}
 
-        local bestCFrame = nil
-        local bestType = nil
-        local bestScore = -math.huge
+                            local result = workspace:Raycast(
+                                candidatePos + Vector3.new(0, 25, 0),
+                                Vector3.new(0, -60, 0),
+                                rayParams
+                            )
 
-        for _, candidatePos in ipairs(candidates) do
-            if not isNearFailedSpot(candidatePos, 4.5) then
-                for _, pType in ipairs({"ground", "air"}) do
-                    local folder = areas:FindFirstChild(pType)
-                    if folder then
-                        local rayParams = RaycastParams.new()
-                        rayParams.FilterType = Enum.RaycastFilterType.Include
-                        rayParams.FilterDescendantsInstances = {folder}
+                            if result then
+                                local pos = result.Position + Vector3.new(0, 1, 0)
+                                local cf = CFrame.new(pos)
 
-                        local result = workspace:Raycast(
-                            candidatePos + Vector3.new(0, 50, 0),
-                            Vector3.new(0, -100, 0),
-                            rayParams
-                        )
-
-                        if result then
-                            local pos = result.Position + Vector3.new(0, 1, 0)
-                            local cf = CFrame.new(pos)
-
-                            local occupied = false
-                            for _, part in ipairs(workspace:GetPartBoundsInBox(cf, Vector3.new(3.5, 3.5, 3.5))) do
-                                if part.Parent and part.Parent.Name:match("^tower%-") then
-                                    occupied = true
-                                    break
-                                end
-                            end
-
-                            if not occupied then
-                                local distToEnemy = (pos - targetPos).Magnitude
-                                local progressAtSpot = getProgressScore(pos, pathFolder)
-                                local forwardBonus = (pos - targetPos):Dot(bestDir)
-
-                                -- ให้คะแนนจุด:
-                                -- + ชอบจุดที่อยู่หน้า enemy
-                                -- + ชอบ progress พอๆ กับหรือมากกว่า enemy นิดหน่อย
-                                -- - ไม่ชอบไกล enemy เกินไป
-                                local score = 0
-                                score += forwardBonus * 2
-                                score -= distToEnemy * 0.35
-                                score -= math.abs(progressAtSpot - bestProgress) * 3
-
-                                if progressAtSpot >= bestProgress then
-                                    score += 10
+                                local occupied = false
+                                for _, part in ipairs(workspace:GetPartBoundsInBox(cf, Vector3.new(3.5, 3.5, 3.5))) do
+                                    if part.Parent and part.Parent.Name:match("^tower%-") then
+                                        occupied = true
+                                        break
+                                    end
                                 end
 
-                                if distToEnemy >= 5 and distToEnemy <= 12 then
-                                    score += 8
-                                end
+                                if not occupied then
+                                    local distToEnemy = (pos - targetPos).Magnitude
+                                    local forwardDot = (pos - targetPos):Dot(bestDir)
 
-                                if score > bestScore then
-                                    bestScore = score
-                                    bestCFrame = cf
-                                    bestType = pType
+                                    local score = 0
+                                    score += forwardDot * 2
+                                    score -= math.abs(distToEnemy - 6) * 1.5
+
+                                    if forwardDot >= 1.5 then
+                                        score += 8
+                                    end
+
+                                    if score > bestScore then
+                                        bestScore = score
+                                        bestCFrame = cf
+                                        bestType = pType
+                                    end
                                 end
                             end
                         end
@@ -1421,22 +1420,7 @@ print("🚀 [MoMo AutoPlay] เริ่มรัน V5.0 (Clean UI)...")
             end
         end
 
-        if bestCFrame then
-            pcall(function()
-                local p = Instance.new("Part")
-                p.Size = Vector3.new(1.5, 1.5, 1.5)
-                p.Color = Color3.fromRGB(0, 255, 100)
-                p.Anchored = true
-                p.CanCollide = false
-                p.CFrame = bestCFrame
-                p.Parent = workspace
-                game:GetService("Debris"):AddItem(p, 1.2)
-            end)
-
-            return bestCFrame, bestType
-        end
-
-        return nil, "ไม่มีจุดวางที่มีประสิทธิภาพ"
+        return bestCFrame, bestType
     end
 
     -- 🧠 สมุดบัญชีจำแนก Unit ทุกตัว (จำพิกัด + Slot)
@@ -1687,7 +1671,7 @@ print("🚀 [MoMo AutoPlay] เริ่มรัน V5.0 (Clean UI)...")
     -- Replace old Auto Play block with this whole section
     -- =========================================================
 
-    local recentFailedSpots = {}
+
 
     local lastAutoActionAt = 0
     local lastPlaceAttemptAt = 0
@@ -1753,33 +1737,7 @@ print("🚀 [MoMo AutoPlay] เริ่มรัน V5.0 (Clean UI)...")
         markGlobalAction()
     end
 
-    local function trimFailedSpots()
-        local now = tick()
-        local kept = {}
-        for _, item in ipairs(recentFailedSpots) do
-            if now - item.t < 8 then
-                table.insert(kept, item)
-            end
-        end
-        recentFailedSpots = kept
-    end
 
-    local function markFailedSpot(pos)
-        if pos then
-            table.insert(recentFailedSpots, {pos = pos, t = tick()})
-        end
-    end
-
-    local function isNearFailedSpot(pos, radius)
-        radius = radius or 4
-        trimFailedSpots()
-        for _, item in ipairs(recentFailedSpots) do
-            if (item.pos - pos).Magnitude <= radius then
-                return true
-            end
-        end
-        return false
-    end
 
     local function softResync()
         local placedFolder = workspace:FindFirstChild("placedTowers")
@@ -1907,7 +1865,7 @@ print("🚀 [MoMo AutoPlay] เริ่มรัน V5.0 (Clean UI)...")
                 end)
 
                 if ok then
-                    task.wait(0.45)
+                    task.wait(0.9)
                     local countAfter = placedFolder and #placedFolder:GetChildren() or 0
                     if countAfter > countBefore then
                         placedTracking[farmCard.Slot] = (placedTracking[farmCard.Slot] or 0) + 1
@@ -1952,7 +1910,7 @@ print("🚀 [MoMo AutoPlay] เริ่มรัน V5.0 (Clean UI)...")
                         end)
 
                         if ok then
-                            task.wait(0.45)
+                            task.wait(0.9)
                             local countAfter = placedFolder and #placedFolder:GetChildren() or 0
                             if countAfter > countBefore then
                                 placedTracking[card.Slot] = (placedTracking[card.Slot] or 0) + 1
