@@ -1,0 +1,2666 @@
+    -- =====================================================================
+    -- 🤖 [MoMo AutoPlay V5.0]: Clean UI & Smart Logic
+    -- =====================================================================
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local workspace = game:GetService("Workspace")
+    local UserInputService = game:GetService("UserInputService")
+    local LP = LocalPlayer
+
+    print("🚀 [MoMo AutoPlay] เริ่มรัน V5.0 (Clean UI)...")
+
+    local MoMoLogo = "rbxthumb://type=Asset&id=121052363208302&w=150&h=150"
+
+    -- ==========================================
+    -- ⚙️ ค่าเริ่มต้นสำหรับ UI State 
+    -- ==========================================
+    local MoMoConfig = {
+        AutoFpsBoost = false,
+        WalkSpeed = 16, 
+        JumpPower = 50, 
+        AntiAFK = false, 
+        AutoRejoin = false,
+        AutoPlay = false,
+        UnitPriority = {1, 2, 3, 4, 5, 6}, 
+        AutoStart = false, -- 🌟 เพิ่มบรรทัดนี้เข้ามา
+        UnitLimits = {
+            [1] = 2, [2] = 2, [3] = 2, [4] = 2, [5] = 2, [6] = 2
+        },
+        AutoJoin = false,          -- Story / Legend only
+        AutoJoinEvent = false,     -- Event only
+        SelectedMode = "Story",
+        SelectedMap = "Ninja Leaf",
+        SelectedDifficulty = "Normal",
+        SelectedAct = 1,
+        FarmUnit = 0
+    }
+
+    -- [PATCH 1] CONFIG
+    local knownEventCards = {
+        "hellsTax",
+        "sacrificialContract",
+        "costOfVictory",
+        "highTolerance",
+        "crimsonQueen",
+        "bloodiedHalo",
+        "atonementByBlood",
+        "devilsDomain"
+    }
+
+    MoMoConfig.AutoSelectCardEvent = false
+    MoMoConfig.CardPriorities = MoMoConfig.CardPriorities or {}
+
+    for _, cardName in ipairs(knownEventCards) do
+        if MoMoConfig.CardPriorities[cardName] == nil then
+            MoMoConfig.CardPriorities[cardName] = 1
+        end
+    end
+
+    local lastCardSelectAt = 0
+
+    -- ==========================================
+    -- 🎨 เริ่มโหลด UI (MACLIB)
+    -- ==========================================
+    local MacLib = loadstring(game:HttpGet("https://github.com/biggaboy212/Maclib/releases/latest/download/maclib.txt"))()
+
+    local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+    
+    -- 🌟 1. กลับไปใช้ไซส์เดิมที่สัดส่วนสมบูรณ์แบบที่สุด (ไม่ต้องบีบขนาดตรงนี้แล้วครับ)
+    local windowSize = isMobile and UDim2.fromOffset(868, 550) or UDim2.fromOffset(868, 550)
+
+    local Window = MacLib:Window({
+        Title = "MOMOHUB",
+        Subtitle = "Anime Overlord Script",
+        Size = windowSize,
+        DragStyle = 1,
+        DisabledWindowControls = {},
+        ShowUserInfo = not isMobile,
+        Keybind = Enum.KeyCode.LeftControl,
+        AcrylicBlur = not isMobile,
+    })
+
+    -- 🌟 2. [The Magic Trick] ยัด UIScale เพื่อย่อส่วนทุกอย่างบนหน้าจอพร้อมกัน!
+    task.spawn(function()
+        task.wait(1) -- รอให้ MacLib โหลด UI เข้าจอให้เสร็จก่อน
+        local targetGui = (gethui and gethui()) or game:GetService("CoreGui") or Players.LocalPlayer:WaitForChild("PlayerGui")
+        
+        -- ค้นหาโฟลเดอร์ UI ของ MacLib
+        for _, gui in pairs(targetGui:GetChildren()) do
+            if gui:IsA("ScreenGui") then
+                -- หา Frame หน้าต่างหลักของโปรแกรม
+                for _, child in pairs(gui:GetChildren()) do
+                    if (child:IsA("Frame") or child:IsA("CanvasGroup")) and child.Size.X.Offset > 300 then
+                        -- ติดตั้งเครื่องย่อส่วน
+                        local scale = child:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+                        
+                        -- 📉 ปรับเปอร์เซ็นต์ความเล็กตรงนี้ครับ!
+                        -- 1.0 = 100% (ปกติ)
+                        -- 0.8 = 80% (เล็กลงนิดหน่อย กำลังสวย)
+                        -- 0.7 = 70% (เล็กกะทัดรัด)
+                        scale.Scale = 1
+                        
+                        scale.Parent = child
+                    end
+                end
+            end
+        end
+    end)
+
+    local function MoMoNotify(data)
+        Window:Notify({
+            Title = data.Title or "MoMoHub",
+            Description = data.Desc or "",
+            Lifetime = data.Time or 3
+        })
+    end
+
+    local globalSettings = {
+        UIBlurToggle = Window:GlobalSetting({
+            Name = "UI Blur",
+            Default = Window:GetAcrylicBlurState(),
+            Callback = function(bool) Window:SetAcrylicBlurState(bool) end,
+        }),
+        NotificationToggler = Window:GlobalSetting({
+            Name = "Notifications",
+            Default = Window:GetNotificationsState(),
+            Callback = function(bool) Window:SetNotificationsState(bool) end,
+        }),
+        ShowUserInfo = Window:GlobalSetting({
+            Name = "Show User Info",
+            Default = Window:GetUserInfoState(),
+            Callback = function(bool) Window:SetUserInfoState(bool) end,
+        })
+    }
+
+    -- ==========================================
+    -- 📌 ปุ่มเปิด/ปิด UI สำหรับผู้เล่นมือถือ
+    -- ==========================================
+    local targetGui = (gethui and gethui()) or game:GetService("CoreGui") or Players.LocalPlayer:WaitForChild("PlayerGui")
+    local CustomGui = Instance.new("ScreenGui")
+    CustomGui.Name = "MoMoHubToggleUI"
+    CustomGui.ResetOnSpawn = false
+    CustomGui.Parent = targetGui
+
+    local ToggleBtn = Instance.new("ImageButton")
+    ToggleBtn.Name = "MoMoHubToggle"
+    ToggleBtn.Parent = CustomGui
+    ToggleBtn.Position = UDim2.new(0.5, -25, 0, 5) 
+    ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+    ToggleBtn.BackgroundTransparency = 1
+    ToggleBtn.Image = MoMoLogo
+
+    local dragging, dragInput, dragStart, startPos
+    ToggleBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dragStart = input.Position; startPos = ToggleBtn.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+        end
+    end)
+    ToggleBtn.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            ToggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    local vim = game:GetService("VirtualInputManager")
+    local isClicking = false
+    ToggleBtn.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isClicking = true end end)
+    ToggleBtn.InputChanged:Connect(function(input) if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then isClicking = false end end)
+    ToggleBtn.InputEnded:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and isClicking then
+            pcall(function() vim:SendKeyEvent(true, Enum.KeyCode.LeftControl, false, game); task.wait(0.05); vim:SendKeyEvent(false, Enum.KeyCode.LeftControl, false, game) end)
+        end
+    end)
+
+    -- ==========================================
+    -- 📑 สร้าง Tabs & Sections (แยกหน้า)
+    -- ==========================================
+    local tabGroups = { Main = Window:TabGroup() }
+
+    local tabs = {
+        -- แยกหน้าชัดเจน: Join, Play, Macro, Settings
+        Join = tabGroups.Main:Tab({ Name = "Auto Join", Image = "rbxassetid://10734950309" }),
+        Play = tabGroups.Main:Tab({ Name = "Auto Play", Image = "rbxassetid://10723345518" }), 
+        SelectCard = tabGroups.Main:Tab({ Name = "Select Card", Image = "rbxassetid://10734898355" }),
+        Macro = tabGroups.Main:Tab({ Name = "Macro (Beta)", Image = "rbxassetid://10709769508" }), -- 🌟 หน้าใหม่!
+        Settings = tabGroups.Main:Tab({ Name = "Settings", Image = "rbxassetid://10709810948" }),
+    }
+
+    -- 🎬 ====== Macro Tab ======
+    -- =====================================================================
+    -- 🎬 ====== Macro Tab (Perfect Auto-Update V7) ======
+    -- =====================================================================
+    local HttpService = game:GetService("HttpService")
+    local MacroFolder = "MoMoHub_Macros"
+    
+    if makefolder and not isfolder(MacroFolder) then
+        pcall(function() makefolder(MacroFolder) end)
+    end
+
+    local function getMacroFiles()
+        local files = {}
+        if listfiles then
+            pcall(function()
+                for _, file in ipairs(listfiles(MacroFolder)) do
+                    if file:match("%.json$") then
+                        local name = file:match("([^/\\]+)%.json$")
+                        if name then table.insert(files, name) end
+                    end
+                end
+            end)
+        end
+        if #files == 0 then return {"None"} end
+        return files
+    end
+
+    local function serializeCFrame(cf) return {cf:GetComponents()} end
+    local function deserializeCFrame(comp)
+        if type(comp) == "table" and #comp >= 12 then return CFrame.new(unpack(comp)) end
+        return CFrame.new()
+    end
+
+    MoMoConfig.RecordMacro = false
+    MoMoConfig.PlayMacro = false
+    _G.MoMoMacroLedger = _G.MoMoMacroLedger or {}
+    _G.NewMacroName = ""
+    _G.ImportMacroUrl = ""
+    _G.SelectedMacro = "None"
+
+    -- 🔴 ฝั่งซ้าย: จัดการ Macro
+    local MacroSec = tabs.Macro:Section({ Side = "Left" })
+    
+    -- 🌟 ประกาศตัวแปร Dropdown ไว้ล่วงหน้า เพื่อให้ปุ่ม Create ด้านบนหาเจอ
+    local macroDropdown 
+
+    -- 🌟 ศูนย์รวมระบบอัปเดตรายชื่อ (สมองกลสแกนคำสั่งลับ)
+    local function ForceUpdateDropdown(newFileName)
+        local currentList = getMacroFiles()
+        
+        if newFileName then
+            local found = false
+            for _, v in ipairs(currentList) do
+                if v == newFileName then found = true break end
+            end
+            if not found then
+                if currentList[1] == "None" then currentList = {newFileName} else table.insert(currentList, newFileName) end
+            end
+        end
+
+        if macroDropdown then
+            local success = false
+            local availableMethods = ""
+            
+            for funcName, func in pairs(macroDropdown) do
+                if type(func) == "function" then
+                    availableMethods = availableMethods .. funcName .. ", "
+                    local lowerName = string.lower(funcName)
+                    if lowerName:find("option") or lowerName:find("refresh") or lowerName:find("updatelist") or lowerName:find("setlist") or lowerName:find("reload") then
+                        local ok = pcall(function() func(macroDropdown, currentList) end)
+                        if ok then success = true end
+                    end
+                end
+            end
+            
+            if newFileName then
+                _G.SelectedMacro = newFileName
+                pcall(function() macroDropdown:UpdateSelection(newFileName) end)
+            end
+
+            if not success then
+                warn("❌ [MacLib Scanner] หาคำสั่งอัปเดตรายชื่อของ MacLib ไม่เจอ!")
+            end
+        end
+    end
+
+    -- 🌟 1. ระบบ Create (ย้ายมาบนสุดตามสั่ง!)
+    MacroSec:Header({ Name = "Create Macro File" })
+    MacroSec:Input({
+        Name = "Macro Name",
+        Placeholder = "Enter name...",
+        AcceptedCharacters = "All",
+        Callback = function(val) 
+            _G.NewMacroName = val 
+            if val ~= "" then
+                MoMoNotify({Title = "Name Ready", Desc = "กรุณากดปุ่ม Create Macro File เพื่อบันทึกไฟล์!", Time = 4})
+            end
+        end
+    })
+
+    MacroSec:Button({
+        Name = "Create Macro File",
+        Callback = function()
+            if _G.NewMacroName == "" then
+                MoMoNotify({Title = "Error", Desc = "❌ กรุณาตั้งชื่อไฟล์ก่อนกดสร้าง!", Time = 3})
+                return
+            end
+
+            local filepath = MacroFolder .. "/" .. _G.NewMacroName .. ".json"
+            if writefile then
+                pcall(function() writefile(filepath, "[]") end)
+                MoMoNotify({Title = "Created", Desc = "✅ สร้างไฟล์ " .. _G.NewMacroName .. " สำเร็จ!", Time = 4})
+                ForceUpdateDropdown(_G.NewMacroName)
+            end
+        end
+    })
+
+    -- 🌟 2. ระบบ Macro Controls (เลือกไฟล์, รีเฟรช, ลบ)
+    MacroSec:Header({ Name = "Macro Controls" })
+    
+    macroDropdown = MacroSec:Dropdown({
+        Name = "Select Macro......",
+        Options = getMacroFiles(),
+        Default = "None",
+        Callback = function(val) _G.SelectedMacro = val end
+    })
+
+    MacroSec:Button({
+        Name = "Refresh List",
+        Callback = function()
+            ForceUpdateDropdown()
+            MoMoNotify({Title = "Refreshed", Desc = "🔄 อัปเดตรายชื่อไฟล์แล้ว!", Time = 2})
+        end
+    })
+
+    MacroSec:Button({  -- ย้าย Delete มาอยู่หมวดจัดการไฟล์ตรงนี้
+        Name = "Delete Macro",
+        Callback = function()
+            if _G.SelectedMacro and _G.SelectedMacro ~= "None" then
+                local filepath = MacroFolder .. "/" .. _G.SelectedMacro .. ".json"
+                if isfile(filepath) and delfile then
+                    pcall(function() delfile(filepath) end)
+                    MoMoNotify({Title = "Deleted", Desc = "🗑️ ลบไฟล์ " .. _G.SelectedMacro .. " แล้ว!", Time = 3})
+                    ForceUpdateDropdown()
+                end
+            else
+                MoMoNotify({Title = "Error", Desc = "❌ กรุณาเลือกไฟล์ที่จะลบใน Dropdown ก่อน!", Time = 3})
+            end
+        end
+    })
+
+    -- 🌟 3. ระบบ Record & Play
+    MacroSec:Header({ Name = "Record & Play" })
+    local recordToggle
+    recordToggle = MacroSec:Toggle({
+        Name = "Record",
+        Default = false,
+        Callback = function(val)
+            if val then
+                if not _G.SelectedMacro or _G.SelectedMacro == "None" then
+                    MoMoNotify({Title = "Error", Desc = "❌ กรุณาเลือกไฟล์ใน Select Macro...... ก่อนกด Record!", Time = 4})
+                    if recordToggle then task.spawn(function() recordToggle:SetState(false) end) end
+                    return
+                end
+                MoMoConfig.RecordMacro = true
+                _G.RecordMacroActive = true
+                _G.MoMoMacroLedger = {}
+                MoMoNotify({Title = "Recording", Desc = "🔴 เริ่มบันทึกการเล่นลงไฟล์: " .. _G.SelectedMacro, Time = 3})
+            else
+                MoMoConfig.RecordMacro = false
+                _G.RecordMacroActive = false
+
+                if not _G.MoMoMacroLedger or #_G.MoMoMacroLedger == 0 then
+                    MoMoNotify({Title = "Stopped", Desc = "⏹️ หยุดอัดแล้ว (ไม่มีข้อมูลให้เซฟ)", Time = 3})
+                    return
+                end
+
+                local exportData = {}
+                for _, step in ipairs(_G.MoMoMacroLedger) do
+                    table.insert(exportData, {
+                        Action = step.Action, Slot = step.Slot, RequiredMoney = step.RequiredMoney,
+                        CFrameData = step.CFrame and serializeCFrame(step.CFrame) or nil
+                    })
+                end
+
+                local success, encoded = pcall(function() return HttpService:JSONEncode(exportData) end)
+                if success and writefile then
+                    local filepath = MacroFolder .. "/" .. _G.SelectedMacro .. ".json"
+                    pcall(function() writefile(filepath, encoded) end)
+                    MoMoNotify({Title = "Saved Successfully!", Desc = "💾 อัปเดตข้อมูลลงไฟล์ " .. _G.SelectedMacro .. " สำเร็จ!", Time = 4})
+                end
+            end
+        end
+    })
+
+    MacroSec:Toggle({
+        Name = "Play Selected Macro",
+        Default = false,
+        Callback = function(val)
+            MoMoConfig.PlayMacro = val
+            if val then
+                if _G.SelectedMacro and _G.SelectedMacro ~= "None" then
+                    local filepath = MacroFolder .. "/" .. _G.SelectedMacro .. ".json"
+                    if isfile(filepath) and readfile then
+                        local data = readfile(filepath)
+                        local success, decoded = pcall(function() return HttpService:JSONDecode(data) end)
+                        
+                        if success and type(decoded) == "table" then
+                            _G.MoMoMacroLedger = {}
+                            for _, step in ipairs(decoded) do
+                                table.insert(_G.MoMoMacroLedger, {
+                                    Action = step.Action, Slot = step.Slot, RequiredMoney = step.RequiredMoney,
+                                    CFrame = step.CFrameData and deserializeCFrame(step.CFrameData) or nil
+                                })
+                            end
+                            MoMoConfig.AutoPlay = false
+                            _G.MacroCurrentStep = 1
+                            MoMoNotify({Title = "Playing", Desc = "▶️ กำลังเล่นไฟล์: " .. _G.SelectedMacro, Time = 3})
+                        else
+                            MoMoNotify({Title = "Error", Desc = "❌ ไฟล์เสีย หรืออ่านข้อมูลไม่ได้!", Time = 3})
+                        end
+                    end
+                else
+                    MoMoNotify({Title = "Error", Desc = "❌ กรุณาเลือกไฟล์ใน Dropdown ก่อนกด Play!", Time = 3})
+                    task.spawn(function() pcall(function() self:SetState(false) end) end)
+                end
+            else
+                MoMoNotify({Title = "Stopped", Desc = "⏹️ หยุดการเล่นซ้ำ", Time = 3})
+            end
+        end
+    })
+
+    -- 📥 ฝั่งขวา: นำเข้าไฟล์ (Import)
+    local ImportSec = tabs.Macro:Section({ Side = "Right" })
+    
+    ImportSec:Header({ Name = "Import Macro" })
+    ImportSec:Input({
+        Name = "Macro JSON URL",
+        Placeholder = "discordapp.com/.../name.json",
+        AcceptedCharacters = "All",
+        Callback = function(val) _G.ImportMacroUrl = val end
+    })
+    ImportSec:Button({
+        Name = "Import Macro",
+        Callback = function()
+            if _G.ImportMacroUrl == "" then
+                MoMoNotify({Title = "Error", Desc = "❌ กรุณาใส่ลิ้งก์ URL!", Time = 3})
+                return
+            end
+            
+            local fileName = _G.ImportMacroUrl:match("([^/]+)%.json") or ("Imported_" .. tostring(math.random(1000,9999)))
+            
+            local success, data = pcall(function() return game:HttpGet(_G.ImportMacroUrl) end)
+            if success and data then
+                local validJson = pcall(function() return HttpService:JSONDecode(data) end)
+                if validJson and writefile then
+                    local filepath = MacroFolder .. "/" .. fileName .. ".json"
+                    pcall(function() writefile(filepath, data) end)
+                    MoMoNotify({Title = "Imported", Desc = "📥 โหลดและเซฟไฟล์ " .. fileName .. " สำเร็จ!", Time = 4})
+                    ForceUpdateDropdown(fileName)
+                else
+                    MoMoNotify({Title = "Error", Desc = "❌ ไฟล์ที่ลิ้งก์ไม่ใช่ JSON ที่ถูกต้อง!", Time = 3})
+                end
+            else
+                MoMoNotify({Title = "Error", Desc = "❌ โหลดไฟล์จากลิ้งก์ไม่สำเร็จ!", Time = 3})
+            end
+        end
+    })
+
+
+
+
+
+
+
+    -- 🚪 ====== Auto Join Tab ======
+    local JoinSec = tabs.Join:Section({ Side = "Left" })
+    JoinSec:Header({ Name = "Story and Legend Stage" })
+    
+    local standardJoinToggle
+    local eventJoinToggle
+
+    standardJoinToggle = JoinSec:Toggle({ 
+        Name = "Enable Auto Join", 
+        Default = MoMoConfig.AutoJoin, 
+        Callback = function(val) 
+            MoMoConfig.AutoJoin = val 
+            if val and MoMoConfig.AutoJoinEvent and eventJoinToggle then
+                task.spawn(function()
+                    pcall(function() eventJoinToggle:SetState(false) end)
+                end)
+            end
+        end 
+    }, "MoMo_AutoJoin")
+
+    JoinSec:Dropdown({
+        Name = "Select Game Mode",
+        Options = {"Story", "Legend"},
+        Default = 1,
+        Required = true,
+        Callback = function(val) MoMoConfig.SelectedMode = val end
+    }, "MoMo_JoinMode")
+
+    local mapNames = {"Ninja Leaf", "Marine Fortress", "Namok", "Sky Island", "Cursed Arena"}
+    JoinSec:Dropdown({
+        Name = "Select Map",
+        Options = mapNames,
+        Default = 1,
+        Required = true,
+        Callback = function(val) MoMoConfig.SelectedMap = val end
+    }, "MoMo_JoinMap")
+
+    JoinSec:Dropdown({
+        Name = "Select Difficulty (Story Only)",
+        Options = {"Normal", "Nightmare"},
+        Default = 1,
+        Required = true,
+        Callback = function(val) MoMoConfig.SelectedDifficulty = val end
+    }, "MoMo_JoinDifficulty")
+
+    JoinSec:Dropdown({
+        Name = "Select Act (1-6)",
+        Options = {"1", "2", "3", "4", "5", "6"},
+        Default = 1,
+        Required = true,
+        Callback = function(val) MoMoConfig.SelectedAct = tonumber(val) end
+    }, "MoMo_JoinAct")
+
+    JoinSec:Header({ Name = "Event Stage" })
+
+    eventJoinToggle = JoinSec:Toggle({
+        Name = "Enable Auto Join Event",
+        Default = MoMoConfig.AutoJoinEvent,
+        Callback = function(val)
+            MoMoConfig.AutoJoinEvent = val
+            if val and MoMoConfig.AutoJoin and standardJoinToggle then
+                task.spawn(function()
+                    pcall(function() standardJoinToggle:SetState(false) end)
+                end)
+            end
+        end
+    }, "MoMo_AutoJoinEvent")
+
+    -- ⚙️ ฝั่งขวา: Setting Match
+    local MatchSec = tabs.Join:Section({ Side = "Right" })
+    MatchSec:Header({ Name = "Setting Match" })
+    
+    MatchSec:Toggle({ 
+        Name = "Auto Start Match", 
+        Default = MoMoConfig.AutoStart, 
+        Callback = function(val) 
+            MoMoConfig.AutoStart = val 
+        end 
+    }, "MoMo_AutoStart")
+
+
+    -- ⚔️ ====== Auto Play Tab ======
+    local AutoSec = tabs.Play:Section({ Side = "Left" })
+    AutoSec:Header({ Name = "Auto Play Logic" })
+    AutoSec:Toggle({ Name = "Enable Auto Play", Default = MoMoConfig.AutoPlay, Callback = function(val) MoMoConfig.AutoPlay = val end }, "MoMo_AutoPlay")
+
+    AutoSec:Header({ Name = "Priority Queue (ลำดับการวาง)" })
+    for i = 1, 6 do
+        AutoSec:Dropdown({
+            Name = "ลำดับที่ " .. i .. " (วางก่อน)",
+            Default = i, -- 🌟 ใช้ตัวเลข i เป็น Default
+            Required = true, -- 🌟 บังคับห้ามว่าง
+            Options = {"Unit 1", "Unit 2", "Unit 3", "Unit 4", "Unit 5", "Unit 6"},
+            Callback = function(val) 
+                if val and type(val) == "string" then
+                    local unitNum = tonumber(val:match("%d+"))
+                    if unitNum then MoMoConfig.UnitPriority[i] = unitNum end
+                end
+            end
+        }, "MoMo_PriorityQueue_"..i)
+    end
+
+    AutoSec:Header({ Name = "Economy Logic (ระบบปั๊มเงิน)" })
+    AutoSec:Dropdown({
+        Name = "Select Farm Unit 💰",
+        Options = {"None", "Unit 1", "Unit 2", "Unit 3", "Unit 4", "Unit 5", "Unit 6"},
+        Default = 1, -- 🌟 1 คือ "None"
+        Required = true, -- 🌟 บังคับห้ามว่าง
+        Callback = function(val)
+            if val and type(val) == "string" then
+                if val == "None" then 
+                    MoMoConfig.FarmUnit = 0
+                else 
+                    local num = tonumber(val:match("%d+")) 
+                    if num then MoMoConfig.FarmUnit = num end
+                end
+            end
+        end
+    }, "MoMo_FarmUnit_Selector")
+
+    local LimitSec = tabs.Play:Section({ Side = "Right" })
+    LimitSec:Header({ Name = "Unit Placement Limits" })
+    for i = 1, 6 do
+        LimitSec:Slider({ 
+            Name = "Unit " .. i .. " Max Placements", 
+            Default = MoMoConfig.UnitLimits[i], 
+            Minimum = 0, 
+            Maximum = 15,
+            Precision = 0, 
+            DisplayMethod = "Value", 
+            Callback = function(val) 
+                MoMoConfig.UnitLimits[i] = val 
+            end 
+        }, "MoMo_Limit_U"..i)
+    end
+
+    -- 🃏 ====== Select Card Tab ======
+    local SelectCardSec = tabs.SelectCard:Section({ Side = "Left" })
+
+    SelectCardSec:Header({
+        Name = "Event"
+    })
+
+    SelectCardSec:Toggle({
+        Name = "Enable Auto Select Card (Event)",
+        Default = MoMoConfig.AutoSelectCardEvent,
+        Callback = function(val)
+            MoMoConfig.AutoSelectCardEvent = val
+        end
+    }, "MoMo_AutoSelectCardEvent")
+
+    SelectCardSec:Header({
+        Name = "Card Priorities (3 = Max, 1 = Min)"
+    })
+
+    for _, cardName in ipairs(knownEventCards) do
+        SelectCardSec:Slider({
+            Name = cardName,
+            Default = MoMoConfig.CardPriorities[cardName] or 1,
+            Minimum = 1,
+            Maximum = 3,
+            Precision = 0,
+            DisplayMethod = "Value",
+            Callback = function(val)
+                MoMoConfig.CardPriorities[cardName] = val
+            end
+        }, "MoMo_Priority_" .. cardName)
+    end
+
+    -- ⚙️ ====== Settings Tab ======
+    local PerfSec = tabs.Settings:Section({ Side = "Left" })
+    PerfSec:Header({ Name = "Performance" })
+    PerfSec:Toggle({ Name = "Enable FPS Boost (Smooth Plastic)", Default = MoMoConfig.AutoFpsBoost, Callback = function(val) MoMoConfig.AutoFpsBoost = val end }, "MoMo_FpsBoost")
+
+    local PlSec = tabs.Settings:Section({ Side = "Right" })
+    PlSec:Header({ Name = "Local Player" })
+    PlSec:Slider({ Name = "WalkSpeed", Default = MoMoConfig.WalkSpeed, Minimum = 16, Maximum = 250, Precision = 1, DisplayMethod = "Value", Callback = function(val) MoMoConfig.WalkSpeed = val end }, "MoMo_WalkSpd")
+    PlSec:Slider({ Name = "JumpPower", Default = MoMoConfig.JumpPower, Minimum = 50, Maximum = 300, Precision = 1, DisplayMethod = "Value", Callback = function(val) MoMoConfig.JumpPower = val end }, "MoMo_JumpPwr")
+
+    PlSec:Toggle({ Name = "Anti-AFK", Default = MoMoConfig.AntiAFK, Callback = function(val) MoMoConfig.AntiAFK = val end }, "MoMo_AntiAFK")
+    PlSec:Toggle({ Name = "Auto Rejoin", Default = MoMoConfig.AutoRejoin, Callback = function(val) MoMoConfig.AutoRejoin = val end }, "MoMo_AutoRejoin")
+
+    local DisSec = tabs.Settings:Section({ Side = "Left" })
+    DisSec:Header({ Name = "Discord" })
+    DisSec:Button({ Name = "Join Discord", Callback = function() if setclipboard then setclipboard("https://discord.gg/k2wdyy8QMN"); MoMoNotify({Title = "MoMoHub", Desc = "Discord link copied!", Time = 3}) end end })
+
+    -- ==========================================
+    -- 🛠️ Advanced Config Manager (Delete & Reset)
+    -- ==========================================
+    local ConfigFolder = "MoMoHub_AnimeOverlord"
+    local selectedConfigToDelete = "None"
+    local configDeleteDropdown
+
+    local AdvConfigSec = tabs.Settings:Section({ Side = "Left" })
+
+    AdvConfigSec:Header({
+        Name = "Advanced Config Utilities"
+    })
+
+    local function getConfigList()
+        local files = {}
+
+        if listfiles and isfolder and isfolder(ConfigFolder) then
+            pcall(function()
+                for _, file in ipairs(listfiles(ConfigFolder)) do
+                    if type(file) == "string" and file:match("%.json$") then
+                        local name = file:match("([^/\\]+)%.json$")
+                        if name then
+                            table.insert(files, name)
+                        end
+                    end
+                end
+            end)
+        end
+
+        table.sort(files, function(a, b)
+            return tostring(a):lower() < tostring(b):lower()
+        end)
+
+        if #files == 0 then
+            return {"None"}
+        end
+
+        return files
+    end
+
+    local function refreshConfigDeleteDropdown(forceSelection)
+        local currentList = getConfigList()
+
+        if forceSelection and forceSelection ~= "" then
+            local found = false
+            for _, v in ipairs(currentList) do
+                if v == forceSelection then
+                    found = true
+                    break
+                end
+            end
+            selectedConfigToDelete = found and forceSelection or "None"
+        else
+            local stillExists = false
+            for _, v in ipairs(currentList) do
+                if v == selectedConfigToDelete then
+                    stillExists = true
+                    break
+                end
+            end
+            if not stillExists then
+                selectedConfigToDelete = "None"
+            end
+        end
+
+        if configDeleteDropdown then
+            local refreshed = false
+
+            for funcName, func in pairs(configDeleteDropdown) do
+                if type(func) == "function" then
+                    local lowerName = string.lower(funcName)
+
+                    if lowerName:find("option") or lowerName:find("refresh") or lowerName:find("updatelist") or lowerName:find("setlist") or lowerName:find("reload") then
+                        local ok = pcall(function()
+                            func(configDeleteDropdown, currentList)
+                        end)
+                        if ok then
+                            refreshed = true
+                        end
+                    end
+                end
+            end
+
+            if selectedConfigToDelete and selectedConfigToDelete ~= "None" then
+                pcall(function()
+                    if configDeleteDropdown.UpdateSelection then
+                        configDeleteDropdown:UpdateSelection(selectedConfigToDelete)
+                    end
+                end)
+            end
+
+            if not refreshed then
+                warn("[ConfigManager] Could not auto-refresh config dropdown methods.")
+            end
+        end
+    end
+
+    configDeleteDropdown = AdvConfigSec:Dropdown({
+        Name = "Select Config to Delete",
+        Options = getConfigList(),
+        Default = "None",
+        Callback = function(val)
+            selectedConfigToDelete = val
+        end
+    }, "MoMoConfigDeleteDropdown")
+
+    AdvConfigSec:Button({
+        Name = "Delete Selected Config",
+        Callback = function()
+            if not selectedConfigToDelete or selectedConfigToDelete == "None" then
+                MoMoNotify({
+                    Title = "Error",
+                    Desc = "กรุณาเลือกไฟล์ Config ก่อนกดลบ!",
+                    Time = 3
+                })
+                return
+            end
+
+            local filepath = ConfigFolder .. "/" .. selectedConfigToDelete .. ".json"
+
+            if isfile and delfile and isfile(filepath) then
+                local ok = pcall(function()
+                    delfile(filepath)
+                end)
+
+                if ok then
+                    MoMoNotify({
+                        Title = "Config Deleted",
+                        Desc = "ลบไฟล์ " .. selectedConfigToDelete .. " เรียบร้อย!",
+                        Time = 3
+                    })
+
+                    selectedConfigToDelete = "None"
+                    refreshConfigDeleteDropdown("None")
+                else
+                    MoMoNotify({
+                        Title = "Error",
+                        Desc = "ลบไฟล์ Config ไม่สำเร็จ!",
+                        Time = 3
+                    })
+                end
+            else
+                MoMoNotify({
+                    Title = "Notice",
+                    Desc = "ไม่พบไฟล์ Config ที่เลือก",
+                    Time = 3
+                })
+
+                selectedConfigToDelete = "None"
+                refreshConfigDeleteDropdown("None")
+            end
+        end
+    })
+
+    AdvConfigSec:Button({
+        Name = "Reset Auto Load Config",
+        Callback = function()
+            local autoloadPath = ConfigFolder .. "/autoload.txt"
+
+            if isfile and delfile and isfile(autoloadPath) then
+                local ok = pcall(function()
+                    delfile(autoloadPath)
+                end)
+
+                if ok then
+                    MoMoNotify({
+                        Title = "Auto Load Cleared",
+                        Desc = "ล้างค่า Auto Load แล้ว! รันรอบหน้าจะไม่มีการโหลดออโต้",
+                        Time = 4
+                    })
+                else
+                    MoMoNotify({
+                        Title = "Error",
+                        Desc = "ล้าง Auto Load ไม่สำเร็จ!",
+                        Time = 3
+                    })
+                end
+            else
+                MoMoNotify({
+                    Title = "Notice",
+                    Desc = "ไม่มีไฟล์ Auto Load ให้ล้าง (ปกติ)",
+                    Time = 3
+                })
+            end
+        end
+    })
+
+    AdvConfigSec:Button({
+        Name = "Refresh Config List",
+        Callback = function()
+            refreshConfigDeleteDropdown(selectedConfigToDelete)
+            MoMoNotify({
+                Title = "Refreshed",
+                Desc = "อัปเดตรายชื่อ Config แล้ว!",
+                Time = 2
+            })
+        end
+    })
+
+    -- ==========================================
+    -- 💾 Config System 
+    -- ==========================================
+    MacLib:SetFolder("MoMoHub_AnimeOverlord")
+    tabs.Settings:InsertConfigSection("Right")
+
+    -- เปิดหน้า Auto Join เป็นหน้าแรก
+    tabs.Join:Select()
+    MacLib:LoadAutoLoadConfig()
+
+    MoMoNotify({Title = "MoMoHub", Desc = "Script Loaded Successfully!", Time = 4})
+
+    -- =====================================================================
+    -- 🧠 [Network Setup & Logic]
+    -- =====================================================================
+    local syncModule = nil
+    local function getSync()
+        if syncModule then return syncModule end
+        pcall(function() syncModule = require(ReplicatedStorage.gameClient.net.sync) end)
+        return syncModule
+    end
+
+    -- 💰 [อัปเกรด V7]: ระบบสแกนกระเป๋าตังค์แบบทะลุทะลวง (Deep Find)
+    local function getRealMoney()
+        local m = 0
+        pcall(function()
+            -- 1. เจาะเข้าไปที่หน้าต่าง hotbarGui
+            local gui = LocalPlayer.PlayerGui:FindFirstChild("hotbarGui")
+            
+            -- 2. สแกนหา Object ที่ชื่อ "yen" แบบเจาะลึกทุกชั้น (true)
+            local yenNode = gui and gui:FindFirstChild("yen", true)
+            
+            if yenNode then
+                -- 3. หา TextLabel ที่ชื่อ "value"
+                local label = yenNode:FindFirstChild("value")
+                if label and label:IsA("TextLabel") then
+                    -- 4. ใช้ %D เพื่อล้าง "ทุกอย่าง" ที่ไม่ใช่ตัวเลข (ลบลูกน้ำ, ช่องว่าง, ตัวอักษร)
+                    local cleanNumber = label.Text:gsub("%D", "")
+                    m = tonumber(cleanNumber) or 0
+                end
+            end
+        end)
+        return m
+    end
+
+    local function getDeckUUIDs()
+        local deck = {}
+        pcall(function()
+            local container = LocalPlayer.PlayerGui.hotbarGui.scalingFrame.background.container
+            for _, slot in pairs(container:GetChildren()) do
+                -- 1. สกัดเลข Slot
+                local slotStr = slot.Name:match("%d+") 
+                local slotNum = slotStr and tonumber(slotStr) or nil
+                
+                -- 2. ดึง UUID
+                local uuid = slot:GetAttribute("heroUUID")
+                
+                if uuid and slotNum then
+                    local cost = 0
+                    
+                    -- 🌟 3. ดึงราคาจาก Object "PlacementPrice" ที่เราสแกนเจอ
+                    local priceLabel = slot:FindFirstChild("PlacementPrice", true)
+                    if priceLabel and priceLabel:IsA("TextLabel") then
+                        -- ใช้ gsub("%D", "") เพื่อลบอักษรทุกตัวที่ไม่ใช่ตัวเลขออก (ลบ ¥ และ ,)
+                        cost = tonumber(priceLabel.Text:gsub("%D", "")) or 0
+                    end
+                    
+                    -- 4. ตั้งชื่อจำลอง (เพราะเกมไม่มี Text ชื่อตัวละคร)
+                    local unitName = "Unit " .. slotNum
+                    
+                    table.insert(deck, {UUID = uuid, Cost = cost, Slot = slotNum, Name = unitName})
+                end
+            end
+        end)
+        return deck
+    end
+
+
+
+    -- =========================================================
+    -- [PATH PATCH V2] Replace old getPathFolder/getProgressScore
+    -- =========================================================
+
+    local _cachedPathFolder = nil
+    local _cachedPathFolderAt = 0
+    local _cachedWaypointMap = setmetatable({}, { __mode = "k" })
+
+    local function _extractNumericOrder(name)
+        if not name then return nil end
+        return tonumber(name) or tonumber(tostring(name):match("(%d+)"))
+    end
+
+    local function _getObjectWorldPosition(obj)
+        if not obj then return nil end
+
+        if obj:IsA("BasePart") then
+            return obj.Position
+        elseif obj:IsA("Attachment") then
+            return obj.WorldPosition
+        elseif obj:IsA("Model") then
+            local primary = obj.PrimaryPart
+            if primary then
+                return primary.Position
+            end
+            local ok, pivot = pcall(function()
+                return obj:GetPivot()
+            end)
+            if ok and pivot then
+                return pivot.Position
+            end
+        end
+
+        return nil
+    end
+
+    local function _collectWaypointCandidates(container, results, visited)
+        if not container or visited[container] then return end
+        visited[container] = true
+
+        for _, child in ipairs(container:GetChildren()) do
+            local pos = _getObjectWorldPosition(child)
+            local lowerName = child.Name:lower()
+
+            if pos then
+                local order = _extractNumericOrder(child.Name)
+                local looksLikeWaypoint =
+                    order ~= nil or
+                    lowerName:find("way") or
+                    lowerName:find("node") or
+                    lowerName:find("point") or
+                    lowerName:find("wp")
+
+                if looksLikeWaypoint then
+                    table.insert(results, {
+                        obj = child,
+                        pos = pos,
+                        order = order,
+                        name = child.Name
+                    })
+                end
+            end
+
+            if child:IsA("Folder") or child:IsA("Model") then
+                _collectWaypointCandidates(child, results, visited)
+            end
+        end
+    end
+
+    local function _getOrderedWaypoints(pathFolder)
+        if not pathFolder then
+            return {}
+        end
+
+        local cached = _cachedWaypointMap[pathFolder]
+        if cached and cached.parent == pathFolder and tick() - cached.time < 3 then
+            return cached.points
+        end
+
+        local raw = {}
+        _collectWaypointCandidates(pathFolder, raw, {})
+
+        if #raw == 0 then
+            _cachedWaypointMap[pathFolder] = {
+                parent = pathFolder,
+                points = {},
+                time = tick()
+            }
+            return {}
+        end
+
+        local numericCount = 0
+        for _, item in ipairs(raw) do
+            if item.order ~= nil then
+                numericCount += 1
+            end
+        end
+
+        if numericCount >= math.max(2, math.floor(#raw * 0.35)) then
+            table.sort(raw, function(a, b)
+                local ao = a.order or math.huge
+                local bo = b.order or math.huge
+                if ao == bo then
+                    return a.name < b.name
+                end
+                return ao < bo
+            end)
+        else
+            -- fallback: nearest-neighbor chain from a reasonable start point
+            local startIndex = 1
+            for i, item in ipairs(raw) do
+                local lowerName = item.name:lower()
+                if lowerName:find("start") or lowerName == "0" or lowerName == "1" then
+                    startIndex = i
+                    break
+                end
+            end
+
+            local ordered = {}
+            local used = {}
+            local current = raw[startIndex]
+            table.insert(ordered, current)
+            used[startIndex] = true
+
+            for _ = 2, #raw do
+                local bestIdx, bestDist = nil, math.huge
+                for i, item in ipairs(raw) do
+                    if not used[i] then
+                        local dist = (item.pos - current.pos).Magnitude
+                        if dist < bestDist then
+                            bestDist = dist
+                            bestIdx = i
+                        end
+                    end
+                end
+
+                if not bestIdx then break end
+                current = raw[bestIdx]
+                used[bestIdx] = true
+                table.insert(ordered, current)
+            end
+
+            raw = ordered
+        end
+
+        _cachedWaypointMap[pathFolder] = {
+            parent = pathFolder,
+            points = raw,
+            time = tick()
+        }
+
+        return raw
+    end
+
+    local function _countDirectPosChildren(obj)
+        if not obj then return 0 end
+        local count = 0
+        for _, child in ipairs(obj:GetChildren()) do
+            if _getObjectWorldPosition(child) then
+                count += 1
+            end
+        end
+        return count
+    end
+
+    local function getPathFolder(forceRefresh)
+        if not forceRefresh and _cachedPathFolder and _cachedPathFolder.Parent and tick() - _cachedPathFolderAt < 3 then
+            return _cachedPathFolder
+        end
+
+        local candidates = {}
+
+        local function consider(obj, bonus)
+            if not obj then return end
+
+            local lowerName = obj.Name:lower()
+            local score = 0
+            local directCount = _countDirectPosChildren(obj)
+            local orderedCount = #_getOrderedWaypoints(obj)
+
+            if lowerName == "path" or lowerName == "paths" or lowerName == "waypoints" then
+                score += 120
+            elseif lowerName:find("path") or lowerName:find("way") or lowerName:find("track") then
+                score += 80
+            end
+
+            score += directCount * 6
+            score += orderedCount * 10
+            score += (bonus or 0)
+
+            if orderedCount >= 3 then
+                table.insert(candidates, {
+                    obj = obj,
+                    score = score
+                })
+            end
+        end
+
+        local roots = {
+            workspace,
+            workspace:FindFirstChild("map"),
+            workspace:FindFirstChild("Map"),
+            workspace:FindFirstChild("workspace"),
+            workspace:FindFirstChild("Workspace"),
+        }
+
+        for _, root in ipairs(roots) do
+            if root then
+                consider(root:FindFirstChild("path"), 50)
+                consider(root:FindFirstChild("Path"), 50)
+                consider(root:FindFirstChild("paths"), 45)
+                consider(root:FindFirstChild("Paths"), 45)
+                consider(root:FindFirstChild("waypoints"), 40)
+                consider(root:FindFirstChild("Waypoints"), 40)
+
+                for _, d in ipairs(root:GetDescendants()) do
+                    if d:IsA("Folder") or d:IsA("Model") then
+                        consider(d, 0)
+                    end
+                end
+            end
+        end
+
+        table.sort(candidates, function(a, b)
+            return a.score > b.score
+        end)
+
+        _cachedPathFolder = candidates[1] and candidates[1].obj or nil
+        _cachedPathFolderAt = tick()
+
+        if _cachedPathFolder then
+            local pts = _getOrderedWaypoints(_cachedPathFolder)
+            print("[PathPatch] Selected path folder:", _cachedPathFolder:GetFullName(), "| waypoints =", #pts)
+        else
+            warn("[PathPatch] No valid path folder found")
+        end
+
+        return _cachedPathFolder
+    end
+
+    local function getProgressScore(worldPos, pathFolder)
+        if not worldPos then
+            return -1
+        end
+
+        pathFolder = pathFolder or getPathFolder()
+        if not pathFolder then
+            return -1
+        end
+
+        local waypoints = _getOrderedWaypoints(pathFolder)
+        if #waypoints == 0 then
+            return -1
+        end
+
+        if #waypoints == 1 then
+            return 0
+        end
+
+        local bestSegmentIndex = 1
+        local bestDistance = math.huge
+        local bestT = 0
+
+        for i = 1, #waypoints - 1 do
+            local a = waypoints[i].pos
+            local b = waypoints[i + 1].pos
+            local ab = b - a
+            local ap = worldPos - a
+
+            local abLenSq = ab:Dot(ab)
+            local t = 0
+            if abLenSq > 0 then
+                t = math.clamp(ap:Dot(ab) / abLenSq, 0, 1)
+            end
+
+            local closest = a + ab * t
+            local dist = (worldPos - closest).Magnitude
+
+            if dist < bestDistance then
+                bestDistance = dist
+                bestSegmentIndex = i
+                bestT = t
+            end
+        end
+
+        -- progress เป็นเลขต่อเนื่อง: segment index + offset ใน segment
+        return (bestSegmentIndex - 1) + bestT
+    end
+
+    -- 4. หาจุดวางป้อม (ล็อกเป้ามอนสเตอร์ที่คะแนนจุดตรวจ "สูงสุด")
+    local function findSpot()
+        local map = workspace:FindFirstChild("mapFolder") or workspace:FindFirstChild("Map")
+        local areas = map and map:FindFirstChild("PlaceAreas")
+        local pathFolder = getPathFolder()
+        
+        if not areas or not pathFolder then return nil, "ไม่เจอ PlaceAreas หรือ PathFolder" end
+
+        local targetEnemy = nil
+        local maxProgress = -1
+        local enemies = workspace:FindFirstChild("enemiesModels")
+        
+        -- 🌟 [New Logic]: หามอนสเตอร์ที่คะแนน Waypoint สูงที่สุด (หัวขบวน)
+        if enemies then
+            for _, e in pairs(enemies:GetChildren()) do
+                local hrp = e:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local prog = getProgressScore(hrp.Position, pathFolder)
+                    if prog > maxProgress then
+                        maxProgress = prog
+                        targetEnemy = e
+                    end
+                end
+            end
+        end
+
+        if not targetEnemy or not targetEnemy:FindFirstChild("HumanoidRootPart") then return nil, "ไม่มีมอนสเตอร์บนแมพ" end
+
+        local enemyHRP = targetEnemy.HumanoidRootPart
+        
+        -- สุ่มจุดวาง 360 องศารอบตัวมอนสเตอร์ (แก้บั๊กจุดซ้ำ)
+        local checkRadius = math.random(4, 9)
+        local angle = math.random(0, 360)
+        local rad = math.rad(angle)
+        local randomOffset = Vector3.new(math.cos(rad) * checkRadius, 0, math.sin(rad) * checkRadius)
+        local checkPos = enemyHRP.Position + randomOffset
+
+        for _, pType in ipairs({"ground", "air"}) do
+            local folder = areas:FindFirstChild(pType)
+            if folder then
+                local rP = RaycastParams.new()
+                rP.FilterType = Enum.RaycastFilterType.Include
+                rP.FilterDescendantsInstances = {folder}
+
+                local res = workspace:Raycast(checkPos + Vector3.new(0, 50, 0), Vector3.new(0, -100, 0), rP)
+
+                if res then
+                    local cf = CFrame.new(res.Position + Vector3.new(0, 1, 0))
+                    local occupied = false
+                    
+                    for _, p in pairs(workspace:GetPartBoundsInBox(cf, Vector3.new(3.5, 3.5, 3.5))) do
+                        if p.Parent and p.Parent.Name:match("^tower%-") then occupied = true break end
+                    end
+                    
+                    if not occupied then 
+                        pcall(function()
+                            local p = Instance.new("Part", workspace)
+                            p.Size, p.Color, p.Anchored, p.CanCollide = Vector3.new(1.5,1.5,1.5), Color3.fromRGB(0,255,100), true, false
+                            p.CFrame = cf
+                            game.Debris:AddItem(p, 1.5)
+                        end)
+                        return cf, pType 
+                    end
+                end
+            end
+        end
+        return nil, "สุ่มจุดแล้วแต่พื้นที่ไม่ว่าง"
+    end
+
+    -- 🧠 สมุดบัญชีจำแนก Unit ทุกตัว (จำพิกัด + Slot)
+    local placedUnitMemory = {} 
+
+
+
+    -- 5. ตรวจจับมอนหลุดแนว (เปรียบเทียบคะแนน ป้อม VS มอนสเตอร์)
+    -- 5. ตรวจจับมอนหลุดแนว (ระบบผสม V.PRO: จุดตรวจ + สายวัดระยะห่างฟิสิกส์)
+    local function isDefenseBreached()
+        local pathFolder = getPathFolder()
+        if not pathFolder then return true end 
+
+        local placedFolder = workspace:FindFirstChild("placedTowers")
+        if not placedFolder or #placedFolder:GetChildren() == 0 then 
+            return true 
+        end
+
+        -- 🌟 หาคะแนนป้อมที่ด่านหน้าสุด พร้อม "จำพิกัด" เอาไว้
+        local maxTowerProgress = -1
+        local frontTowerPos = nil
+        for _, obj in pairs(placedFolder:GetChildren()) do
+            if obj:IsA("Model") and obj.Name:match("^tower%-") then
+                local pos = obj:GetPivot().Position
+                local prog = getProgressScore(pos, pathFolder)
+                if prog > maxTowerProgress then 
+                    maxTowerProgress = prog 
+                    frontTowerPos = pos
+                end
+            end
+        end
+
+        -- 🌟 หาคะแนนมอนสเตอร์หัวขบวน พร้อม "จำพิกัด" เอาไว้
+        local maxEnemyProgress = -1
+        local frontEnemyPos = nil
+        local enemies = workspace:FindFirstChild("enemiesModels")
+        if enemies then
+            for _, e in pairs(enemies:GetChildren()) do
+                local hrp = e:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local prog = getProgressScore(hrp.Position, pathFolder)
+                    if prog > maxEnemyProgress then 
+                        maxEnemyProgress = prog 
+                        frontEnemyPos = hrp.Position
+                    end
+                end
+            end
+        end
+
+        -- 🚨 การตัดสินใจ (The Hybrid Verdict)
+        if maxEnemyProgress > maxTowerProgress then 
+            -- กรณี 1: มอนเดินข้ามไปโซนเสาต้นใหม่แล้ว = หลุดแน่นอน วางดักเลย!
+            return true 
+        elseif maxEnemyProgress == maxTowerProgress and frontTowerPos and frontEnemyPos then
+            -- กรณี 2: มอนอยู่โซนเสาเดียวกับป้อม ให้ควัก "ตลับเมตร" ออกมาวัด!
+            local dist = (frontEnemyPos - frontTowerPos).Magnitude
+            
+            -- 📏 จุดปรับแต่งระยะห่าง: ถ้ามอนเดินห่างจากป้อมสุดท้ายเกิน X เมตร ให้วางป้อมใหม่
+            if dist > 15 then 
+                return true
+            end
+        end
+        
+        return false
+    end
+
+    local placedTracking = {0, 0, 0, 0, 0, 0}
+    local lastJoinAttempt = 0
+
+    -- [Auto Join Logic]
+    -- 🛑 ย้าย roomsReliable ไปดึงค่าตอนจะใช้งานเท่านั้น เพื่อกันสคริปต์ค้าง!
+    local mapList = {
+        ["Ninja Leaf"] = "\003\n\t\000ninjaLeaf",
+        ["Marine Fortress"] = "\003\v\014\000marineFortress",
+        ["Namok"] = "\003\f\005\000namok",
+        ["Sky Island"] = "\003\r\t\000skyIsland",
+        ["Cursed Arena"] = "\003\014\v\000cursedArena"
+    }
+
+    local difficultyList = {
+        ["Normal"] = "\004\n\006\000normal",
+        ["Nightmare"] = "\004\r\t\000nightmare"
+    }
+
+    local legendModeString = "\004\025\a\000legends"
+    local requestCounter = 100 
+
+    local function isInLobby()
+        local inLobby = workspace:FindFirstChild("StoryDoor") ~= nil
+        return inLobby
+    end
+
+    local function isRoomUIVisible()
+        local found = false
+        pcall(function()
+            for _, gui in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
+                if (gui:IsA("TextLabel") or gui:IsA("TextButton")) and gui.Text:upper() == "CREATE MATCH" then
+                    local current = gui
+                    local trulyVisible = true
+                    while current and current.Parent do
+                        if current:IsA("GuiObject") and not current.Visible then
+                            trulyVisible = false
+                            break
+                        elseif current:IsA("ScreenGui") and not current.Enabled then
+                            trulyVisible = false
+                            break
+                        end
+                        current = current.Parent
+                    end
+                    if trulyVisible then found = true break end
+                end
+            end
+        end)
+        return found
+    end
+
+    local function AutoJoinMatch(targetMode, targetMapName, targetAct, targetDifficulty)
+        targetMode = targetMode or "Story"
+        targetMapName = targetMapName or "Ninja Leaf"
+        targetAct = tonumber(targetAct) or 1
+        targetDifficulty = targetDifficulty or "Normal"
+
+        if not mapList[targetMapName] then return end
+        if targetMode == "Legend" and targetAct > 3 then targetAct = 3 end
+
+        -- ดึงค่า Remote ตรงนี้แทน เพื่อไม่ให้ Error ถ้าวิ่งอยู่ในด่าน
+        local rooms = ReplicatedStorage:FindFirstChild("rooms")
+        local roomsReliable = rooms and rooms:FindFirstChild("rooms_RELIABLE")
+        if not roomsReliable then warn("❌ [System Error] หา Remote สร้างห้องไม่เจอ!") return end
+
+        if isInLobby() then
+            local storyDoors = workspace:FindFirstChild("StoryDoor")
+            local enteredRoom = false
+            
+            if storyDoors then
+                for i = 1, 10 do
+                    local doorName = string.format("%03d", i)
+                    local doorFolder = storyDoors:FindFirstChild(doorName)
+                    local doorPart = doorFolder and doorFolder:FindFirstChild("Door")
+                    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    
+                    if hrp and doorPart then
+                        hrp.CFrame = doorPart.CFrame
+                        if firetouchinterest then
+                            firetouchinterest(hrp, doorPart, 0)
+                            task.wait(0.1)
+                            firetouchinterest(hrp, doorPart, 1)
+                        end
+                        task.wait(1.5) 
+                        
+                        if isRoomUIVisible() then 
+                            enteredRoom = true
+                            break 
+                        end
+                    end
+                end
+            end
+            
+            if enteredRoom or isRoomUIVisible() then
+                roomsReliable:FireServer(buffer.fromstring("\b\a\001"), {})
+                task.wait(2.5)
+                
+                if targetMode == "Legend" then
+                    roomsReliable:FireServer(buffer.fromstring(legendModeString), {})
+                else
+                    if difficultyList[targetDifficulty] then 
+                        roomsReliable:FireServer(buffer.fromstring(difficultyList[targetDifficulty]), {}) 
+                    end
+                end
+                task.wait(1)
+
+                roomsReliable:FireServer(buffer.fromstring(mapList[targetMapName]), {})
+                task.wait(1)
+                
+                requestCounter = (requestCounter + 1) % 256
+                local actString = string.char(2, requestCounter, targetAct)
+                roomsReliable:FireServer(buffer.fromstring(actString), {})
+                task.wait(1)
+                
+                roomsReliable:FireServer(buffer.fromstring("\001!\001"), {})
+                task.wait(2.5) 
+                
+                roomsReliable:FireServer(buffer.fromstring("\005\004"), {}) 
+            end
+        end
+    end
+
+    local function executeAutoJoinEvent()
+        local ok, result = pcall(function()
+            local rooms = ReplicatedStorage:FindFirstChild("rooms")
+            local roomsReliable = rooms and rooms:FindFirstChild("rooms_RELIABLE")
+            if not roomsReliable then
+                return false
+            end
+
+            roomsReliable:FireServer(buffer.fromstring("\n\001"), {})
+
+            local ready = false
+            local startedAt = tick()
+
+            while tick() - startedAt < 10 do
+                if isRoomUIVisible() then
+                    ready = true
+                    break
+                end
+                task.wait(1)
+            end
+
+            if not ready then
+                lastJoinAttempt = 0
+                return false
+            end
+
+            task.wait(1)
+
+            local freshRooms = ReplicatedStorage:FindFirstChild("rooms")
+            local freshReliable = freshRooms and freshRooms:FindFirstChild("rooms_RELIABLE")
+            if not freshReliable then
+                lastJoinAttempt = 0
+                return false
+            end
+
+            freshReliable:FireServer(buffer.fromstring("\b\004\001"), {})
+            task.wait(2)
+            freshReliable:FireServer(buffer.fromstring("\001\a\001"), {})
+            task.wait(2)
+            freshReliable:FireServer(buffer.fromstring("\005\004"), {})
+
+            return true
+        end)
+
+        if not ok then
+            lastJoinAttempt = 0
+            return false
+        end
+
+        return result == true
+    end
+
+
+    -- =========================================================
+    -- SMART AUTO PLAY RESET : FARM-FIRST / PRIORITY-FIRST
+    -- Replace old Auto Play block with this whole section
+    -- =========================================================
+
+    local recentFailedSpots = {}
+
+    local lastAutoActionAt = 0
+    local lastPlaceAttemptAt = 0
+    local lastFarmAttemptAt = 0
+    local lastUpgradeBurstAt = 0
+    local placementFailStreak = 0
+    local lastJoinAttempt = 0
+
+    local AUTO_LOOP_INTERVAL = 0.6
+    local GLOBAL_ACTION_COOLDOWN = 0.25
+    local PLACE_COOLDOWN = 0.75
+    local FARM_COOLDOWN = 0.75
+    local UPGRADE_BURST_COOLDOWN = 0.4
+    local FAIL_BACKOFF_BASE = 0.5
+    local FAIL_BACKOFF_MAX = 2.0
+
+    local function getFailBackoff()
+        return math.min(FAIL_BACKOFF_BASE + (placementFailStreak * 0.25), FAIL_BACKOFF_MAX)
+    end
+
+    local function canDoGlobalAction()
+        return (tick() - lastAutoActionAt) >= GLOBAL_ACTION_COOLDOWN
+    end
+
+    local function markGlobalAction()
+        lastAutoActionAt = tick()
+    end
+
+    local function canAttemptFarm()
+        return (tick() - lastFarmAttemptAt) >= FARM_COOLDOWN and canDoGlobalAction()
+    end
+
+    local function canAttemptPlacement()
+        return (tick() - lastPlaceAttemptAt) >= (PLACE_COOLDOWN + getFailBackoff()) and canDoGlobalAction()
+    end
+
+    local function canBurstUpgrade()
+        return (tick() - lastUpgradeBurstAt) >= UPGRADE_BURST_COOLDOWN and canDoGlobalAction()
+    end
+
+    local function markFarmAttempt(success)
+        lastFarmAttemptAt = tick()
+        markGlobalAction()
+        if success then
+            placementFailStreak = 0
+        else
+            placementFailStreak += 1
+        end
+    end
+
+    local function markPlacementAttempt(success)
+        lastPlaceAttemptAt = tick()
+        markGlobalAction()
+        if success then
+            placementFailStreak = 0
+        else
+            placementFailStreak += 1
+        end
+    end
+
+    local function markUpgradeBurst()
+        lastUpgradeBurstAt = tick()
+        markGlobalAction()
+    end
+
+    local function trimFailedSpots()
+        local now = tick()
+        local kept = {}
+        for _, item in ipairs(recentFailedSpots) do
+            if now - item.t < 8 then
+                table.insert(kept, item)
+            end
+        end
+        recentFailedSpots = kept
+    end
+
+    local function markFailedSpot(pos)
+        if pos then
+            table.insert(recentFailedSpots, {pos = pos, t = tick()})
+        end
+    end
+
+    local function isNearFailedSpot(pos, radius)
+        radius = radius or 4
+        trimFailedSpots()
+        for _, item in ipairs(recentFailedSpots) do
+            if (item.pos - pos).Magnitude <= radius then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function softResync()
+        local placedFolder = workspace:FindFirstChild("placedTowers")
+        local liveCount = placedFolder and #placedFolder:GetChildren() or 0
+        local tracked = 0
+
+        for i = 1, 6 do
+            tracked += (placedTracking[i] or 0)
+        end
+
+        if liveCount == 0 then
+            placedTracking = {0, 0, 0, 0, 0, 0}
+            placedUnitMemory = {} -- 🌟 แก้ตรงนี้
+            recentFailedSpots = {}
+            placementFailStreak = 0
+            lastAutoActionAt = 0
+            lastPlaceAttemptAt = 0
+            lastFarmAttemptAt = 0
+            lastUpgradeBurstAt = 0
+            return
+        end
+
+        if tracked > liveCount + 2 then
+            placedTracking = {0, 0, 0, 0, 0, 0}
+            placedUnitMemory = {} -- 🌟 แก้ตรงนี้
+            recentFailedSpots = {}
+            placementFailStreak = 0
+            print("♻️ [ResetAI] Tracking desync detected, reset local counters.")
+        end
+    end
+
+    local function getDeckCardBySlot(deck, slot)
+        for _, card in ipairs(deck) do
+            if card.Slot == slot then
+                return card
+            end
+        end
+        return nil
+    end
+
+    local function getOrderedPriorityCards(deck, farmSlot)
+        local result = {}
+
+        for _, slotNum in ipairs(MoMoConfig.UnitPriority) do
+            if slotNum ~= farmSlot then
+                local card = getDeckCardBySlot(deck, slotNum)
+                if card then
+                    table.insert(result, card)
+                end
+            end
+        end
+
+        for _, card in ipairs(deck) do
+            local exists = false
+            for _, picked in ipairs(result) do
+                if picked.Slot == card.Slot then
+                    exists = true
+                    break
+                end
+            end
+            if not exists and card.Slot ~= farmSlot then
+                table.insert(result, card)
+            end
+        end
+
+        return result
+    end
+
+    local function classifyPlacedTowers()
+        local attackTowersBySlot = { [1]={}, [2]={}, [3]={}, [4]={}, [5]={}, [6]={} }
+        local farmTowers = {}
+        local unknownTowers = {}
+        local placedFolder = workspace:FindFirstChild("placedTowers")
+        local farmSlot = MoMoConfig.FarmUnit or 0
+
+        if placedFolder then
+            for _, obj in pairs(placedFolder:GetChildren()) do
+                if obj:IsA("Model") and obj.Name:match("^tower%-") then
+                    local pos = obj:GetPivot().Position
+                    local matchedSlot = nil
+
+                    -- 🌟 เทียบพิกัดกับสมุดบัญชีเพื่อหาว่าคือ Slot อะไร
+                    for _, mem in ipairs(placedUnitMemory) do
+                        if (pos - mem.pos).Magnitude < 3 then
+                            matchedSlot = mem.slot
+                            break
+                        end
+                    end
+
+                    -- แยกเข้าโฟลเดอร์ให้ถูกต้อง
+                    if matchedSlot == farmSlot and farmSlot > 0 then
+                        table.insert(farmTowers, obj)
+                    elseif matchedSlot then
+                        table.insert(attackTowersBySlot[matchedSlot], obj)
+                    else
+                        table.insert(unknownTowers, obj) -- กรณีหลุดรอดการจดจำ
+                    end
+                end
+            end
+        end
+
+        return attackTowersBySlot, farmTowers, unknownTowers, placedFolder
+    end
+
+
+
+    local function tryPlaceFarm(sync, farmCard, placedFolder, farmLimit)
+        if not sync or not farmCard then return false end
+
+        local placedFarm = placedTracking[farmCard.Slot] or 0
+        if placedFarm >= farmLimit then return false end
+        if not canAttemptFarm() then return false end
+        if getRealMoney() < farmCard.Cost then return false end
+
+        local success = false
+
+        for _ = 1, 6 do
+            -- 🌟 แก้ตรงนี้: เปลี่ยนจาก findFarmSpot() เป็น findSpot() เพื่อให้วางเหมือนตัวตีปกติ
+            local spot = findSpot() 
+            
+            if spot and not isNearFailedSpot(spot.Position, 5) then
+                local countBefore = placedFolder and #placedFolder:GetChildren() or 0
+                local ok = pcall(function()
+                    sync.clientTowerPlacement.call(farmCard.UUID, spot)
+                end)
+
+                if ok then
+                    task.wait(0.7)
+                    local countAfter = placedFolder and #placedFolder:GetChildren() or 0
+                    if countAfter > countBefore then
+                        placedTracking[farmCard.Slot] = (placedTracking[farmCard.Slot] or 0) + 1
+                        -- 🌟 สั่งให้จดจำพิกัด พร้อมผูกกับ Slot ของตัวฟาร์ม
+                        table.insert(placedUnitMemory, {pos = spot.Position, slot = farmCard.Slot})
+                        success = true
+                        print("🤑 [FarmFirst] วางตัวฟาร์มสำเร็จ (" .. placedTracking[farmCard.Slot] .. "/" .. farmLimit .. ")")
+                        break
+                    else
+                        markFailedSpot(spot.Position)
+                    end
+                else
+                    markFailedSpot(spot.Position)
+                end
+            end
+        end
+
+        markFarmAttempt(success)
+        return success
+    end
+
+    local function tryPlacePriorityAttack(sync, deck, farmSlot, placedFolder)
+        if not sync or #deck == 0 then return false end
+        if not canAttemptPlacement() then return false end
+
+        local money = getRealMoney()
+        local priorityCards = getOrderedPriorityCards(deck, farmSlot)
+        local success = false
+
+        for _, card in ipairs(priorityCards) do
+            local limit = MoMoConfig.UnitLimits[card.Slot] or 0
+            local placed = placedTracking[card.Slot] or 0
+
+            if placed < limit and money >= card.Cost then
+                for _ = 1, 6 do
+                    -- 🌟 เรียกใช้ findSpot() ตรงๆ ไปเลย ไม่ต้องคำนวณซ้ำซ้อน
+                    local spot = findSpot() 
+                    if spot and spot.Position and not isNearFailedSpot(spot.Position, 4) then
+                        local countBefore = placedFolder and #placedFolder:GetChildren() or 0
+                        local ok = pcall(function()
+                            sync.clientTowerPlacement.call(card.UUID, spot)
+                        end)
+
+                        if ok then
+                            task.wait(0.7)
+                            local countAfter = placedFolder and #placedFolder:GetChildren() or 0
+                            if countAfter > countBefore then
+                                placedTracking[card.Slot] = (placedTracking[card.Slot] or 0) + 1
+                                -- 🌟 สั่งให้จดจำพิกัด พร้อมผูกกับ Slot ของตัวตี
+                                table.insert(placedUnitMemory, {pos = spot.Position, slot = card.Slot})
+                                success = true
+                                print("✅ [Priority] วาง Unit Slot " .. card.Slot .. " สำเร็จ (" .. placedTracking[card.Slot] .. "/" .. limit .. ")")
+                                break
+                            else
+                                markFailedSpot(spot.Position)
+                            end
+                        else
+                            markFailedSpot(spot.Position)
+                        end
+                    end
+                end
+            end
+
+            if success then
+                break
+            end
+        end
+
+        markPlacementAttempt(success)
+        return success
+    end
+
+    local function tryUpgradeObject(obj)
+        local ok = pcall(function()
+            ReplicatedStorage.towers.towers_RELIABLE:FireServer(
+                buffer.fromstring("\001\031+\000" .. obj.Name),
+                {}
+            )
+        end)
+        return ok
+    end
+
+    local function tryUpgradeFarmFirst(attackTowersBySlot, farmTowers, unknownTowers, farmSlot)
+        if not canBurstUpgrade() then return false end
+
+        local acted = false
+
+        -- 1) อัปฟาร์มก่อนเสมอเป็นอันดับ 1
+        for _, obj in ipairs(farmTowers) do
+            if tryUpgradeObject(obj) then acted = true end
+        end
+
+        -- 2) อัปเกรดตัวกันบ้าน "ตามลำดับ Priority ที่ตั้งใน UI เป๊ะๆ"
+        for _, slotNum in ipairs(MoMoConfig.UnitPriority) do
+            if slotNum ~= farmSlot then
+                for _, obj in ipairs(attackTowersBySlot[slotNum]) do
+                    if tryUpgradeObject(obj) then acted = true end
+                end
+            end
+        end
+
+        -- 3) เผื่อมีป้อมหลงลืม (กันบั๊ก) ก็อัปเกรดให้ด้วย
+        for _, obj in ipairs(unknownTowers) do
+            if tryUpgradeObject(obj) then acted = true end
+        end
+
+        if acted then markUpgradeBurst() end
+        return acted
+    end
+
+    -- [PATCH 3] HELPERS
+    local function normalizeCardName(value)
+        if value == nil then
+            return nil
+        end
+
+        local s = tostring(value)
+        s = s:gsub("[%s_%-%c]+", ""):lower()
+
+        for _, known in ipairs(knownEventCards) do
+            local k = tostring(known):gsub("[%s_%-%c]+", ""):lower()
+            if s == k then
+                return known
+            end
+        end
+
+        return nil
+    end
+
+    local function isGuiActuallyVisible(gui)
+        if not gui then
+            return false
+        end
+
+        local current = gui
+        while current and current.Parent do
+            if current:IsA("GuiObject") and not current.Visible then
+                return false
+            end
+            if current:IsA("ScreenGui") and not current.Enabled then
+                return false
+            end
+            current = current.Parent
+        end
+
+        return true
+    end
+
+    local function isPickCardUIVisible()
+        local found = false
+
+        pcall(function()
+            for _, gui in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
+                if (gui:IsA("TextLabel") or gui:IsA("TextButton")) and isGuiActuallyVisible(gui) then
+                    local txt = tostring(gui.Text or ""):upper()
+                    if txt:find("PICK A CARD", 1, true) then
+                        found = true
+                        break
+                    end
+                end
+            end
+        end)
+
+        return found
+    end
+
+    local function findLockInChoiceButton()
+        local foundButton = nil
+
+        pcall(function()
+            for _, gui in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
+                if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and isGuiActuallyVisible(gui) then
+                    local txt = ""
+                    pcall(function()
+                        txt = tostring(gui.Text or "")
+                    end)
+
+                    txt = txt:upper()
+                    if txt:find("LOCK IN CHOICE", 1, true) then
+                        foundButton = gui
+                        break
+                    end
+                end
+            end
+        end)
+
+        return foundButton
+    end
+
+    -- [PATCH REPLACEMENT] TEXT-BASED EVENT CARD PARSER
+    local function superSanitize(str)
+        if type(str) ~= "string" then
+            return ""
+        end
+        return str:gsub("[%s%p%c]+", ""):lower()
+    end
+
+    local function buildSanitizedKnownMap()
+        local map = {}
+        for _, knownName in ipairs(knownEventCards) do
+            map[superSanitize(knownName)] = knownName
+        end
+        return map
+    end
+
+    local function getTextLabelScore(label)
+        local score = 0
+
+        pcall(function()
+            score = score + ((label.TextSize or 0) * 10)
+        end)
+
+        pcall(function()
+            score = score + math.clamp(label.AbsoluteSize.Y or 0, 0, 300)
+        end)
+
+        pcall(function()
+            local y = (label.AbsolutePosition and label.AbsolutePosition.Y) or 99999
+            score = score + math.clamp(2000 - y, 0, 2000)
+        end)
+
+        pcall(function()
+            local fontName = tostring(label.Font)
+            if fontName:lower():find("bold") then
+                score = score + 150
+            end
+        end)
+
+        pcall(function()
+            local text = tostring(label.Text or "")
+            if #text > 0 and #text <= 32 then
+                score = score + 75
+            end
+        end)
+
+        return score
+    end
+
+    local function extractKnownCardNameFromInstance(inst)
+        if not inst then
+            return nil
+        end
+
+        local sanitizedKnownMap = buildSanitizedKnownMap()
+        local candidates = {}
+
+        local function tryAddLabel(label)
+            if not label or not label:IsA("TextLabel") then
+                return
+            end
+
+            if not isGuiActuallyVisible(label) then
+                return
+            end
+
+            local rawText = tostring(label.Text or "")
+            local cleanText = superSanitize(rawText)
+            if cleanText == "" then
+                return
+            end
+
+            local exactMatch = sanitizedKnownMap[cleanText]
+            if exactMatch then
+                table.insert(candidates, {
+                    Name = exactMatch,
+                    Score = 100000 + getTextLabelScore(label),
+                    Label = label,
+                })
+                return
+            end
+
+            for sanitizedKnown, originalKnown in pairs(sanitizedKnownMap) do
+                if cleanText:find(sanitizedKnown, 1, true) or sanitizedKnown:find(cleanText, 1, true) then
+                    table.insert(candidates, {
+                        Name = originalKnown,
+                        Score = 50000 + getTextLabelScore(label),
+                        Label = label,
+                    })
+                    return
+                end
+            end
+        end
+
+        pcall(function()
+            if inst:IsA("TextLabel") then
+                tryAddLabel(inst)
+            end
+
+            for _, child in ipairs(inst:GetDescendants()) do
+                if child:IsA("TextLabel") then
+                    tryAddLabel(child)
+                end
+            end
+        end)
+
+        if #candidates == 0 then
+            return nil
+        end
+
+        table.sort(candidates, function(a, b)
+            return a.Score > b.Score
+        end)
+
+        return candidates[1].Name
+    end
+
+    local function getClickableCardRoot(inst)
+        if not inst then
+            return nil
+        end
+
+        local current = inst
+        local bestFallback = nil
+
+        while current and current.Parent and current.Name ~= "PlayerGui" do
+            if isGuiActuallyVisible(current) then
+                if current:IsA("GuiButton") then
+                    local absY = 0
+                    local absX = 0
+
+                    pcall(function()
+                        absY = current.AbsoluteSize.Y
+                        absX = current.AbsoluteSize.X
+                    end)
+
+                    if absY > 100 or absX > 120 then
+                        return current
+                    end
+
+                    if not bestFallback then
+                        bestFallback = current
+                    end
+                elseif current:IsA("GuiObject") and not bestFallback then
+                    bestFallback = current
+                end
+            end
+
+            current = current.Parent
+        end
+
+        return bestFallback
+    end
+
+    local function getVisibleEventCards()
+        local visibleCards = {}
+        local alreadyAdded = {}
+        local scannedContainers = {}
+
+        pcall(function()
+            for _, gui in pairs(LocalPlayer.PlayerGui:GetDescendants()) do
+                if gui:IsA("TextLabel") and isGuiActuallyVisible(gui) then
+                    local container = gui.Parent
+
+                    if container and not scannedContainers[container] then
+                        scannedContainers[container] = true
+
+                        local cardName = extractKnownCardNameFromInstance(container)
+                        if cardName and not alreadyAdded[cardName] then
+                            local clickTarget = getClickableCardRoot(gui)
+
+                            if not clickTarget then
+                                clickTarget = getClickableCardRoot(container)
+                            end
+
+                            if clickTarget then
+                                table.insert(visibleCards, {
+                                    Name = cardName,
+                                    Slot = #visibleCards + 1,
+                                    UI = clickTarget
+                                })
+                                alreadyAdded[cardName] = true
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+
+        if #visibleCards > 3 then
+            table.sort(visibleCards, function(a, b)
+                local ay = math.huge
+                local by = math.huge
+
+                pcall(function()
+                    ay = a.UI.AbsolutePosition.Y
+                end)
+
+                pcall(function()
+                    by = b.UI.AbsolutePosition.Y
+                end)
+
+                return ay < by
+            end)
+
+            local trimmed = {}
+            for i = 1, 3 do
+                if visibleCards[i] then
+                    visibleCards[i].Slot = i
+                    table.insert(trimmed, visibleCards[i])
+                end
+            end
+            visibleCards = trimmed
+        end
+
+        return visibleCards
+    end
+
+    local function clickGuiObject(guiObject)
+        if not guiObject then
+            return false
+        end
+
+        local success = false
+
+        local okActivate = pcall(function()
+            if typeof(guiObject.Activate) == "function" then
+                guiObject:Activate()
+                success = true
+            end
+        end)
+        if success and okActivate then
+            return true
+        end
+
+        pcall(function()
+            if getconnections and guiObject.MouseButton1Click then
+                for _, conn in ipairs(getconnections(guiObject.MouseButton1Click)) do
+                    if conn and conn.Function then
+                        conn.Function()
+                        success = true
+                    elseif conn and conn.Fire then
+                        conn:Fire()
+                        success = true
+                    end
+                end
+            end
+        end)
+        if success then
+            return true
+        end
+
+        pcall(function()
+            if getconnections and guiObject.Activated then
+                for _, conn in ipairs(getconnections(guiObject.Activated)) do
+                    if conn and conn.Function then
+                        conn.Function()
+                        success = true
+                    elseif conn and conn.Fire then
+                        conn:Fire()
+                        success = true
+                    end
+                end
+            end
+        end)
+        if success then
+            return true
+        end
+
+        pcall(function()
+            if guiObject.AbsolutePosition and guiObject.AbsoluteSize and vim then
+                local pos = guiObject.AbsolutePosition
+                local size = guiObject.AbsoluteSize
+                local x = pos.X + (size.X / 2)
+                local y = pos.Y + (size.Y / 2)
+
+                vim:SendMouseButtonEvent(x, y, 0, true, game, 0)
+                task.wait()
+                vim:SendMouseButtonEvent(x, y, 0, false, game, 0)
+                success = true
+            end
+        end)
+
+        return success
+    end
+
+    -- [PATCH REPLACEMENT] REMOTE BUFFER ACTIVATION
+    local function trySelectCardByRemote(targetCard)
+        if not targetCard or not targetCard.Name then
+            return false
+        end
+
+        local success = false
+
+        pcall(function()
+            local gamemodes = ReplicatedStorage:FindFirstChild("gamemodes")
+            local gamemodesReliable = gamemodes and gamemodes:FindFirstChild("gamemodes_RELIABLE")
+            if not gamemodesReliable then
+                return
+            end
+
+            local cardName = tostring(targetCard.Name)
+            if cardName == "" then
+                return
+            end
+
+            -- optional hardening
+            if #cardName > 255 then
+                warn("[SmartCard] Card name too long for 1-byte payload length:", cardName)
+                return
+            end
+
+            local payloadStr =
+                string.char(0) ..
+                string.char(2) ..
+                string.char(#cardName) ..
+                string.char(0) ..
+                cardName
+
+            gamemodesReliable:FireServer(buffer.fromstring(payloadStr), {})
+
+            print("[SmartCard] Remote selected card:", cardName, "payloadLen:", #payloadStr)
+            success = true
+        end)
+
+        return success
+    end
+
+    local function executeSmartCardSelect()
+        if tick() - lastCardSelectAt < 4 then
+            return false
+        end
+
+        if not isPickCardUIVisible() then
+            return false
+        end
+
+        local ok, result = pcall(function()
+            local visibleCards = getVisibleEventCards()
+            if not visibleCards or #visibleCards == 0 then
+                return false
+            end
+
+            local maxScore = -1
+            local bestCards = {}
+
+            for _, cardData in ipairs(visibleCards) do
+                local score = MoMoConfig.CardPriorities[cardData.Name] or 1
+
+                if score > maxScore then
+                    maxScore = score
+                    bestCards = {cardData}
+                elseif score == maxScore then
+                    table.insert(bestCards, cardData)
+                end
+            end
+
+            if #bestCards == 0 then
+                return false
+            end
+
+            local targetCard = bestCards[math.random(1, #bestCards)]
+            local selected = trySelectCardByRemote(targetCard)
+
+            if not selected then
+                selected = clickGuiObject(targetCard.UI)
+            end
+
+            if not selected then
+                return false
+            end
+
+            task.wait(0.35)
+
+            local lockButton = findLockInChoiceButton()
+            if lockButton then
+                clickGuiObject(lockButton)
+            end
+
+            lastCardSelectAt = tick()
+            return true
+        end)
+
+        if not ok then
+            return false
+        end
+
+        return result == true
+    end
+
+    -- [PATCH 4] MAIN LOOP (Modified to preserve valid state)
+    task.spawn(function()
+        while true do
+            task.wait(AUTO_LOOP_INTERVAL)
+
+            if isInLobby() and tick() - lastJoinAttempt > 10 then
+                if MoMoConfig.AutoJoinEvent then
+                    lastJoinAttempt = tick()
+                    executeAutoJoinEvent()
+                    continue
+                elseif MoMoConfig.AutoJoin then
+                    lastJoinAttempt = tick()
+                    AutoJoinMatch(
+                        MoMoConfig.SelectedMode,
+                        MoMoConfig.SelectedMap,
+                        MoMoConfig.SelectedAct,
+                        MoMoConfig.SelectedDifficulty
+                    )
+                    continue
+                end
+            end
+
+            if MoMoConfig.AutoSelectCardEvent and not isInLobby() and isPickCardUIVisible() then
+                executeSmartCardSelect()
+            end
+
+            if not MoMoConfig.AutoPlay then
+                continue
+            end
+
+            softResync()
+
+            local sync = getSync()
+            local deck = getDeckUUIDs()
+            local attackTowersBySlot, farmTowers, unknownTowers, placedFolder = classifyPlacedTowers()
+            local farmSlot = MoMoConfig.FarmUnit or 0
+            local farmCard = nil
+
+            if farmSlot > 0 then
+                farmCard = getDeckCardBySlot(deck, farmSlot)
+            end
+
+            if not sync or #deck == 0 then
+                continue
+            end
+
+            -- เช็คว่าตอนนี้เรามีป้อมตีบนแมพหรือยัง
+            local allAttackTowers = {}
+            for _, towers in pairs(attackTowersBySlot) do
+                for _, t in ipairs(towers) do table.insert(allAttackTowers, t) end
+            end
+            local hasAttackTower = #allAttackTowers > 0
+
+            -- 1) วางฟาร์มก่อนเสมอจนเต็มลิมิต (แต่ขอตัวกันบ้าน 1 ตัวก่อนนะ!)
+            if farmCard then
+                local farmLimit = MoMoConfig.UnitLimits[farmSlot] or 0
+                -- 🌟 ถ้ามีตัวกันบ้านแล้ว หรือ ตัวตีลิมิตเต็ม ให้เอาเงินไปลงฟาร์มได้เลย
+                if hasAttackTower then 
+                    if tryPlaceFarm(sync, farmCard, placedFolder, farmLimit) then
+                        continue
+                    end
+                end
+            end
+
+            -- 2) วางตัวตาม Priority ผู้เล่นเสมอ ที่ตำแหน่งมอนล่าสุด
+            if tryPlacePriorityAttack(sync, deck, farmSlot, placedFolder) then
+                continue
+            end
+
+            -- 3) อัปเกรดฟาร์มก่อน แล้วอัปตัว Priority ทันทีเมื่อมีเงินถึง
+            tryUpgradeFarmFirst(attackTowersBySlot, farmTowers, unknownTowers, farmSlot)
+
+            if not _G.lastResetAIStateMsg or tick() - _G.lastResetAIStateMsg > 4 then
+                _G.lastResetAIStateMsg = tick()
+                print("🧠 [ResetAI] FarmFirst loop running | farmSlot = " .. tostring(farmSlot) .. " | farmCard = " .. tostring(farmCard and farmCard.UUID or "nil"))
+            end
+        end
+    end)
+
+    -- =====================================================================
+    -- 🎬 4. [MACRO SYSTEM] ระบบกล้องวงจรปิด & บันทึกข้อมูล V.9 (The Ultimate Fallback)
+    -- =====================================================================
+    _G.MoMoMacroLedger = _G.MoMoMacroLedger or {}
+    
+    -- 🎥 1. ระบบจำป้อมล่าสุด (ใช้วิธีฝังเซ็นเซอร์ที่ Workspace พร้อมตรวจสอบความถูกต้อง)
+    _G.LastTowerAdded = nil
+    _G.LastTowerAddedTime = 0
+    
+    -- ล้าง Tracker เก่าทิ้งก่อน (ป้องกันบักเวลาผู้เล่นรันสคริปต์ทับ)
+    if _G.TowerTrackerConn_V9 then _G.TowerTrackerConn_V9:Disconnect() end
+    
+    _G.TowerTrackerConn_V9 = workspace.DescendantAdded:Connect(function(obj)
+        -- หน่วงเวลา 0.1s ให้ตัวเกมโหลดโมเดลและจัดหมวดหมู่ Parent ให้เสร็จ (แก้บัก Roblox โหลดช้า)
+        task.delay(0.1, function()
+            if obj and obj:IsA("Model") and obj.Name:match("^tower%-") then
+                if obj:IsDescendantOf(workspace) and obj.Parent and obj.Parent.Name == "placedTowers" then
+                    _G.LastTowerAdded = obj
+                    _G.LastTowerAddedTime = tick()
+                end
+            end
+        end)
+    end)
+
+    -- 🎥 2. สายลับดักรหัสเครือข่าย V.9 (รีเซ็ต Hook ใหม่ป้องกันบั๊กค้าง)
+    if not _G.MacroNamecallHooked_V9 then
+        _G.MacroNamecallHooked_V9 = true
+        local mt = getrawmetatable(game)
+        local oldNamecall = mt.__namecall
+        setreadonly(mt, false)
+
+        mt.__namecall = newcclosure(function(self, ...)
+            local method = getnamecallmethod()
+            local args = {...}
+
+            -- 🌟 ใช้ตัวแปรจาก _G เพื่อให้ค่าอัปเดตเสมอเวลารันสคริปต์ใหม่
+            if _G.RecordMacroActive and method == "FireServer" then
+                local name = self.Name
+                if name == "sync_RELIABLE" or name == "towers_RELIABLE" then
+                    
+                    local str = ""
+                    if typeof(args[1]) == "buffer" then
+                        str = buffer.tostring(args[1])
+                    elseif type(args[1]) == "string" then
+                        str = args[1]
+                    end
+
+                    if str ~= "" then
+                        task.spawn(function()
+                            -- 🟢 ระบบวางป้อม
+                            if name == "sync_RELIABLE" then
+                                local uuid = str:match("(%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x)")
+                                
+                                if uuid then
+                                    local slotNum = 0
+                                    -- ค้นหาว่า UUID นี้ตรงกับ Slot ไหนในกระเป๋า
+                                    for _, c in ipairs(getDeckUUIDs()) do
+                                        if string.lower(c.UUID) == string.lower(uuid) then 
+                                            slotNum = c.Slot; break 
+                                        end
+                                    end
+
+                                    if slotNum > 0 then
+                                        local money = getRealMoney()
+                                        local targetTower = nil
+                                        local startWait = tick()
+                                        
+                                        -- รอโมเดลป้อมตกถึงพื้น (เพิ่มเวลาเป็น 3.5 วินาที เผื่อเซิร์ฟหน่วง)
+                                        while tick() - startWait < 3.5 do
+                                            if _G.LastTowerAdded and math.abs(tick() - _G.LastTowerAddedTime) < 4 then
+                                                targetTower = _G.LastTowerAdded
+                                                break
+                                            end
+                                            task.wait(0.1)
+                                        end
+
+                                        -- 🌟 แผนหลัก: บันทึกจากพิกัดป้อมที่ตกถึงพื้น
+                                        if targetTower and targetTower:GetPivot() then
+                                            table.insert(_G.MoMoMacroLedger, {
+                                                Action = "Place",
+                                                Slot = slotNum,
+                                                CFrame = targetTower:GetPivot(),
+                                                RequiredMoney = money
+                                            })
+                                            print("🔴 [Macro] บันทึกสำเร็จ: วาง Unit " .. slotNum .. " | เงิน: ¥" .. money)
+                                        else
+                                            -- 🚨 แผนสำรองฉุกเฉิน: ถ้าป้อมไม่โหลด ให้ดึงพิกัดจากปลายเมาส์ของเราแทน!
+                                            warn("⚠️ [Macro] เซิร์ฟเวอร์โหลดป้อมช้า! กำลังใช้ระบบสำรอง (Mouse Target)...")
+                                            local mouse = Players.LocalPlayer:GetMouse()
+                                            if mouse.Hit then
+                                                -- ดันพิกัดขึ้นจากพื้นนิดหน่อยเพื่อให้ตรงกับแกน CFrame ของป้อมปกติ
+                                                local backupCFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0, 1.5, 0))
+                                                table.insert(_G.MoMoMacroLedger, {
+                                                    Action = "Place",
+                                                    Slot = slotNum,
+                                                    CFrame = backupCFrame,
+                                                    RequiredMoney = money
+                                                })
+                                                print("🔴 [Macro] บันทึก(ฉุกเฉิน)สำเร็จ: วาง Unit " .. slotNum .. " | เงิน: ¥" .. money)
+                                            else
+                                                warn("❌ [Macro Error] บันทึกไม่ได้: หาพิกัดเป้าหมายไม่เจอ!")
+                                            end
+                                        end
+                                    else
+                                        warn("❌ [Macro Error] หา Slot ของ UUID ไม่เจอ! (บอทอาจอ่านกระเป๋าไม่ทัน)")
+                                    end
+                                end
+
+                            -- 🟡 ระบบอัปเกรด
+                            elseif name == "towers_RELIABLE" then
+                                local towerName = str:match("(tower%-[%w%-]+)")
+                                
+                                if towerName then
+                                    local placedFolder = workspace:FindFirstChild("placedTowers")
+                                    local towerObj = placedFolder and placedFolder:FindFirstChild(towerName)
+                                    
+                                    if towerObj and towerObj:GetPivot() then
+                                        local money = getRealMoney()
+                                        table.insert(_G.MoMoMacroLedger, {
+                                            Action = "Upgrade",
+                                            CFrame = towerObj:GetPivot(), 
+                                            RequiredMoney = money
+                                        })
+                                        print("🔴 [Macro] บันทึกสำเร็จ: อัปเกรดป้อม | เงิน: ¥" .. money)
+                                    else
+                                        warn("❌ [Macro Error] อัปเกรดล้มเหลว: หาโมเดลป้อมชื่อ " .. towerName .. " บนแมพไม่เจอ!")
+                                    end
+                                end
+                            end
+                        end)
+                    end
+                end
+            end
+            return oldNamecall(self, ...)
+        end)
+        setreadonly(mt, true)
+        print("📡 [Spy V9] ติดตั้งระบบดักฟัง (The Ultimate Fallback) สำเร็จ!")
+    end
+
+    -- =====================================================================
+    -- 🎬 3. เครื่องเล่นเทป (Macro Playback Engine)
+    -- =====================================================================
+    task.spawn(function()
+        while true do
+            task.wait(0.5)
+            
+            -- ถ้าระบบ PlayMacro เปิดอยู่ และมีข้อมูลในสมุดบันทึก
+            if MoMoConfig.PlayMacro and _G.MoMoMacroLedger and #_G.MoMoMacroLedger > 0 then
+                if not _G.MacroCurrentStep then _G.MacroCurrentStep = 1 end
+                
+                -- ถ้ายังอ่านไม่จบเล่ม
+                if _G.MacroCurrentStep <= #_G.MoMoMacroLedger then
+                    local stepData = _G.MoMoMacroLedger[_G.MacroCurrentStep]
+                    local currentMoney = getRealMoney()
+                    
+                    -- 💰 หัวใจหลัก: รอจนกว่าเงินในกระเป๋าจะถึงเป้าหมายที่เราบันทึกไว้
+                    if currentMoney >= stepData.RequiredMoney then
+                        
+                        -- 🏗️ โหมดวางป้อม
+                        if stepData.Action == "Place" then
+                            local sync = getSync()
+                            local deck = getDeckUUIDs()
+                            local targetCard = nil
+                            
+                            -- หาว่า Unit Slot นั้นในรอบนี้ UUID คืออะไร
+                            for _, c in ipairs(deck) do
+                                if c.Slot == stepData.Slot then targetCard = c; break end
+                            end
+                            
+                            -- ถ้าเงินพอค่าตัวป้อมจริงๆ (กันบั๊ก) ค่อยวาง
+                            if sync and targetCard and currentMoney >= targetCard.Cost then
+                                local ok = pcall(function()
+                                    sync.clientTowerPlacement.call(targetCard.UUID, stepData.CFrame)
+                                end)
+                                if ok then
+                                    print("▶️ [Play] วาง Unit " .. stepData.Slot .. " สำเร็จ! (Step " .. _G.MacroCurrentStep .. "/"..#_G.MoMoMacroLedger..")")
+                                    _G.MacroCurrentStep = _G.MacroCurrentStep + 1
+                                    task.wait(1.5) -- รอให้ป้อมลงพื้นชัวร์ๆ ก่อนขยับไปบรรทัดถัดไป
+                                end
+                            end
+                            
+                        -- ⭐ โหมดอัปเกรด
+                        elseif stepData.Action == "Upgrade" then
+                            local placedFolder = workspace:FindFirstChild("placedTowers")
+                            local closestTower = nil
+                            local closestDist = 5 -- รัศมีค้นหาป้อมเก่า 5 เมตร
+                            
+                            -- สแกนหาป้อมที่อยู่ใกล้พิกัด (CFrame) ที่เราบันทึกไว้มากที่สุด
+                            if placedFolder then
+                                for _, obj in pairs(placedFolder:GetChildren()) do
+                                    if obj:IsA("Model") and obj.Name:match("^tower%-") then
+                                        local dist = (obj:GetPivot().Position - stepData.CFrame.Position).Magnitude
+                                        if dist < closestDist then
+                                            closestDist = dist
+                                            closestTower = obj
+                                        end
+                                    end
+                                end
+                            end
+                            
+                            -- ถ้าเจอป้อมเป้าหมาย ก็ยิงอัปเกรดเลย
+                            if closestTower then
+                                local ok = pcall(function()
+                                    ReplicatedStorage.towers.towers_RELIABLE:FireServer(
+                                        buffer.fromstring("\001\031+\000" .. closestTower.Name), {}
+                                    )
+                                end)
+                                if ok then
+                                    print("▶️ [Play] อัปเกรดป้อมสำเร็จ! (Step " .. _G.MacroCurrentStep .. "/"..#_G.MoMoMacroLedger..")")
+                                    _G.MacroCurrentStep = _G.MacroCurrentStep + 1
+                                    task.wait(0.5)
+                                end
+                            else
+                                if not _G.LastWarnFindTower or tick() - _G.LastWarnFindTower > 3 then
+                                    _G.LastWarnFindTower = tick()
+                                    warn("⏳ [Play] เงินถึงแล้ว กำลังควานหาป้อมที่พิกัดเดิมเพื่ออัปเกรด...")
+                                end
+                            end
+                        end
+                    end
+                else
+                    print("✅ [Macro Play] เล่นซ้ำจบสมบูรณ์ทุกบรรทัดแล้ว!")
+                    MoMoNotify({Title = "Macro", Desc = "✅ รัน Macro จบแล้วจ้า!", Time = 5})
+                    MoMoConfig.PlayMacro = false -- ปิดปุ่มให้อัตโนมัติ
+                    task.wait(2)
+                end
+            end
+        end
+    end)
+
+    -- =====================================================================
+    -- 🚀 5. ระบบ Auto Start Match (ยิงคำสั่งทุก 1 วิ ไม่สน UI/Lobby)
+    -- =====================================================================
+    task.spawn(function()
+        while true do
+            task.wait(1) -- 🌟 ปรับให้ทำงานทุกๆ 1 วินาทีตามคำสั่ง
+            
+            -- 🌟 ถ้าสวิตช์เปิดอยู่ ให้ยิง Remote ทันที ไม่ต้องเช็คเงื่อนไขหน้าจอใดๆ
+            if MoMoConfig.AutoStart then
+                pcall(function()
+                    local voting = ReplicatedStorage:FindFirstChild("voting")
+                    local votingReliable = voting and voting:FindFirstChild("voting_RELIABLE")
+                    
+                    if votingReliable then
+                        local args = {
+                            buffer.fromstring("\000"),
+                            {}
+                        }
+                        votingReliable:FireServer(unpack(args))
+                    end
+                end)
+            end
+        end
+    end)
