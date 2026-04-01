@@ -1,0 +1,865 @@
+-- =====================================================================
+-- ⏳ [ANTI-CRASH]: รอให้เกมและตัวละครโหลดเสร็จก่อนรันสคริปต์
+-- =====================================================================
+if not game:IsLoaded() then game.Loaded:Wait() end
+repeat task.wait(7) until game:GetService("Players").LocalPlayer and game:GetService("Players").LocalPlayer.Character and game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+
+local CoreGui = game:GetService("CoreGui")
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+
+-- ลบ UI เก่าออก (ถ้ารันซ้ำจะได้ไม่ซ้อนกัน)
+for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "MoMoHub_UI" then v:Destroy() end end
+for _, v in pairs(Players.LocalPlayer.PlayerGui:GetChildren()) do if v.Name == "MoMoHub_UI" then v:Destroy() end end
+for _, v in pairs(Lighting:GetChildren()) do if v.Name == "MoMoBlur" then v:Destroy() end end
+
+-- 1. สร้าง ScreenGui
+local MoMoGui = Instance.new("ScreenGui")
+MoMoGui.Name = "MoMoHub_UI"
+MoMoGui.ResetOnSpawn = false
+pcall(function() MoMoGui.Parent = CoreGui end) -- สำหรับ Exploit
+if not MoMoGui.Parent then MoMoGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
+
+-- 2. สร้างระบบเบลอหน้าจอ (Blur)
+local Blur = Instance.new("BlurEffect")
+Blur.Name = "MoMoBlur"
+Blur.Size = 15
+Blur.Parent = Lighting
+
+-- 3. พื้นหลังดำโปร่งใส (Background)
+local BG = Instance.new("Frame")
+BG.Size = UDim2.new(1, 0, 1, 0)
+BG.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+BG.BackgroundTransparency = 1
+BG.Parent = MoMoGui
+
+-- 4. กรอบหลักตรงกลาง (Main Frame)
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 450, 0, 300)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -150)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = BG
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(0, 200, 255)
+UIStroke.Thickness = 2
+UIStroke.Parent = MainFrame
+
+-- 5. ข้อความด้านบน (Title)
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 50)
+Title.Position = UDim2.new(0, 0, 0, 10)
+Title.BackgroundTransparency = 1
+Title.Text = "MoMoHub All Star Kaitun"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 24
+Title.Parent = MainFrame
+
+-- 6. รูปโลโก้ตรงกลาง (Logo)
+local Logo = Instance.new("ImageLabel")
+Logo.Size = UDim2.new(0, 130, 0, 130)
+Logo.Position = UDim2.new(0.5, -65, 0.5, -65)
+Logo.BackgroundTransparency = 1
+Logo.Image = "rbxthumb://type=Asset&id=121052363208302&w=150&h=150"
+Logo.Parent = MainFrame
+
+-- 7. ข้อความ Status ด้านล่าง (Dynamic Status)
+local StatusText = Instance.new("TextLabel")
+StatusText.Size = UDim2.new(1, -20, 0, 40)
+StatusText.Position = UDim2.new(0, 10, 1, -50)
+StatusText.BackgroundTransparency = 1
+StatusText.Text = "Status: กำลังโหลดสคริปต์..."
+StatusText.TextColor3 = Color3.fromRGB(0, 255, 127)
+StatusText.Font = Enum.Font.GothamSemibold
+StatusText.TextSize = 16
+StatusText.TextWrapped = true
+StatusText.Parent = MainFrame
+
+-- 8. ฟังก์ชันเปลี่ยนข้อความ Status (เรียกใช้ได้ทุกที่ในสคริปต์)
+_G.MoMoStatus = function(text)
+    if StatusText then
+        StatusText.Text = "Status: " .. text
+    end
+end
+
+-- 9. ปุ่มเปิด/ปิดมุมขวาล่าง (Toggle Button)
+local ToggleBtn = Instance.new("ImageButton")
+ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+ToggleBtn.Position = UDim2.new(1, -70, 1, -70)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+ToggleBtn.Image = "rbxthumb://type=Asset&id=121052363208302&w=150&h=150" -- ใช้รูปโลโก้เป็นปุ่มเลย
+ToggleBtn.Parent = MoMoGui
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(1, 0) -- ทำให้กลม
+BtnCorner.Parent = ToggleBtn
+
+local BtnStroke = Instance.new("UIStroke")
+BtnStroke.Color = Color3.fromRGB(0, 200, 255)
+BtnStroke.Thickness = 2
+BtnStroke.Parent = ToggleBtn
+
+-- 10. ระบบกดปุ่ม (Click Logic)
+local isOpen = true
+ToggleBtn.MouseButton1Click:Connect(function()
+    isOpen = not isOpen
+    BG.Visible = isOpen
+    Blur.Enabled = isOpen
+end)
+
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local VirtualUser = game:GetService("VirtualUser")
+local TeleportService = game:GetService("TeleportService")
+local LocalPlayer = Players.LocalPlayer
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local inputRemote = Remotes:WaitForChild("Input")
+local serverRemote = Remotes:WaitForChild("Server")
+
+_G.AutoPlayEnabled = true 
+_G.LobbyActive = false
+_G.AutoPlayActive = false
+
+-- === 🧠 สมองส่วนความจำของบอท ===
+local learnedPlacements = {} 
+local knownLimits = {}       
+
+-- ========================================================================= --
+-- 🟢 [MODULE 1]: Lobby Master
+-- ========================================================================= --
+local function StartLobbyMaster()
+    local hud = LocalPlayer.PlayerGui:WaitForChild("HUD")
+    local Tutorial = {}
+
+    function Tutorial.SkipDialogueAndSummon()
+        pcall(function()
+            local tutV2 = hud:FindFirstChild("TutorialV2")
+            if tutV2 and tutV2:FindFirstChild("TutorialDialogue") and tutV2.TutorialDialogue.Visible then
+                inputRemote:FireServer("AdvanceTutorialStep")
+            end
+            local isSummoning = false
+            for _, v in pairs(hud:GetChildren()) do
+                if v:IsA("GuiObject") and v.Visible and (v.Name:find("Summon") or v.Name:find("Animation")) and v.Name ~= "SummonBanners" then
+                    isSummoning = true; break
+                end
+            end
+            if isSummoning then
+                local vS = workspace.CurrentCamera.ViewportSize
+                VirtualUser:Button1Down(Vector2.new(vS.X/2, vS.Y/2))
+                task.wait(0.05)
+                VirtualUser:Button1Up(Vector2.new(vS.X/2, vS.Y/2))
+            end
+        end)
+    end
+
+    function Tutorial.ForceLoadInventoryUI()
+        local VIM = game:GetService("VirtualInputManager")
+        local invV2 = hud:FindFirstChild("InventoryV2")
+        if not invV2 or not invV2.Visible then
+            local invB = hud:FindFirstChild("LeftButton") and hud.LeftButton:FindFirstChild("InventoryButton")
+            if invB and invB.Visible then
+                local aP, aS = invB.AbsolutePosition, invB.AbsoluteSize
+                pcall(function()
+                    VIM:SendMouseButtonEvent(aP.X + aS.X/2, aP.Y + aS.Y/2 + 36, 0, true, game, 1)
+                    task.wait(0.05)
+                    VIM:SendMouseButtonEvent(aP.X + aS.X/2, aP.Y + aS.Y/2 + 36, 0, false, game, 1)
+                end)
+            end
+        end
+    end
+
+    function Tutorial.SmartEquip()
+        print("🔍 [SmartEquip V8.1] เริ่มสแกนแบบ Deep Memory...")
+        _G.MoMoStatus("เริ่มสแกนกระเป๋าแบบ Deep Memory...")
+        Tutorial.ForceLoadInventoryUI()
+        task.wait(3)
+        
+        -- 🎯 1. สแกน UI (ดึงชื่อยูนิตและดาว)
+        _G.MoMoStatus("กำลังค้นหายูนิตจากหน้าจอ...")
+        local unitUIList = {} 
+        local highStarCount = 0
+        local invV2 = hud:FindFirstChild("InventoryV2")
+        local scroll = invV2 and invV2:FindFirstChildWhichIsA("ScrollingFrame", true)
+
+        if not scroll then
+            warn("❌ [UI] หา Scroll ไม่เจอ!")
+            return false
+        end
+        
+        for _, uiObj in pairs(scroll:GetChildren()) do
+            if uiObj:IsA("GuiObject") then
+                local stars = 0
+                local starLabel = uiObj:FindFirstChild("StarFrame", true) and uiObj:FindFirstChild("StarFrame", true):FindFirstChildWhichIsA("TextLabel")
+                
+                -- งัดหาดาวจากลูกหลาน ถ้าหา StarFrame ไม่เจอ
+                if not starLabel then
+                    for _, desc in pairs(uiObj:GetDescendants()) do
+                        if desc:IsA("TextLabel") and (desc.Name:lower():find("star") or (desc.Parent and desc.Parent.Name:lower():find("star"))) then
+                            starLabel = desc; break
+                        end
+                    end
+                end
+                
+                if starLabel and tonumber(starLabel.Text) then
+                    stars = tonumber(starLabel.Text)
+                end
+                
+                if stars > 0 then
+                    if stars >= 4 then highStarCount = highStarCount + 1 end
+                    
+                    local realName = uiObj.Name
+                    local nameLabel = uiObj:FindFirstChild("UnitName", true) or uiObj:FindFirstChild("MainName", true)
+                    if nameLabel and nameLabel:IsA("TextLabel") and nameLabel.Text ~= "" then 
+                        realName = nameLabel.Text 
+                    end
+                    
+                    -- งัดหา ID จาก UI (เผื่อเกมแนบมากับ Attribute)
+                    local uiID = nil
+                    pcall(function()
+                        uiID = uiObj:GetAttribute("uid") or uiObj:GetAttribute("uuid") or uiObj:GetAttribute("ID") or uiObj:GetAttribute("UUID")
+                    end)
+                    if not uiID then
+                        for _, child in pairs(uiObj:GetDescendants()) do
+                            local cn = child.Name:lower()
+                            if cn == "uid" or cn == "uuid" or cn == "id" then
+                                if child:IsA("IntValue") or child:IsA("NumberValue") or child:IsA("StringValue") then
+                                    uiID = child.Value; break
+                                end
+                            end
+                        end
+                    end
+                    
+                    table.insert(unitUIList, {
+                        Name = realName, Stars = stars, UI = uiObj, 
+                        ID = uiID, Level = 1
+                    })
+                end
+            end
+        end
+        
+        -- 🧠 2. ดึง ID จาก Memory แบบดุดันสุดขีด
+        local needMemory = false
+        for _, u in ipairs(unitUIList) do
+            if not u.ID then needMemory = true; break end
+        end
+        
+        if needMemory then
+            print("🧠 [Memory] UI ไม่มี ID... กำลังเจาะทะลวง getgc()...")
+            _G.MoMoStatus("UI ไม่มี ID... กำลังขุดหาจาก Memory...")
+            local memoryData = {}
+            local countMem = 0
+            
+            pcall(function()
+                for _, v in pairs(getgc(true)) do
+                    if type(v) == "table" then
+                        pcall(function()
+                            -- สแกนหา Key ทุกรูปแบบที่เกมส่วนใหญ่ใช้ (ขุดลึกทะลุ Metatable)
+                            local id = rawget(v, "uid") or rawget(v, "uuid") or rawget(v, "ID") or rawget(v, "UUID") or v.uid or v.uuid or v.ID or v.UUID
+                            local name = rawget(v, "unitId") or rawget(v, "Name") or rawget(v, "UnitName") or v.unitId or v.Name or v.UnitName
+                            local level = rawget(v, "level") or rawget(v, "Level") or v.level or v.Level or 1
+                            
+                            if id and type(name) == "string" then
+                                memoryData[name] = {ID = id, Level = level}
+                                memoryData[name:lower()] = {ID = id, Level = level} -- ดักเผื่อกรณีตัวพิมพ์เล็ก/ใหญ่ไม่ตรงกัน
+                                countMem = countMem + 1
+                            end
+                        end)
+                    end
+                end
+            end)
+            
+            print("📦 [Memory] ขุดเจอข้อมูล " .. countMem .. " รายการ")
+            
+            -- จับคู่ข้อมูล Memory เข้ากับตัวละครใน UI
+            for _, u in ipairs(unitUIList) do
+                if not u.ID then
+                    local mem = memoryData[u.Name] or memoryData[u.Name:lower()]
+                    if mem then
+                        u.ID = mem.ID
+                        u.Level = mem.Level
+                        print("   🔗 จับคู่สำเร็จ: " .. u.Name .. " -> ID: " .. tostring(u.ID))
+                    end
+                end
+            end
+        end
+        
+        print("📊 [Scan] ตัว 4-5 ดาว: " .. highStarCount .. " | ยูนิตทั้งหมด: " .. #unitUIList)
+
+        -- 🎰 3. สุ่มกาชา (ตัดสินจากดาวเท่านั้น)
+        if highStarCount <= 1 then
+            print("🎰 [Auto Gacha] ตัวละครระดับสูงน้อยเกินไป... เริ่มสุ่ม 10 โรล!")
+            _G.MoMoStatus("ตัวตึงน้อยเกินไป! เริ่มสุ่มกาชา 10 โรล...")
+            local killAnim = task.spawn(function()
+                while task.wait(0.05) do
+                    for _, v in pairs(hud:GetChildren()) do
+                        if (v.Name:match("Summon") or v.Name:match("Animation")) and v.Name ~= "SummonBanners" then v:Destroy() end
+                    end
+                end
+            end)
+            pcall(function() serverRemote:InvokeServer("BannerSummon", 10, "Rerun101") end)
+            task.wait(3.5)
+            task.cancel(killAnim)
+            Tutorial.Rejoin()
+            return false 
+        end
+
+        if #unitUIList == 0 then return false end
+
+        table.sort(unitUIList, function(a, b) return a.Stars > b.Stars end)
+        
+        -- 🔓 4. ถอดตัวละครเดิม
+        print("🔓 [Unequip] เคลียร์ทีมเดิม...")
+        _G.MoMoStatus("กำลังเคลียร์ทีมเดิม...")
+        local bF = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
+        if bF then
+            for _, v in pairs(bF:GetDescendants()) do
+                if v:IsA("StringValue") and v.Value ~= "" and v.Value ~= "Empty" then
+                    pcall(function() inputRemote:FireServer("Unequip", {Stats = v.Value}) end)
+                    task.wait(0.3)
+                end
+            end
+        end
+        task.wait(0.5)
+
+        -- ✨ 5. ใส่ตัวละคร (ฉลาดขึ้น: รองรับ UUID แบบอักษร)
+        print("🚀 [Auto Equip] สวมใส่ผ่าน Remote...")
+        local equipped = 0
+        for i = 1, math.min(6, #unitUIList) do
+            local u = unitUIList[i]
+            if u.ID then
+                print("   ➕ กำลังใส่: " .. u.Name .. " ⭐" .. u.Stars)
+                pcall(function() 
+                    -- ป้องกันบั๊ก JSON: ถ้า ID เป็นข้อความยาวๆ ต้องใส่เครื่องหมายคำพูดครอบด้วย ("uuid")
+                    local idStr
+                    if type(u.ID) == "string" and not tonumber(u.ID) then
+                        idStr = '"' .. u.ID .. '"'
+                    else
+                        idStr = tostring(u.ID)
+                    end
+                    
+                    local statsJson = string.format('{"ID":%s,"Level":%d,"Name":"%s"}', idStr, u.Level, u.Name)
+                    serverRemote:InvokeServer("Equip", { Stats = statsJson }) 
+                end)
+                task.wait(0.5)
+                equipped = equipped + 1
+            else
+                warn("   ⚠️ ข้าม " .. u.Name .. " เพราะระบบขุดหา ID ไม่เจอ (ข้อมูลขาดหาย)!")
+            end
+        end
+        
+        task.wait(1)
+        local finalCount = 0
+        bF = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
+        if bF then
+            for _, v in pairs(bF:GetDescendants()) do
+                if v:IsA("StringValue") and v.Value ~= "" and v.Value ~= "Empty" then finalCount = finalCount + 1 end
+            end
+        end
+        
+        print("🏁 [SmartEquip] สั่งใส่ไป " .. equipped .. " ตัว | ในทีมจริง: " .. finalCount .. " ตัว")
+        return finalCount > 0
+    end
+
+    function Tutorial.Rejoin()
+        task.wait(1)
+        if #Players:GetPlayers() <= 1 then TeleportService:Teleport(game.PlaceId, LocalPlayer)
+        else TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end
+    end
+
+    -- 🚀 Tutorial Master Loop V6.6
+    task.spawn(function()
+        local hasCompleted = LocalPlayer:GetAttribute("TutorialStage") == "Completed" 
+                           or (LocalPlayer:FindFirstChild("Stats") and LocalPlayer.Stats:FindFirstChild("Level") and LocalPlayer.Stats.Level.Value > 1)
+        if hasCompleted then return end
+        
+        while task.wait(1.5) do 
+            if not _G.LobbyActive then continue end
+            local tutV2 = hud:FindFirstChild("TutorialV2")
+            local isTut = tutV2 and tutV2.Visible
+            
+            local equippedCount = 0
+            local bF = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
+            if bF then
+                for _, v in pairs(bF:GetDescendants()) do
+                    if v:IsA("StringValue") and v.Value ~= "" and v.Value ~= "Empty" then equippedCount = equippedCount + 1 end
+                end
+            end
+            
+            if equippedCount >= 3 or (equippedCount > 0 and not isTut) then break end
+            
+            if equippedCount == 0 or isTut then
+                Tutorial.SkipDialogueAndSummon()
+                local invB = hud:FindFirstChild("LeftButton") and hud.LeftButton:FindFirstChild("InventoryButton")
+                if invB and invB.Visible then
+                    Tutorial.ForceLoadInventoryUI()
+                    if hud:FindFirstChild("InventoryV2") and hud.InventoryV2.Visible then
+                        if Tutorial.SmartEquip() then break end
+                    end
+                end
+            end
+        end
+    end)
+
+    -- 🚀 Auto Join Loop (V9.1 - Inventory Check & Smart Progression)
+    task.spawn(function()
+        while task.wait(3) do
+            if not _G.LobbyActive then continue end
+            
+            -- 🛑 1. เช็คความพร้อม: ต้องมีตัวละครใส่อยู่ในทีมถึงจะไปลุยด่านได้
+            local eC = 0
+            local bF = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
+            if bF then
+                for _, v in pairs(bF:GetDescendants()) do
+                    if v:IsA("StringValue") and v.Value ~= "" and v.Value ~= "Empty" then 
+                        eC = eC + 1 
+                    end
+                end
+            end
+            
+            if eC == 0 then continue end
+            
+            -- 🎒 2. ก่อนไปลุยด่าน ขอเช็คกระเป๋าก่อนว่าเต็มไหม!
+            pcall(function()
+                if _G.MoMoStatus then _G.MoMoStatus("กำลังเช็คพื้นที่กระเป๋า...") end
+                Tutorial.ForceLoadInventoryUI()
+                task.wait(1.5)
+                
+                local invV2 = hud:FindFirstChild("InventoryV2")
+                if invV2 then
+                    -- เจาะทะลวง Path ตามที่ Tester ระบุ
+                    local unitAmountLbl = invV2:FindFirstChild("Page") 
+                        and invV2.Page:FindFirstChild("Main") 
+                        and invV2.Page.Main:FindFirstChild("Top") 
+                        and invV2.Page.Main.Top:FindFirstChild("List") 
+                        and invV2.Page.Main.Top.List:FindFirstChild("UnitsBox") 
+                        and invV2.Page.Main.Top.List.UnitsBox:FindFirstChild("UnitAmount")
+                        
+                    if unitAmountLbl and unitAmountLbl:IsA("TextLabel") then
+                        -- แยกตัวเลข ปัจจุบัน/สูงสุด (เช่น "16/15" -> จะดึง 16 กับ 15 ออกมา)
+                        local current, max = unitAmountLbl.Text:match("(%d+)%s*/%s*(%d+)")
+                        if current and max then
+                            if tonumber(current) >= tonumber(max) then
+                                print("🎒 [System] กระเป๋าเต็ม (" .. current .. "/" .. max .. ")! สั่งซื้อช่องเพิ่ม...")
+                                if _G.MoMoStatus then _G.MoMoStatus("กระเป๋าเต็ม! กำลังขยายช่อง...") end
+                                
+                                -- 💰 ยิง Remote สั่งซื้อช่องกระเป๋า
+                                serverRemote:InvokeServer("UpgradeInventory")
+                                task.wait(1.5) -- รอให้ระบบตัดเงินและอัปเดต UI
+                            end
+                        end
+                    end
+                end
+                
+                -- ปิดกระเป๋าทิ้งเพื่อเตรียมวาร์ปไม่ให้ UI บังหน้าจอ
+                local invB = hud:FindFirstChild("LeftButton") and hud.LeftButton:FindFirstChild("InventoryButton")
+                if invB and invB.Visible and invV2 and invV2.Visible then
+                    local VIM = game:GetService("VirtualInputManager")
+                    local aP, aS = invB.AbsolutePosition, invB.AbsoluteSize
+                    VIM:SendMouseButtonEvent(aP.X + aS.X/2, aP.Y + aS.Y/2 + 36, 0, true, game, 1)
+                    task.wait(0.05)
+                    VIM:SendMouseButtonEvent(aP.X + aS.X/2, aP.Y + aS.Y/2 + 36, 0, false, game, 1)
+                    task.wait(0.5)
+                end
+            end)
+
+            -- 🟢 3. ทีมพร้อม กระเป๋าไม่เต็ม พุ่งเข้าตู้หมายเลข 37!
+            pcall(function()
+                local char = LocalPlayer.Character
+                local storyQ = workspace:FindFirstChild("Queue") and workspace.Queue:FindFirstChild("Story")
+                
+                if storyQ and char and char:FindFirstChild("HumanoidRootPart") then
+                    local q = storyQ:GetChildren()
+                    if #q >= 37 then
+                        local cap = q[37]
+                        
+                        local tCF = nil
+                        if cap:IsA("BasePart") then
+                            tCF = cap.CFrame
+                        elseif cap:IsA("Model") then
+                            tCF = cap.PrimaryPart and cap.PrimaryPart.CFrame or (cap:FindFirstChildWhichIsA("BasePart", true) and cap:FindFirstChildWhichIsA("BasePart", true).CFrame)
+                        end
+                        
+                        if tCF then
+                            print("🏃 [Auto Join] วาร์ปเข้าตู้ 37 เพื่อเปิดหน้าต่างเลือกด่าน...")
+                            if _G.MoMoStatus then _G.MoMoStatus("วาร์ปเข้าตู้รอสแกนด่าน...") end
+                            char.HumanoidRootPart.CFrame = tCF + Vector3.new(0, 3, 0)
+                            
+                            task.wait(5) 
+                            
+                            -- 🔍 4. สแกนหาด่านล่าสุด
+                            if _G.MoMoStatus then _G.MoMoStatus("กำลังสแกนหาด่านล่าสุด...") end
+                            local highestStage = 1
+                            local isYellowFound = false
+                            local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+                            
+                            for _, v in pairs(playerGui:GetDescendants()) do
+                                if v:IsA("TextLabel") or v:IsA("TextButton") then
+                                    local txt = tonumber(v.Text)
+                                    if txt then
+                                        local r = math.floor(v.TextColor3.R * 255 + 0.5)
+                                        local g = math.floor(v.TextColor3.G * 255 + 0.5)
+                                        local b = math.floor(v.TextColor3.B * 255 + 0.5)
+                                        
+                                        if r >= 250 and g >= 250 and b <= 10 then
+                                            highestStage = txt
+                                            isYellowFound = true
+                                        elseif r >= 250 and g >= 250 and b >= 250 and not isYellowFound then
+                                            if txt > highestStage then highestStage = txt end
+                                        end
+                                    end
+                                end
+                            end
+                            
+                            print("🎯 [Spy] สแกนเจอด่านที่ต้องเล่นคือด่าน: " .. highestStage)
+                            if _G.MoMoStatus then _G.MoMoStatus("ลุย! กำลังเข้าเล่นด่าน " .. highestStage) end
+                            
+                            inputRemote:FireServer("Script395Level", tostring(highestStage), false)
+                            task.wait(2)
+                            
+                            print("🚀 [Auto Join] ส่งคำสั่ง Start เข้าด่าน!")
+                            inputRemote:FireServer("Script395Start")
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+-- ========================================================================= --
+-- 🔴 [MODULE 2]: Auto Play
+-- ========================================================================= --
+local function StartAutoPlay()
+    -- ⚡ [SUB-MODULE]: Auto Game State (ควบคุมความเร็วด่าน & ข้ามเวฟ)
+    task.spawn(function()
+        local hasSpedUp = false 
+        while task.wait(0.5) do
+            if not _G.AutoPlayActive then hasSpedUp = false; continue end
+            local enemiesFolder = workspace:FindFirstChild("Enemies")
+            local hasEnemies = enemiesFolder and #enemiesFolder:GetChildren() > 0
+            pcall(function()
+                if not hasEnemies then
+                    inputRemote:FireServer("VoteGameMode", "Normal")
+                else
+                    if not hasSpedUp then
+                        print("⏩ [Auto Play] ศัตรูเวฟแรกโผล่แล้ว! สั่งเปิด Speed x2/x3!")
+                        inputRemote:FireServer("SpeedChange", true)
+                        hasSpedUp = true 
+                    end
+                end
+            end)
+        end
+    end)
+
+    task.spawn(function()
+        while task.wait(0.5) do
+            if not _G.AutoPlayActive then continue end
+            pcall(function() inputRemote:FireServer("VoteWaveConfirm") end)
+        end
+    end)
+
+    local pathPartsCache = {}
+    local function loadPaths()
+        local fN = {"Paths", "2Paths", "3Paths", "4Paths"}
+        for _, n in ipairs(fN) do
+            local f = workspace:FindFirstChild(n)
+            if f then
+                local p = {}
+                for _, part in pairs(f:GetDescendants()) do if part:IsA("BasePart") then table.insert(p, part) end end
+                table.sort(p, function(a, b) return (tonumber(a.Name) or 0) < (tonumber(b.Name) or 0) end)
+                for _, v in ipairs(p) do table.insert(pathPartsCache, v) end
+            end
+        end
+    end
+    loadPaths()
+
+    local function getBasePos()
+        local b = workspace:FindFirstChild("Base")
+        return (b and b:IsA("BasePart")) and b.Position or (#pathPartsCache > 0 and pathPartsCache[#pathPartsCache].Position or Vector3.new(0,0,0))
+    end
+
+    local function CheckDefense()
+        local uF = workspace:FindFirstChild("Unit")
+        local eF = workspace:FindFirstChild("Enemies")
+        local bP = getBasePos()
+        local myU = {}
+        if uF then for _, u in pairs(uF:GetChildren()) do if u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer then table.insert(myU, u) end end end
+        if #myU == 0 then return true end
+        if not eF or #eF:GetChildren() == 0 then return false end
+        local mED = math.huge
+        for _, e in pairs(eF:GetChildren()) do if e:FindFirstChild("HumanoidRootPart") then local d = (e.HumanoidRootPart.Position - bP).Magnitude; if d < mED then mED = d end end end
+        local mUD = math.huge
+        for _, u in ipairs(myU) do local d = (u:GetPivot().Position - bP).Magnitude; if d < mUD then mUD = d end end
+        return mED < mUD
+    end
+
+    local function findSpot(pT)
+        local pF = workspace:WaitForChild("Placeable"):FindFirstChild(pT or "Base")
+        if not pF then return nil end
+        local tP = Vector3.new(0,0,0)
+        local eF = workspace:FindFirstChild("Enemies")
+        local bP = getBasePos()
+        local leading = nil
+        local mBD = math.huge
+        if eF then for _, e in pairs(eF:GetChildren()) do if e:FindFirstChild("HumanoidRootPart") then local d = (e.HumanoidRootPart.Position-bP).Magnitude; if d < mBD then mBD = d; leading = e end end end end
+        tP = leading and leading.HumanoidRootPart.Position or (#pathPartsCache > 0 and pathPartsCache[1].Position or tP)
+        local rP = RaycastParams.new()
+        rP.FilterType = Enum.RaycastFilterType.Include
+        rP.FilterDescendantsInstances = {pF}
+        for r = 5, 40, 5 do for a = 0, 360, 45 do
+            local rad = math.rad(a)
+            local rO = Vector3.new(tP.X + math.cos(rad)*r, tP.Y + 50, tP.Z + math.sin(rad)*r)
+            local res = workspace:Raycast(rO, Vector3.new(0,-100,0), rP)
+            if res then
+                local tCF = CFrame.new(res.Position)
+                local oP = OverlapParams.new()
+                oP.FilterType = Enum.RaycastFilterType.Include
+                if workspace:FindFirstChild("Unit") then oP.FilterDescendantsInstances = {workspace.Unit} end
+                if #workspace:GetPartBoundsInBox(tCF, Vector3.new(4,4,4), oP) == 0 then return tCF end
+            end
+        end end
+        return nil
+    end
+
+    local function getDeck()
+        local h = LocalPlayer.PlayerGui:WaitForChild("HUD")
+        local uF = h:WaitForChild("BottomFrame"):WaitForChild("Unit")
+        local d = {}
+        for _, sN in ipairs({"One","Two","Three","Four","Five","Six"}) do
+            local s = uF:FindFirstChild(sN)
+            if s and s:FindFirstChild("Unit") and s.Unit.Value ~= "" then
+                local c = 9999
+                for _, t in pairs(s:GetDescendants()) do if (t:IsA("TextLabel") or t:IsA("TextButton")) and t.Text:match("%d+") then c = tonumber(t.Text:match("%d+")); break end end
+                table.insert(d, {Name = s.Unit.Value, Cost = c})
+            end
+        end
+        return d
+    end
+
+    local Money = LocalPlayer:WaitForChild("Money")
+    task.spawn(function()
+        while task.wait(1) do
+            if not _G.AutoPlayEnabled or not _G.AutoPlayActive then continue end
+            local uF = workspace:FindFirstChild("Unit")
+            if uF then
+                for _, u in pairs(uF:GetChildren()) do
+                    if u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer then
+                        local cost = u:GetAttribute("UpgradeCost") or u:GetAttribute("NextUpgradeCost") or 150
+                        if Money.Value >= tonumber(cost) then serverRemote:InvokeServer("Upgrade", u) end
+                    end
+                end
+            end
+            if CheckDefense() then
+                local deck = getDeck()
+                for _, card in ipairs(deck) do
+                    local count = 0
+                    if uF then for _, u in pairs(uF:GetChildren()) do if u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer and u.Name == card.Name then count = count + 1 end end end
+                    if not (knownLimits[card.Name] and count >= knownLimits[card.Name]) then
+                        if Money.Value >= card.Cost then
+                            local pT = learnedPlacements[card.Name] or "Base"
+                            local spot = findSpot(pT)
+                            if spot then
+                                inputRemote:FireServer("Summon", {Rotation = 0, cframe = spot, Unit = card.Name})
+                                task.wait(0.5)
+                                local nC = 0
+                                if uF then for _, u in pairs(uF:GetChildren()) do if u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer and u.Name == card.Name then nC = nC + 1 end end end
+                                if nC > count then if not learnedPlacements[card.Name] then learnedPlacements[card.Name] = pT end; break
+                                else if not learnedPlacements[card.Name] then learnedPlacements[card.Name] = (pT == "Base") and "Hill" or "Base" else knownLimits[card.Name] = count end end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    -- ⏭️ [SUB-MODULE]: Auto Play Next (ข้ามด่านต่อไปเมื่อจบเกม V9.5)
+    task.spawn(function()
+        local VIM = game:GetService("VirtualInputManager")
+        local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+        local guiService = game:GetService("GuiService")
+        
+        while task.wait(2) do
+            if not _G.AutoPlayActive then continue end
+            pcall(function()
+                local playNextBtn = nil
+                
+                -- 🔍 สแกนหาปุ่มแบบเจาะลึก (ไม่สนตัวพิมพ์เล็ก/ใหญ่ และค้นหาในลูกหลาน)
+                for _, gui in pairs(playerGui:GetDescendants()) do
+                    if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
+                        
+                        -- ดึงข้อความจากตัวเองและ TextLabel ที่อยู่ข้างใน
+                        local text = gui:IsA("TextButton") and gui.Text or ""
+                        for _, child in pairs(gui:GetChildren()) do
+                            if child:IsA("TextLabel") then
+                                text = text .. " " .. child.Text
+                            end
+                        end
+                        
+                        -- แปลงเป็นตัวพิมพ์เล็กให้หมด เพื่อให้หาง่ายขึ้น
+                        text = text:lower()
+                        local name = gui.Name:lower()
+                        
+                        -- เช็คคำว่า play next (เผื่อเกมเว้นวรรคหรือไม่เว้นวรรค)
+                        if text:find("play next") or name:find("playnext") then
+                            
+                            -- เช็คซ้ำอีกรอบว่าปุ่มไม่ได้โดนซ่อนอยู่ใน Frame ที่ปิดอยู่
+                            local isReallyVisible = true
+                            local curr = gui
+                            while curr and curr ~= playerGui do
+                                if curr:IsA("GuiObject") and not curr.Visible then
+                                    isReallyVisible = false
+                                    break
+                                end
+                                curr = curr.Parent
+                            end
+                            
+                            if isReallyVisible then
+                                playNextBtn = gui
+                                break
+                            end
+                        end
+                    end
+                end
+                
+                -- 🎯 ถ้าเจอปุ่มแล้ว ทำการเล็งเป้าแล้วยิง!
+                if playNextBtn then
+                    print("⏭️ [Auto Play] เจอหน้าต่างจบเกม! กำลังพุ่งเมาส์ไปกด 'Play Next'...")
+                    _G.MoMoStatus("จบเกม! กำลังกด Play Next เพื่อไปต่อ...")
+                    local aP, aS = playNextBtn.AbsolutePosition, playNextBtn.AbsoluteSize
+                    
+                    -- คำนวณระยะขอบจอ (Topbar) อัตโนมัติ แทนการเดาเลข 36
+                    local inset = guiService:GetGuiInset()
+                    local targetX = aP.X + (aS.X / 2)
+                    local targetY = aP.Y + (aS.Y / 2) + inset.Y
+                    
+                    -- กดย้ำ 2 รอบแบบเน้นๆ เพื่อให้ชัวร์ว่าติดแน่นอน!
+                    for i = 1, 2 do
+                        VIM:SendMouseButtonEvent(targetX, targetY, 0, true, game, 1)
+                        task.wait(0.1)
+                        VIM:SendMouseButtonEvent(targetX, targetY, 0, false, game, 1)
+                        task.wait(0.2)
+                    end
+                    
+                    print("✅ กด Play Next สำเร็จ! รอระบบโหลดเข้าด่านใหม่...")
+                    task.wait(8) -- หน่วงเวลาเพิ่มนิดหน่อย ให้เกมโหลดวาร์ปทัน
+                end
+            end)
+        end
+    end)
+end
+
+-- ========================================================================= --
+-- 🧠 ตัวจัดการสมองหลัก (Dynamic State Director) V6.3
+-- ========================================================================= --
+local function UpdateBotState()
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    local rootPart = char.HumanoidRootPart
+
+    local isInLobby = false
+    pcall(function()
+        local queueFolder = workspace:FindFirstChild("Queue") and workspace.Queue:FindFirstChild("Folder")
+        if queueFolder then
+            local items = queueFolder:GetChildren()
+            if #items >= 42 then
+                local targetObj = items[42]
+                local targetPos = nil
+                if targetObj:IsA("BasePart") then targetPos = targetObj.Position
+                elseif targetObj:IsA("Model") then targetPos = targetObj.PrimaryPart and targetObj.PrimaryPart.Position or (targetObj:FindFirstChildWhichIsA("BasePart", true) and targetObj:FindFirstChildWhichIsA("BasePart", true).Position) end
+
+                if targetPos and (rootPart.Position - targetPos).Magnitude <= 500 then
+                    isInLobby = true
+                end
+            end
+        end
+    end)
+
+    if isInLobby and not _G.LobbyActive then
+        print("🌍 [System] ระยะห่าง < 500 Studs (อยู่ใน Lobby) -> เปิดระบบ Lobby Master!")
+        _G.MoMoStatus("อยู่ใน Lobby -> เริ่มระบบจัดทีม/ลงด่าน")
+        _G.LobbyActive, _G.AutoPlayActive = true, false
+    elseif not isInLobby and not _G.AutoPlayActive then
+        print("⚔️ [System] ระยะห่าง > 500 Studs (อยู่ในด่าน) -> เปิดระบบ Auto Play!")
+        _G.MoMoStatus("อยู่ในด่าน -> เริ่มระบบ Auto Play")
+        _G.LobbyActive, _G.AutoPlayActive = false, true
+    end
+end
+
+task.spawn(function()
+    while task.wait(1) do UpdateBotState() end
+end)
+
+-- ========================================================================= --
+-- ⚙️ [MODULE 3]: Auto Settings (Background Task)
+-- ========================================================================= --
+task.spawn(function()
+    print("⚙️ [System] เปิดระบบ Auto Settings ทำงานเบื้องหลังทุก 1 วินาที...")
+    while task.wait(1) do
+        pcall(function()
+            local hud = LocalPlayer.PlayerGui:FindFirstChild("HUD")
+            if not hud then return end
+            
+            local scroll = hud:FindFirstChild("Setting") 
+                and hud.Setting:FindFirstChild("Page") 
+                and hud.Setting.Page:FindFirstChild("Main") 
+                and hud.Setting.Page.Main:FindFirstChild("Scroll")
+                
+            if not scroll then return end
+            
+            local settingV2 = scroll:FindFirstChild("SettingV2")
+            
+            -- ⏩ 1. เช็ค Auto Skip (ถ้าเป็น Off ให้ยิง Remote เปิด)
+            if settingV2 and settingV2:FindFirstChild("AutoSkip") then
+                local autoSkipLbl = settingV2.AutoSkip:FindFirstChild("Options") 
+                    and settingV2.AutoSkip.Options:FindFirstChild("Toggle") 
+                    and settingV2.AutoSkip.Options.Toggle:FindFirstChild("CategoryName")
+                    
+                if autoSkipLbl and (autoSkipLbl:IsA("TextLabel") or autoSkipLbl:IsA("TextButton")) then
+                    if autoSkipLbl.Text == "Off" then
+                        inputRemote:FireServer("AutoSkipWaves_CHANGE")
+                    end
+                end
+            end
+            
+            -- 🥔 2. เช็ค Low Graphics (ถ้าเป็น Off ให้ยิง Remote เปิด)
+            if settingV2 and settingV2:FindFirstChild("LowGraphics") then
+                local lowGfxLbl = settingV2.LowGraphics:FindFirstChild("Options") 
+                    and settingV2.LowGraphics.Options:FindFirstChild("Toggle") 
+                    and settingV2.LowGraphics.Options.Toggle:FindFirstChild("CategoryName")
+                    
+                if lowGfxLbl and (lowGfxLbl:IsA("TextLabel") or lowGfxLbl:IsA("TextButton")) then
+                    if lowGfxLbl.Text == "Off" then
+                        inputRemote:FireServer("LowGfxChange")
+                    end
+                end
+            end
+            
+            -- 🚫 3. เช็ค VFX (ถ้าไม่เป็น Off ให้ยิง Remote ปิด)
+            -- (ดักหา VFX ทั้งใน SettingV2 และข้างนอก Scroll ตาม Path ของ Tester)
+            local vfxBase = (settingV2 and settingV2:FindFirstChild("VFX")) or scroll:FindFirstChild("VFX")
+            if vfxBase then
+                local vfxLbl = vfxBase:FindFirstChild("Options") 
+                    and vfxBase.Options:FindFirstChild("Toggle") 
+                    and vfxBase.Options.Toggle:FindFirstChild("CategoryName")
+                    
+                if vfxLbl and (vfxLbl:IsA("TextLabel") or vfxLbl:IsA("TextButton")) then
+                    if vfxLbl.Text ~= "OFF" then
+                        inputRemote:FireServer("FX_CHANGE")
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+StartLobbyMaster()
+StartAutoPlay()
