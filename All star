@@ -652,27 +652,19 @@ end
 -- ========================================================================= --
 local function StartAutoPlay()
     -- ⚡ [SUB-MODULE]: Auto Game State (ควบคุมความเร็วด่าน & ข้ามเวฟ & เช็ค Speed UI)
-    
-    -- 🔘 1. ระบบกดโหมด Normal ถ้ายูนิตเวฟแรกยังไม่มา (ทำงานเบื้องหลังทุก 0.5 วินาที)
     task.spawn(function()
-        while task.wait(0.5) do
+        while task.wait(1) do
             if not _G.AutoPlayActive then continue end
             pcall(function()
                 local enemiesFolder = workspace:FindFirstChild("Enemies")
                 local hasEnemies = enemiesFolder and #enemiesFolder:GetChildren() > 0
                 
+                -- 1. กด Normal ถ้ายูนิตเวฟแรกยังไม่มา
                 if not hasEnemies then
-                    inputRemote:FireServer("VoteGameMode", "Extreme")
+                    inputRemote:FireServer("VoteGameMode", "Normal")
                 end
-            end)
-        end
-    end)
-
-    -- ⏩ 2. ระบบเช็ค Speed UI เผื่อเกมรีเซ็ตกลับไปเป็น 1X (ทำงานเบื้องหลังทุก 1 วินาที)
-    task.spawn(function()
-        while task.wait(1) do
-            if not _G.AutoPlayActive then continue end
-            pcall(function()
+                
+                -- 2. เช็ค Speed จาก UI เผื่อเกมรีเซ็ตกลับไปเป็น 1X (อ่านจาก FastForward)
                 local hud = LocalPlayer.PlayerGui:FindFirstChild("HUD")
                 if hud then
                     local fastForward = hud:FindFirstChild("FastForward")
@@ -1000,5 +992,5 @@ task.spawn(function()
 end)
 
 -- แยกการทำงานไม่ให้ฟังก์ชันดึงกันตอนโหลดเข้าเกม
-StartLobbyMaster()
-StartAutoPlay()
+task.spawn(StartLobbyMaster)
+task.spawn(StartAutoPlay)
