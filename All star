@@ -715,55 +715,28 @@ local function StartAutoPlay()
     local function findSpot(pT)
         local pF = workspace:WaitForChild("Placeable"):FindFirstChild(pT or "Base")
         if not pF then return nil end
-        
-        local tP = Vector3.new(0, 0, 0)
+        local tP = Vector3.new(0,0,0)
         local eF = workspace:FindFirstChild("Enemies")
         local bP = getBasePos()
         local leading = nil
         local mBD = math.huge
-        
-        if eF then
-            for _, e in pairs(eF:GetChildren()) do
-                local hrp = e:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local d = (hrp.Position - bP).Magnitude
-                    if d < mBD then mBD = d; leading = e end
-                end
+        if eF then for _, e in pairs(eF:GetChildren()) do if e:FindFirstChild("HumanoidRootPart") then local d = (e.HumanoidRootPart.Position-bP).Magnitude; if d < mBD then mBD = d; leading = e end end end end
+        tP = leading and leading.HumanoidRootPart.Position or (#pathPartsCache > 0 and pathPartsCache[1].Position or tP)
+        local rP = RaycastParams.new()
+        rP.FilterType = Enum.RaycastFilterType.Include
+        rP.FilterDescendantsInstances = {pF}
+        for r = 5, 40, 5 do for a = 0, 360, 45 do
+            local rad = math.rad(a)
+            local rO = Vector3.new(tP.X + math.cos(rad)*r, tP.Y + 50, tP.Z + math.sin(rad)*r)
+            local res = workspace:Raycast(rO, Vector3.new(0,-100,0), rP)
+            if res then
+                local tCF = CFrame.new(res.Position)
+                local oP = OverlapParams.new()
+                oP.FilterType = Enum.RaycastFilterType.Include
+                if workspace:FindFirstChild("Unit") then oP.FilterDescendantsInstances = {workspace.Unit} end
+                if #workspace:GetPartBoundsInBox(tCF, Vector3.new(4,4,4), oP) == 0 then return tCF end
             end
-        end
-        tP = leading and leading.HumanoidRootPart.Position
-            or (#pathPartsCache > 0 and pathPartsCache[1].Position or tP)
-
-        local rayParams = RaycastParams.new()
-        rayParams.FilterType = Enum.RaycastFilterType.Include
-        rayParams.FilterDescendantsInstances = {pF}
-
-        local overlapParams = OverlapParams.new()
-        overlapParams.FilterType = Enum.RaycastFilterType.Include
-        if workspace:FindFirstChild("Unit") then
-            overlapParams.FilterDescendantsInstances = {workspace.Unit}
-        end
-
-        local unitHitboxSize = Vector3.new(2.5, 4, 2.5) -- ✅ Tight hitbox
-
-        -- Micro-Spiral: radius 3→35 step 2, angle 0→360 step 30
-        for radius = 3, 35, 2 do
-            for angle = 0, 360, 30 do
-                local rad = math.rad(angle)
-                local rO = Vector3.new(
-                    tP.X + math.cos(rad) * radius,
-                    tP.Y + 50,
-                    tP.Z + math.sin(rad) * radius
-                )
-                local res = workspace:Raycast(rO, Vector3.new(0, -100, 0), rayParams)
-                if res then
-                    local tCF = CFrame.new(res.Position)
-                    if #workspace:GetPartBoundsInBox(tCF, unitHitboxSize, overlapParams) == 0 then
-                        return tCF
-                    end
-                end
-            end
-        end
+        end end
         return nil
     end
 
