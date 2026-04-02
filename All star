@@ -130,7 +130,17 @@ _G.AutoPlayActive = false
 
 -- === 🧠 สมองส่วนความจำของบอท ===
 local learnedPlacements = {} 
-local knownLimits = {}       
+local knownLimits = {}
+
+local EmergencyState = {
+	IsThreatActive = false,
+	IsBoardReady = false,
+	ProtocolEngaged = false,
+	TargetEmergencyUnit = nil,
+	PendingUpgradeInstances = {},
+	LastScan = 0,
+	LastAction = 0,
+}       
 
 -- ========================================================================= --
 -- 🟢 [MODULE 1]: Lobby Master
@@ -1370,6 +1380,11 @@ function ModuleX.StartCoordinator()
 				continue
 			end
 
+			if EmergencyState.ProtocolEngaged then
+				ELog("Standard placement paused by emergency protocol")
+				continue
+			end
+
 			local ok, err = pcall(function()
 				coordinatorRuntime.LastDecisionAt = os.clock()
 
@@ -1432,319 +1447,326 @@ function ModuleX.StartCoordinator()
 	}
 end
 
--- =!strict
-
--- ============================================================================
--- EmergencyCoordinator
--- Central control module that bridges:
---   - ThreatScannerModule
---   - BoardStateAnalyzer
---   - RapidDeploymentModule
---
--- Responsibilities:
---   - Evaluate threat state
---   - Lock / release standard routine
---   - Coordinate emergency deployment flow
---   - Retry upgrade sync cases before spawning new emergency units
--- ============================================================================
-
+-- ========================================================================= --
+-- 🚨 [MODULE X]: EMERGENCY COORDINATOR
+-- ========================================================================= --
 local EmergencyCoordinator = {}
 
-type ThreatScannerModuleType = {
-	ScanForModifier: (modifierString: string) -> boolean
-}
-
-type BoardStateAnalyzerType = {
-	HasUpgradedDefenders: (minimumTier: number) -> boolean
-}
-
-type RapidDeploymentResult = {
-	Success: boolean,
-	Reason: string?,
-	UnitName: string?,
-	PlacedInstance: Instance?,
-	PlacementStarted: boolean?,
-	UpgradeAttempted: boolean?,
-	UpgradeSucceeded: boolean?,
-	TotalRequired: number?,
-}
-
-type RapidDeploymentModuleType = {
-	FindOptimalEmergencyCard: (maxStars: number) -> {[string]: any}?,
-	ExecuteEmergencyDeployment: (cardData: {[string]: any}) -> RapidDeploymentResult
-}
-
-export type EmergencyStateType = {
-	IsThreatActive: boolean,
-	IsBoardReady: boolean,
-	ProtocolEngaged: boolean,
-	TargetEmergencyUnit: string?,
-	PendingUpgradeInstances: {Instance},
-	LastEvaluationTick: number,
-	LastThreatSeenTick: number,
-	LastResult: string,
-	LastDeploymentAttemptTick: number,
-}
-
-export type CoordinatorConfigType = {
-	ThreatScannerModule: ThreatScannerModuleType,
-	BoardStateAnalyzer: BoardStateAnalyzerType,
-	RapidDeploymentModule: RapidDeploymentModuleType,
-	StandardStateRef: {[string]: any}?,
-	ThreatModifier: string?,
-	MinimumDefenderTier: number?,
-	MaxEmergencyStars: number?,
-	TickInterval: number?,
-	DebugEnabled: boolean?,
-}
-
-local DEFAULT_THREAT_MODIFIER = "Powerful"
-local DEFAULT_MINIMUM_DEFENDER_TIER = 1
-local DEFAULT_MAX_EMERGENCY_STARS = 4
-local DEFAULT_TICK_INTERVAL = 0.5
-
-local _config: CoordinatorConfigType? = nil
-local _state: EmergencyStateType = {
-	IsThreatActive = false,
-	IsBoardReady = false,
-	ProtocolEngaged = false,
-	TargetEmergencyUnit = nil,
-	PendingUpgradeInstances = {},
-	LastEvaluationTick = 0,
-	LastThreatSeenTick = 0,
-	LastResult = "Uninitialized",
-	LastDeploymentAttemptTick = 0,
-}
-
-local _runtime = {
-	IsInitialized = false,
-	IsLoopRunning = false,
-}
-
-local function _debugEnabled(): boolean
-	return _config ~= nil and _config.DebugEnabled == true
+local function ELog(...)
+	print("[EmergencyCoordinator]", ...)
 end
 
-local function _log(...)
-	if _debugEnabled() then
-		print("[EmergencyCoordinator]", ...)
-	end
-end
-
-local function _warn(...)
+local function EWarn(...)
 	warn("[EmergencyCoordinator]", ...)
 end
 
-local function _getTime(): number
-	local ok, now = pcall(os.clock)
-	if ok and type(now) == "number" then
-		return now
+local function GetOwnedUnits()
+	local units = {}
+	local unitFolder = workspace:FindFirstChild("Unit")
+	if not unitFolder then
+		return units
 	end
-	return tick()
+
+	for _, u in ipairs(unitFolder:GetChildren()) do
+		local ok = pcall(function()
+			if u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer then
+				table.insert(units, u)
+			end
+		end)
+		if not ok then
+			EWarn("GetOwnedUnits > failed to inspect unit", u.Name)
+		end
+	end
+
+	return units
 end
 
-local function _safePcall<T...>(label: string, fn: () -> T...): (boolean, T...)
-	local ok, a, b, c, d, e = pcall(fn)
-	if not ok then
-		_warn(label, "failed:", a)
-		return false, nil :: any, nil :: any, nil :: any, nil :: any, nil :: any
-	end
-	return true, a, b, c, d, e
-end
-
-local function _isInstanceAlive(instance: Instance?): boolean
-	if not instance then
+local function ScanForModifier(modifierString)
+	local enemiesFolder = workspace:FindFirstChild("Enemies")
+	if not enemiesFolder then
 		return false
 	end
 
-	local ok, result = pcall(function()
-		return instance.Parent ~= nil
-	end)
+	for _, enemy in ipairs(enemiesFolder:GetChildren()) do
+		local ok, found = pcall(function()
+			local head = enemy:FindFirstChild("Head")
+			if not head then return false end
 
-	return ok and result == true
+			local bb = head:FindFirstChild("TITLE_BBGUI")
+			if not bb then return false end
+
+			local label = bb:FindFirstChild("TextLabel")
+			if not label or not label:IsA("TextLabel") then return false end
+
+			return label.Text == modifierString
+		end)
+
+		if ok and found then
+			ELog("Threat detected:", modifierString, "| Enemy =", enemy.Name)
+			return true
+		end
+	end
+
+	return false
 end
 
-local function _getUpgradeTagValue(unitInstance: Instance): number?
-	local ok, value = _safePcall("GetUpgradeTagValue", function()
-		local tag = unitInstance:FindFirstChild("UpgradeTag")
-		if not tag then
-			return nil
+local function HasUpgradedDefenders(minimumTier)
+	for _, unit in ipairs(GetOwnedUnits()) do
+		local ok, value = pcall(function()
+			local upgradeTag = unit:FindFirstChild("UpgradeTag")
+			if not upgradeTag then
+				return nil
+			end
+			return tonumber(upgradeTag.Value)
+		end)
+
+		if ok and value and value >= minimumTier then
+			ELog("Board ready with upgraded defender:", unit.Name, "| Tier =", value)
+			return true
 		end
+	end
 
-		local rawValue = (tag :: any).Value
-		if type(rawValue) == "number" then
-			return rawValue
+	return false
+end
+
+local function GetDeckWithStars()
+	local deck = {}
+	local hud = LocalPlayer.PlayerGui:FindFirstChild("HUD")
+	if not hud then
+		return deck
+	end
+
+	local bottomFrame = hud:FindFirstChild("BottomFrame")
+	if not bottomFrame then
+		return deck
+	end
+
+	local unitFrame = bottomFrame:FindFirstChild("Unit")
+	if not unitFrame then
+		return deck
+	end
+
+	for _, slotName in ipairs({"One","Two","Three","Four","Five","Six"}) do
+		local slot = unitFrame:FindFirstChild(slotName)
+		if slot and slot:FindFirstChild("Unit") and slot.Unit.Value ~= "" then
+			local cost = 9999
+			local stars = nil
+
+			for _, obj in ipairs(slot:GetDescendants()) do
+				if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Text then
+					if not stars and obj.Text:match("^%d+$") then
+						local n = tonumber(obj.Text)
+						if n and n >= 1 and n <= 6 then
+							stars = n
+						end
+					end
+
+					if obj.Text:match("%d+") then
+						local n = tonumber(obj.Text:match("%d+"))
+						if n and n < cost then
+							cost = n
+						end
+					end
+				end
+			end
+
+			table.insert(deck, {
+				Name = slot.Unit.Value,
+				Cost = cost,
+				Stars = stars or 6,
+				SlotName = slotName,
+			})
 		end
+	end
 
-		return tonumber(rawValue)
-	end)
+	return deck
+end
 
-	if not ok then
+local function FindOptimalEmergencyCard(maxStars)
+	local deck = GetDeckWithStars()
+	if #deck == 0 then
+		EWarn("No cards found in deck")
 		return nil
 	end
 
-	return value
-end
-
-local function _removePendingAt(index: number)
-	table.remove(_state.PendingUpgradeInstances, index)
-end
-
-local function _cleanupPendingUpgradeInstances()
-	for index = #_state.PendingUpgradeInstances, 1, -1 do
-		local unitInstance = _state.PendingUpgradeInstances[index]
-		if not _isInstanceAlive(unitInstance) then
-			_log("Removing stale pending instance at index", index)
-			_removePendingAt(index)
+	local filtered = {}
+	for _, card in ipairs(deck) do
+		if (tonumber(card.Stars) or 6) <= maxStars then
+			table.insert(filtered, card)
 		end
 	end
+
+	local pool = (#filtered > 0) and filtered or deck
+	table.sort(pool, function(a, b)
+		local aCost = tonumber(a.Cost) or math.huge
+		local bCost = tonumber(b.Cost) or math.huge
+		if aCost == bCost then
+			return (tonumber(a.Stars) or 99) < (tonumber(b.Stars) or 99)
+		end
+		return aCost < bCost
+	end)
+
+	local picked = pool[1]
+	if picked then
+		ELog("Emergency card selected:", picked.Name, "| Cost =", picked.Cost, "| Stars =", picked.Stars)
+	end
+
+	return picked
 end
 
-local function _resolveStandardStateRef(): {[string]: any}?
-	if not _config then
+local function FindFirstUpgradeCost(unitInstance)
+	if not unitInstance then
 		return nil
 	end
-	return _config.StandardStateRef
-end
 
-local function _setStandardRoutineLock(shouldLock: boolean)
-	local stateRef = _resolveStandardStateRef()
-	if not stateRef then
-		return
-	end
-
-	local ok = _safePcall("SetStandardRoutineLock", function()
-		stateRef.ProtocolEngaged = shouldLock
-		stateRef.EmergencyProtocolEngaged = shouldLock
-		stateRef.SkipStandardPlacement = shouldLock
-		stateRef.SkipStandardUpgrade = shouldLock
+	local ok, cost = pcall(function()
+		return tonumber(unitInstance:GetAttribute("UpgradeCost") or unitInstance:GetAttribute("NextUpgradeCost"))
 	end)
 
-	if ok then
-		_log("Standard routine lock set to", shouldLock)
-	end
-end
-
-local function _validateConfig(config: CoordinatorConfigType)
-	assert(config ~= nil, "EmergencyCoordinator.Initialize requires config")
-	assert(config.ThreatScannerModule ~= nil, "ThreatScannerModule missing")
-	assert(type(config.ThreatScannerModule.ScanForModifier) == "function", "ThreatScannerModule.ScanForModifier missing")
-	assert(config.BoardStateAnalyzer ~= nil, "BoardStateAnalyzer missing")
-	assert(type(config.BoardStateAnalyzer.HasUpgradedDefenders) == "function", "BoardStateAnalyzer.HasUpgradedDefenders missing")
-	assert(config.RapidDeploymentModule ~= nil, "RapidDeploymentModule missing")
-	assert(type(config.RapidDeploymentModule.FindOptimalEmergencyCard) == "function", "RapidDeploymentModule.FindOptimalEmergencyCard missing")
-	assert(type(config.RapidDeploymentModule.ExecuteEmergencyDeployment) == "function", "RapidDeploymentModule.ExecuteEmergencyDeployment missing")
-end
-
-local function _getThreatModifier(): string
-	return (_config and _config.ThreatModifier) or DEFAULT_THREAT_MODIFIER
-end
-
-local function _getMinimumDefenderTier(): number
-	return (_config and _config.MinimumDefenderTier) or DEFAULT_MINIMUM_DEFENDER_TIER
-end
-
-local function _getMaxEmergencyStars(): number
-	return (_config and _config.MaxEmergencyStars) or DEFAULT_MAX_EMERGENCY_STARS
-end
-
-local function _getTickInterval(): number
-	local interval = (_config and _config.TickInterval) or DEFAULT_TICK_INTERVAL
-	if interval < 0.5 then
-		return 0.5
-	end
-	if interval > 1.0 then
-		return 1.0
-	end
-	return interval
-end
-
-local function _scanThreatActive(): boolean
-	if not _config then
-		return false
+	if ok and cost and cost > 0 then
+		return cost
 	end
 
-	local ok, result = _safePcall("ScanForModifier", function()
-		return _config.ThreatScannerModule.ScanForModifier(_getThreatModifier())
+	return nil
+end
+
+local function FindOwnedUnitByName(name)
+	local unitFolder = workspace:FindFirstChild("Unit")
+	if not unitFolder then
+		return nil
+	end
+
+	for _, u in ipairs(unitFolder:GetChildren()) do
+		local ok = pcall(function()
+			return u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer and u.Name == name
+		end)
+
+		if ok then
+			local pass = false
+			pcall(function()
+				pass = u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer and u.Name == name
+			end)
+			if pass then
+				return u
+			end
+		end
+	end
+
+	return nil
+end
+
+local function FindSpotForEmergency()
+	local pathPartsCache = {}
+	for _, folderName in ipairs({"Paths","2Paths","3Paths","4Paths"}) do
+		local folder = workspace:FindFirstChild(folderName)
+		if folder then
+			for _, part in ipairs(folder:GetDescendants()) do
+				if part:IsA("BasePart") then
+					table.insert(pathPartsCache, part)
+				end
+			end
+		end
+	end
+
+	table.sort(pathPartsCache, function(a, b)
+		return (tonumber(a.Name) or 0) < (tonumber(b.Name) or 0)
 	end)
 
-	if not ok then
-		return false
+	local placeableRoot = workspace:FindFirstChild("Placeable")
+	if not placeableRoot then
+		return nil, "NoPlaceableRoot"
 	end
 
-	return result == true
+	for _, placeType in ipairs({"Base", "Hill"}) do
+		local placeableFolder = placeableRoot:FindFirstChild(placeType)
+		if placeableFolder then
+			local rayParams = RaycastParams.new()
+			rayParams.FilterType = Enum.RaycastFilterType.Include
+			rayParams.FilterDescendantsInstances = {placeableFolder}
+
+			for _, refPart in ipairs(pathPartsCache) do
+				local p = refPart.Position
+
+				for r = 8, 24, 4 do
+					for a = 0, 315, 45 do
+						local rad = math.rad(a)
+						local origin = Vector3.new(p.X + math.cos(rad) * r, p.Y + 50, p.Z + math.sin(rad) * r)
+						local ray = workspace:Raycast(origin, Vector3.new(0, -100, 0), rayParams)
+
+						if ray then
+							local cf = CFrame.new(ray.Position)
+							local overlap = OverlapParams.new()
+							overlap.FilterType = Enum.RaycastFilterType.Include
+							if workspace:FindFirstChild("Unit") then
+								overlap.FilterDescendantsInstances = {workspace.Unit}
+							end
+
+							local blocked = false
+							local ok = pcall(function()
+								blocked = #workspace:GetPartBoundsInBox(cf, Vector3.new(6,6,6), overlap) > 0
+							end)
+
+							if ok and not blocked then
+								return cf, placeType
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+
+	return nil, "NoEmergencySpot"
 end
 
-local function _scanBoardReady(): boolean
-	if not _config then
-		return false
-	end
+local function RetryPendingEmergencyUpgrade()
+	for i = #EmergencyState.PendingUpgradeInstances, 1, -1 do
+		local unit = EmergencyState.PendingUpgradeInstances[i]
 
-	local ok, result = _safePcall("HasUpgradedDefenders", function()
-		return _config.BoardStateAnalyzer.HasUpgradedDefenders(_getMinimumDefenderTier())
-	end)
-
-	if not ok then
-		return false
-	end
-
-	return result == true
-end
-
-local function _retryPendingUpgradesIfNeeded(): boolean
-	if not _config then
-		return false
-	end
-
-	_cleanupPendingUpgradeInstances()
-
-	if #_state.PendingUpgradeInstances == 0 then
-		return false
-	end
-
-	_log("Pending upgrade retry check | count =", #_state.PendingUpgradeInstances)
-
-	for index = #_state.PendingUpgradeInstances, 1, -1 do
-		local pendingUnit = _state.PendingUpgradeInstances[index]
-
-		if not _isInstanceAlive(pendingUnit) then
-			_removePendingAt(index)
+		if not unit or unit.Parent == nil then
+			table.remove(EmergencyState.PendingUpgradeInstances, i)
 			continue
 		end
 
-		local upgradeValue = _getUpgradeTagValue(pendingUnit)
-		if upgradeValue and upgradeValue >= _getMinimumDefenderTier() then
-			_log("Pending unit is now upgraded:", pendingUnit:GetFullName())
-			_removePendingAt(index)
-			continue
+		local threatStillActive = ScanForModifier("Powerful")
+		if not threatStillActive then
+			ELog("Threat disappeared during pending upgrade retry")
+			EmergencyState.ProtocolEngaged = false
+			EmergencyState.IsThreatActive = false
+			EmergencyState.TargetEmergencyUnit = nil
+			table.clear(EmergencyState.PendingUpgradeInstances)
+			return true
 		end
 
-		local unitName = "Unknown"
-		local okName = _safePcall("ReadPendingUnitName", function()
-			unitName = pendingUnit.Name
+		local currentTier = nil
+		pcall(function()
+			local upgradeTag = unit:FindFirstChild("UpgradeTag")
+			if upgradeTag then
+				currentTier = tonumber(upgradeTag.Value)
+			end
 		end)
 
-		if okName then
-			_state.TargetEmergencyUnit = unitName
+		if currentTier and currentTier >= 1 then
+			ELog("Pending emergency unit already upgraded:", unit.Name)
+			table.remove(EmergencyState.PendingUpgradeInstances, i)
+			EmergencyState.ProtocolEngaged = false
+			EmergencyState.TargetEmergencyUnit = nil
+			return true
 		end
 
-		local syntheticCardData = {
-			Name = unitName,
-			ExistingInstance = pendingUnit,
-			IsRetryUpgrade = true,
-		}
+		local moneyObj = LocalPlayer:FindFirstChild("Money")
+		local money = moneyObj and tonumber(moneyObj.Value) or 0
+		local upgradeCost = FindFirstUpgradeCost(unit) or 150
 
-		local okDeploy, deployResult = _safePcall("RetryPendingUpgrade", function()
-			return _config.RapidDeploymentModule.ExecuteEmergencyDeployment(syntheticCardData)
-		end)
+		if money >= upgradeCost then
+			local ok, err = pcall(function()
+				serverRemote:InvokeServer("Upgrade", unit)
+			end)
 
-		if okDeploy and deployResult then
-			if deployResult.UpgradeSucceeded == true then
-				_log("Pending upgrade recovered successfully for", unitName)
-				_removePendingAt(index)
-				return true
+			if ok then
+				ELog("Retried emergency upgrade:", unit.Name, "| Cost =", upgradeCost)
 			else
-				_log("Pending upgrade retry did not complete yet for", unitName, "| reason:", deployResult.Reason or "Unknown")
+				EWarn("Retry emergency upgrade failed:", tostring(err))
 			end
 		end
 	end
@@ -1752,298 +1774,238 @@ local function _retryPendingUpgradesIfNeeded(): boolean
 	return false
 end
 
-local function _engageEmergencyProtocol()
-	if not _state.ProtocolEngaged then
-		_state.ProtocolEngaged = true
-		_setStandardRoutineLock(true)
-		_log("Emergency protocol engaged")
-	end
-end
-
-local function _releaseEmergencyProtocol(reason: string?)
-	_state.ProtocolEngaged = false
-	_state.TargetEmergencyUnit = nil
-	_setStandardRoutineLock(false)
-
-	if #_state.PendingUpgradeInstances == 0 then
-		_state.LastResult = reason or "ProtocolReleased"
-	else
-		_state.LastResult = reason or "ProtocolReleasedWithPending"
+local function ExecuteEmergencyDeployment(cardData)
+	if not cardData then
+		return false, "NoCardData"
 	end
 
-	_log("Emergency protocol released | reason =", _state.LastResult)
-end
-
-function EmergencyCoordinator.EvaluateThreatLevel(): boolean
-	local threatActive = _scanThreatActive()
-	_state.IsThreatActive = threatActive
-
-	if threatActive then
-		_state.LastThreatSeenTick = _getTime()
+	local threatStillActive = ScanForModifier("Powerful")
+	if not threatStillActive then
+		return false, "ThreatGone"
 	end
 
-	local boardReady = _scanBoardReady()
-	_state.IsBoardReady = boardReady
-	_state.LastEvaluationTick = _getTime()
+	local existing = FindOwnedUnitByName(cardData.Name)
+	if existing then
+		local upgradeTagValue = nil
+		pcall(function()
+			local upgradeTag = existing:FindFirstChild("UpgradeTag")
+			if upgradeTag then
+				upgradeTagValue = tonumber(upgradeTag.Value)
+			end
+		end)
 
-	_log(
-		"EvaluateThreatLevel",
-		"| Threat =", threatActive,
-		"| BoardReady =", boardReady,
-		"| Pending =", #_state.PendingUpgradeInstances,
-		"| Protocol =", _state.ProtocolEngaged
-	)
-
-	if (not threatActive) or boardReady then
-		if _state.ProtocolEngaged then
-			_releaseEmergencyProtocol(threatActive and "BoardReady" or "ThreatCleared")
+		if upgradeTagValue and upgradeTagValue >= 1 then
+			ELog("Emergency target already exists and upgraded:", cardData.Name)
+			return true, "AlreadyHandled"
 		end
-		return false
+
+		table.insert(EmergencyState.PendingUpgradeInstances, existing)
+		return false, "ExistingUnitPendingUpgrade"
 	end
 
-	_engageEmergencyProtocol()
-	return true
+	local spot, placeType = FindSpotForEmergency()
+	if not spot then
+		return false, tostring(placeType or "NoSpot")
+	end
+
+	local firstUpgradeCost = 150
+	local moneyObj = LocalPlayer:FindFirstChild("Money")
+	local money = moneyObj and tonumber(moneyObj.Value) or 0
+	local totalRequired = (tonumber(cardData.Cost) or math.huge) + firstUpgradeCost
+
+	if money < totalRequired then
+		ELog("Waiting for emergency budget:", money, "/", totalRequired)
+		return false, "InsufficientBudget"
+	end
+
+	local preCount = 0
+	for _, u in ipairs(GetOwnedUnits()) do
+		if u.Name == cardData.Name then
+			preCount += 1
+		end
+	end
+
+	local summonOk, summonErr = pcall(function()
+		inputRemote:FireServer("Summon", {
+			Rotation = 0,
+			cframe = spot,
+			Unit = cardData.Name
+		})
+	end)
+
+	if not summonOk then
+		EWarn("Emergency summon failed:", tostring(summonErr))
+		return false, "SummonFailed"
+	end
+
+	ELog("Emergency summon fired:", cardData.Name, "| Type =", tostring(placeType))
+
+	local placedUnit = nil
+	for _ = 1, 12 do
+		task.wait(0.25)
+
+		local threatCheck = ScanForModifier("Powerful")
+		if not threatCheck then
+			return false, "ThreatGoneAfterSummon"
+		end
+
+		local matches = {}
+		for _, u in ipairs(GetOwnedUnits()) do
+			if u.Name == cardData.Name then
+				table.insert(matches, u)
+			end
+		end
+
+		if #matches > preCount then
+			placedUnit = matches[#matches]
+			break
+		end
+	end
+
+	if not placedUnit then
+		return false, "SummonNotConfirmed"
+	end
+
+	table.insert(EmergencyState.PendingUpgradeInstances, placedUnit)
+
+	local upgradeCost = FindFirstUpgradeCost(placedUnit) or firstUpgradeCost
+	local currentMoney = moneyObj and tonumber(moneyObj.Value) or 0
+	if currentMoney < upgradeCost then
+		ELog("Placed emergency unit, waiting for upgrade budget:", currentMoney, "/", upgradeCost)
+		return false, "PlacedPendingUpgradeBudget"
+	end
+
+	local threatCheck = ScanForModifier("Powerful")
+	if not threatCheck then
+		return false, "ThreatGoneBeforeUpgrade"
+	end
+
+	local upgradeOk, upgradeErr = pcall(function()
+		serverRemote:InvokeServer("Upgrade", placedUnit)
+	end)
+
+	if not upgradeOk then
+		EWarn("Emergency immediate upgrade failed:", tostring(upgradeErr))
+		return false, "UpgradeInvokeFailed"
+	end
+
+	task.wait(0.5)
+
+	local upgraded = false
+	pcall(function()
+		local upgradeTag = placedUnit:FindFirstChild("UpgradeTag")
+		if upgradeTag and tonumber(upgradeTag.Value) and tonumber(upgradeTag.Value) >= 1 then
+			upgraded = true
+		end
+	end)
+
+	if upgraded then
+		for i = #EmergencyState.PendingUpgradeInstances, 1, -1 do
+			if EmergencyState.PendingUpgradeInstances[i] == placedUnit then
+				table.remove(EmergencyState.PendingUpgradeInstances, i)
+			end
+		end
+
+		ELog("Emergency deployment complete:", cardData.Name)
+		return true, "Success"
+	end
+
+	return false, "UpgradePendingSync"
 end
 
 function EmergencyCoordinator.LockStandardRoutine()
-	_engageEmergencyProtocol()
+	if not EmergencyState.ProtocolEngaged then
+		ELog("Locking standard routine")
+	end
+	EmergencyState.ProtocolEngaged = true
 end
 
 function EmergencyCoordinator.ReleaseStandardRoutine()
-	_releaseEmergencyProtocol("ManualRelease")
+	if EmergencyState.ProtocolEngaged then
+		ELog("Releasing standard routine")
+	end
+	EmergencyState.ProtocolEngaged = false
+	EmergencyState.TargetEmergencyUnit = nil
 end
 
-function EmergencyCoordinator.Initialize(config: CoordinatorConfigType): {[string]: any}
-	_validateConfig(config)
+function EmergencyCoordinator.EvaluateThreatLevel()
+	EmergencyState.IsThreatActive = ScanForModifier("Powerful")
+	EmergencyState.IsBoardReady = HasUpgradedDefenders(1)
 
-	_config = config
-	_runtime.IsInitialized = true
+	if (not EmergencyState.IsThreatActive) or EmergencyState.IsBoardReady then
+		EmergencyCoordinator.ReleaseStandardRoutine()
+		return false
+	end
 
-	_state = {
-		IsThreatActive = false,
-		IsBoardReady = false,
-		ProtocolEngaged = false,
-		TargetEmergencyUnit = nil,
-		PendingUpgradeInstances = {},
-		LastEvaluationTick = 0,
-		LastThreatSeenTick = 0,
-		LastResult = "Initialized",
-		LastDeploymentAttemptTick = 0,
-	}
-
-	_log("Initialized successfully")
-
-	return {
-		Success = true,
-		State = _state,
-	}
+	EmergencyCoordinator.LockStandardRoutine()
+	return true
 end
 
-function EmergencyCoordinator.GetState(): EmergencyStateType
-	return {
-		IsThreatActive = _state.IsThreatActive,
-		IsBoardReady = _state.IsBoardReady,
-		ProtocolEngaged = _state.ProtocolEngaged,
-		TargetEmergencyUnit = _state.TargetEmergencyUnit,
-		PendingUpgradeInstances = table.clone(_state.PendingUpgradeInstances),
-		LastEvaluationTick = _state.LastEvaluationTick,
-		LastThreatSeenTick = _state.LastThreatSeenTick,
-		LastResult = _state.LastResult,
-		LastDeploymentAttemptTick = _state.LastDeploymentAttemptTick,
-	}
+function EmergencyCoordinator.Tick()
+	if not _G.AutoPlayActive then
+		return false
+	end
+
+	if tick() - (EmergencyState.LastScan or 0) < 0.5 then
+		return EmergencyState.ProtocolEngaged
+	end
+	EmergencyState.LastScan = tick()
+
+	if RetryPendingEmergencyUpgrade() then
+		return true
+	end
+
+	local emergencyNeeded = EmergencyCoordinator.EvaluateThreatLevel()
+	if not emergencyNeeded then
+		return false
+	end
+
+	if ScanForModifier("Powerful") == false then
+		EmergencyCoordinator.ReleaseStandardRoutine()
+		return false
+	end
+
+	local cardData = FindOptimalEmergencyCard(4)
+	if not cardData then
+		EWarn("Emergency failed: no usable card found")
+		return true
+	end
+
+	EmergencyState.TargetEmergencyUnit = cardData.Name
+
+	if tick() - (EmergencyState.LastAction or 0) < 0.5 then
+		return true
+	end
+	EmergencyState.LastAction = tick()
+
+	local success, reason = ExecuteEmergencyDeployment(cardData)
+	ELog("Emergency Tick Result:", tostring(success), "|", tostring(reason))
+
+	if success then
+		EmergencyCoordinator.ReleaseStandardRoutine()
+	end
+
+	return true
 end
 
-function EmergencyCoordinator.Tick(): {[string]: any}
-	if not _runtime.IsInitialized or not _config then
-		return {
-			Success = false,
-			Reason = "NotInitialized",
-			State = EmergencyCoordinator.GetState(),
-		}
-	end
-
-	local evaluationSaysEmergency = EmergencyCoordinator.EvaluateThreatLevel()
-
-	if not evaluationSaysEmergency then
-		return {
-			Success = true,
-			Reason = "NoEmergencyRequired",
-			State = EmergencyCoordinator.GetState(),
-		}
-	end
-
-	local threatStillActive = _scanThreatActive()
-	_state.IsThreatActive = threatStillActive
-
-	if not threatStillActive then
-		_releaseEmergencyProtocol("ThreatClearedMidTick")
-		return {
-			Success = true,
-			Reason = "ThreatClearedMidTick",
-			State = EmergencyCoordinator.GetState(),
-		}
-	end
-
-	local pendingRecovered = _retryPendingUpgradesIfNeeded()
-	if pendingRecovered then
-		_state.LastResult = "RecoveredPendingUpgrade"
-		return {
-			Success = true,
-			Reason = "RecoveredPendingUpgrade",
-			State = EmergencyCoordinator.GetState(),
-		}
-	end
-
-	if #_state.PendingUpgradeInstances > 0 then
-		_state.LastResult = "WaitingForPendingUpgradeSync"
-		return {
-			Success = true,
-			Reason = "WaitingForPendingUpgradeSync",
-			State = EmergencyCoordinator.GetState(),
-		}
-	end
-
-	local selectedCard: {[string]: any}? = nil
-	local okFind, foundCard = _safePcall("FindOptimalEmergencyCard", function()
-		return _config.RapidDeploymentModule.FindOptimalEmergencyCard(_getMaxEmergencyStars())
-	end)
-
-	if not okFind or not foundCard then
-		_state.LastResult = "NoEmergencyCardAvailable"
-		_warn("No valid emergency card found in deck")
-		return {
-			Success = false,
-			Reason = "NoEmergencyCardAvailable",
-			State = EmergencyCoordinator.GetState(),
-		}
-	end
-
-	selectedCard = foundCard
-	_state.TargetEmergencyUnit = tostring(selectedCard.Name or "Unknown")
-	_state.LastDeploymentAttemptTick = _getTime()
-
-	_log("Selected emergency unit:", _state.TargetEmergencyUnit)
-
-	local threatRecheckBeforeDeploy = _scanThreatActive()
-	_state.IsThreatActive = threatRecheckBeforeDeploy
-
-	if not threatRecheckBeforeDeploy then
-		_releaseEmergencyProtocol("ThreatClearedBeforeDeploy")
-		return {
-			Success = true,
-			Reason = "ThreatClearedBeforeDeploy",
-			State = EmergencyCoordinator.GetState(),
-		}
-	end
-
-	local okDeploy, deployResult = _safePcall("ExecuteEmergencyDeployment", function()
-		return _config.RapidDeploymentModule.ExecuteEmergencyDeployment(selectedCard :: {[string]: any})
-	end)
-
-	if not okDeploy or not deployResult then
-		_state.LastResult = "EmergencyDeploymentFailed"
-		return {
-			Success = false,
-			Reason = "EmergencyDeploymentFailed",
-			State = EmergencyCoordinator.GetState(),
-		}
-	end
-
-	if deployResult.Success == true then
-		if deployResult.PlacedInstance and deployResult.UpgradeSucceeded ~= true then
-			table.insert(_state.PendingUpgradeInstances, deployResult.PlacedInstance)
-			_state.LastResult = "PlacedWaitingUpgradeSync"
-			_log("Emergency unit placed, awaiting upgrade sync:", deployResult.PlacedInstance:GetFullName())
-		else
-			_state.LastResult = "EmergencyDeploymentSucceeded"
-		end
-
-		return {
-			Success = true,
-			Reason = _state.LastResult,
-			State = EmergencyCoordinator.GetState(),
-			Result = deployResult,
-		}
-	end
-
-	if deployResult.PlacedInstance and _isInstanceAlive(deployResult.PlacedInstance) then
-		table.insert(_state.PendingUpgradeInstances, deployResult.PlacedInstance)
-		_state.LastResult = "PlacedButUpgradePending"
-		_warn("Emergency unit placed but upgrade pending:", deployResult.Reason or "Unknown")
-		return {
-			Success = true,
-			Reason = "PlacedButUpgradePending",
-			State = EmergencyCoordinator.GetState(),
-			Result = deployResult,
-		}
-	end
-
-	_state.LastResult = deployResult.Reason or "EmergencyDeploymentRejected"
-
-	return {
-		Success = false,
-		Reason = _state.LastResult,
-		State = EmergencyCoordinator.GetState(),
-		Result = deployResult,
-	}
-end
-
-function EmergencyCoordinator.StartLoop()
-	if not _runtime.IsInitialized then
-		return {
-			Success = false,
-			Reason = "NotInitialized",
-			State = EmergencyCoordinator.GetState(),
-		}
-	end
-
-	if _runtime.IsLoopRunning then
-		return {
-			Success = true,
-			Reason = "LoopAlreadyRunning",
-			State = EmergencyCoordinator.GetState(),
-		}
-	end
-
-	_runtime.IsLoopRunning = true
-	_log("Starting emergency loop with interval", _getTickInterval())
-
+function EmergencyCoordinator.Start()
 	task.spawn(function()
-		while _runtime.IsLoopRunning do
-			local ok = pcall(function()
+		while task.wait(0.5) do
+			pcall(function()
 				EmergencyCoordinator.Tick()
 			end)
-
-			if not ok then
-				_warn("Top-level emergency loop tick failed")
-			end
-
-			task.wait(_getTickInterval())
 		end
 	end)
-
-	return {
-		Success = true,
-		Reason = "LoopStarted",
-		State = EmergencyCoordinator.GetState(),
-	}
-end
-
-function EmergencyCoordinator.StopLoop()
-	_runtime.IsLoopRunning = false
-	_releaseEmergencyProtocol("LoopStopped")
-
-	return {
-		Success = true,
-		Reason = "LoopStopped",
-		State = EmergencyCoordinator.GetState(),
-	}
 end
 
 -- ========================================================================= --
 -- 🔴 [MODULE 2]: Auto Play
 -- ========================================================================= --
 local function StartAutoPlay()
+    pcall(function()
+        EmergencyCoordinator.Start()
+    end)
+
     -- ⚡ [SUB-MODULE]: Auto Game State (ควบคุมความเร็วด่าน & ข้ามเวฟ & เช็ค Speed UI)
     task.spawn(function()
         while task.wait(1) do
@@ -2091,6 +2053,10 @@ local function StartAutoPlay()
 
         while task.wait(0.5) do
             if not _G.AutoPlayEnabled or not _G.AutoPlayActive then continue end
+            if EmergencyState.ProtocolEngaged then
+                ELog("Standard upgrade paused by emergency protocol")
+                continue
+            end
 
             local uF = workspace:FindFirstChild("Unit")
             if uF then
