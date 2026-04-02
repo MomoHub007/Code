@@ -1383,6 +1383,614 @@ function ModuleX.StartCoordinator()
 	}
 end
 
+-- =!strict
+
+-- ============================================================================
+-- EmergencyCoordinator
+-- Central control module that bridges:
+--   - ThreatScannerModule
+--   - BoardStateAnalyzer
+--   - RapidDeploymentModule
+--
+-- Responsibilities:
+--   - Evaluate threat state
+--   - Lock / release standard routine
+--   - Coordinate emergency deployment flow
+--   - Retry upgrade sync cases before spawning new emergency units
+-- ============================================================================
+
+local EmergencyCoordinator = {}
+
+type ThreatScannerModuleType = {
+	ScanForModifier: (modifierString: string) -> boolean
+}
+
+type BoardStateAnalyzerType = {
+	HasUpgradedDefenders: (minimumTier: number) -> boolean
+}
+
+type RapidDeploymentResult = {
+	Success: boolean,
+	Reason: string?,
+	UnitName: string?,
+	PlacedInstance: Instance?,
+	PlacementStarted: boolean?,
+	UpgradeAttempted: boolean?,
+	UpgradeSucceeded: boolean?,
+	TotalRequired: number?,
+}
+
+type RapidDeploymentModuleType = {
+	FindOptimalEmergencyCard: (maxStars: number) -> {[string]: any}?,
+	ExecuteEmergencyDeployment: (cardData: {[string]: any}) -> RapidDeploymentResult
+}
+
+export type EmergencyStateType = {
+	IsThreatActive: boolean,
+	IsBoardReady: boolean,
+	ProtocolEngaged: boolean,
+	TargetEmergencyUnit: string?,
+	PendingUpgradeInstances: {Instance},
+	LastEvaluationTick: number,
+	LastThreatSeenTick: number,
+	LastResult: string,
+	LastDeploymentAttemptTick: number,
+}
+
+export type CoordinatorConfigType = {
+	ThreatScannerModule: ThreatScannerModuleType,
+	BoardStateAnalyzer: BoardStateAnalyzerType,
+	RapidDeploymentModule: RapidDeploymentModuleType,
+	StandardStateRef: {[string]: any}?,
+	ThreatModifier: string?,
+	MinimumDefenderTier: number?,
+	MaxEmergencyStars: number?,
+	TickInterval: number?,
+	DebugEnabled: boolean?,
+}
+
+local DEFAULT_THREAT_MODIFIER = "Powerful"
+local DEFAULT_MINIMUM_DEFENDER_TIER = 1
+local DEFAULT_MAX_EMERGENCY_STARS = 4
+local DEFAULT_TICK_INTERVAL = 0.5
+
+local _config: CoordinatorConfigType? = nil
+local _state: EmergencyStateType = {
+	IsThreatActive = false,
+	IsBoardReady = false,
+	ProtocolEngaged = false,
+	TargetEmergencyUnit = nil,
+	PendingUpgradeInstances = {},
+	LastEvaluationTick = 0,
+	LastThreatSeenTick = 0,
+	LastResult = "Uninitialized",
+	LastDeploymentAttemptTick = 0,
+}
+
+local _runtime = {
+	IsInitialized = false,
+	IsLoopRunning = false,
+}
+
+local function _debugEnabled(): boolean
+	return _config ~= nil and _config.DebugEnabled == true
+end
+
+local function _log(...)
+	if _debugEnabled() then
+		print("[EmergencyCoordinator]", ...)
+	end
+end
+
+local function _warn(...)
+	warn("[EmergencyCoordinator]", ...)
+end
+
+local function _getTime(): number
+	local ok, now = pcall(os.clock)
+	if ok and type(now) == "number" then
+		return now
+	end
+	return tick()
+end
+
+local function _safePcall<T...>(label: string, fn: () -> T...): (boolean, T...)
+	local ok, a, b, c, d, e = pcall(fn)
+	if not ok then
+		_warn(label, "failed:", a)
+		return false, nil :: any, nil :: any, nil :: any, nil :: any, nil :: any
+	end
+	return true, a, b, c, d, e
+end
+
+local function _isInstanceAlive(instance: Instance?): boolean
+	if not instance then
+		return false
+	end
+
+	local ok, result = pcall(function()
+		return instance.Parent ~= nil
+	end)
+
+	return ok and result == true
+end
+
+local function _getUpgradeTagValue(unitInstance: Instance): number?
+	local ok, value = _safePcall("GetUpgradeTagValue", function()
+		local tag = unitInstance:FindFirstChild("UpgradeTag")
+		if not tag then
+			return nil
+		end
+
+		local rawValue = (tag :: any).Value
+		if type(rawValue) == "number" then
+			return rawValue
+		end
+
+		return tonumber(rawValue)
+	end)
+
+	if not ok then
+		return nil
+	end
+
+	return value
+end
+
+local function _removePendingAt(index: number)
+	table.remove(_state.PendingUpgradeInstances, index)
+end
+
+local function _cleanupPendingUpgradeInstances()
+	for index = #_state.PendingUpgradeInstances, 1, -1 do
+		local unitInstance = _state.PendingUpgradeInstances[index]
+		if not _isInstanceAlive(unitInstance) then
+			_log("Removing stale pending instance at index", index)
+			_removePendingAt(index)
+		end
+	end
+end
+
+local function _resolveStandardStateRef(): {[string]: any}?
+	if not _config then
+		return nil
+	end
+	return _config.StandardStateRef
+end
+
+local function _setStandardRoutineLock(shouldLock: boolean)
+	local stateRef = _resolveStandardStateRef()
+	if not stateRef then
+		return
+	end
+
+	local ok = _safePcall("SetStandardRoutineLock", function()
+		stateRef.ProtocolEngaged = shouldLock
+		stateRef.EmergencyProtocolEngaged = shouldLock
+		stateRef.SkipStandardPlacement = shouldLock
+		stateRef.SkipStandardUpgrade = shouldLock
+	end)
+
+	if ok then
+		_log("Standard routine lock set to", shouldLock)
+	end
+end
+
+local function _validateConfig(config: CoordinatorConfigType)
+	assert(config ~= nil, "EmergencyCoordinator.Initialize requires config")
+	assert(config.ThreatScannerModule ~= nil, "ThreatScannerModule missing")
+	assert(type(config.ThreatScannerModule.ScanForModifier) == "function", "ThreatScannerModule.ScanForModifier missing")
+	assert(config.BoardStateAnalyzer ~= nil, "BoardStateAnalyzer missing")
+	assert(type(config.BoardStateAnalyzer.HasUpgradedDefenders) == "function", "BoardStateAnalyzer.HasUpgradedDefenders missing")
+	assert(config.RapidDeploymentModule ~= nil, "RapidDeploymentModule missing")
+	assert(type(config.RapidDeploymentModule.FindOptimalEmergencyCard) == "function", "RapidDeploymentModule.FindOptimalEmergencyCard missing")
+	assert(type(config.RapidDeploymentModule.ExecuteEmergencyDeployment) == "function", "RapidDeploymentModule.ExecuteEmergencyDeployment missing")
+end
+
+local function _getThreatModifier(): string
+	return (_config and _config.ThreatModifier) or DEFAULT_THREAT_MODIFIER
+end
+
+local function _getMinimumDefenderTier(): number
+	return (_config and _config.MinimumDefenderTier) or DEFAULT_MINIMUM_DEFENDER_TIER
+end
+
+local function _getMaxEmergencyStars(): number
+	return (_config and _config.MaxEmergencyStars) or DEFAULT_MAX_EMERGENCY_STARS
+end
+
+local function _getTickInterval(): number
+	local interval = (_config and _config.TickInterval) or DEFAULT_TICK_INTERVAL
+	if interval < 0.5 then
+		return 0.5
+	end
+	if interval > 1.0 then
+		return 1.0
+	end
+	return interval
+end
+
+local function _scanThreatActive(): boolean
+	if not _config then
+		return false
+	end
+
+	local ok, result = _safePcall("ScanForModifier", function()
+		return _config.ThreatScannerModule.ScanForModifier(_getThreatModifier())
+	end)
+
+	if not ok then
+		return false
+	end
+
+	return result == true
+end
+
+local function _scanBoardReady(): boolean
+	if not _config then
+		return false
+	end
+
+	local ok, result = _safePcall("HasUpgradedDefenders", function()
+		return _config.BoardStateAnalyzer.HasUpgradedDefenders(_getMinimumDefenderTier())
+	end)
+
+	if not ok then
+		return false
+	end
+
+	return result == true
+end
+
+local function _retryPendingUpgradesIfNeeded(): boolean
+	if not _config then
+		return false
+	end
+
+	_cleanupPendingUpgradeInstances()
+
+	if #_state.PendingUpgradeInstances == 0 then
+		return false
+	end
+
+	_log("Pending upgrade retry check | count =", #_state.PendingUpgradeInstances)
+
+	for index = #_state.PendingUpgradeInstances, 1, -1 do
+		local pendingUnit = _state.PendingUpgradeInstances[index]
+
+		if not _isInstanceAlive(pendingUnit) then
+			_removePendingAt(index)
+			continue
+		end
+
+		local upgradeValue = _getUpgradeTagValue(pendingUnit)
+		if upgradeValue and upgradeValue >= _getMinimumDefenderTier() then
+			_log("Pending unit is now upgraded:", pendingUnit:GetFullName())
+			_removePendingAt(index)
+			continue
+		end
+
+		local unitName = "Unknown"
+		local okName = _safePcall("ReadPendingUnitName", function()
+			unitName = pendingUnit.Name
+		end)
+
+		if okName then
+			_state.TargetEmergencyUnit = unitName
+		end
+
+		local syntheticCardData = {
+			Name = unitName,
+			ExistingInstance = pendingUnit,
+			IsRetryUpgrade = true,
+		}
+
+		local okDeploy, deployResult = _safePcall("RetryPendingUpgrade", function()
+			return _config.RapidDeploymentModule.ExecuteEmergencyDeployment(syntheticCardData)
+		end)
+
+		if okDeploy and deployResult then
+			if deployResult.UpgradeSucceeded == true then
+				_log("Pending upgrade recovered successfully for", unitName)
+				_removePendingAt(index)
+				return true
+			else
+				_log("Pending upgrade retry did not complete yet for", unitName, "| reason:", deployResult.Reason or "Unknown")
+			end
+		end
+	end
+
+	return false
+end
+
+local function _engageEmergencyProtocol()
+	if not _state.ProtocolEngaged then
+		_state.ProtocolEngaged = true
+		_setStandardRoutineLock(true)
+		_log("Emergency protocol engaged")
+	end
+end
+
+local function _releaseEmergencyProtocol(reason: string?)
+	_state.ProtocolEngaged = false
+	_state.TargetEmergencyUnit = nil
+	_setStandardRoutineLock(false)
+
+	if #_state.PendingUpgradeInstances == 0 then
+		_state.LastResult = reason or "ProtocolReleased"
+	else
+		_state.LastResult = reason or "ProtocolReleasedWithPending"
+	end
+
+	_log("Emergency protocol released | reason =", _state.LastResult)
+end
+
+function EmergencyCoordinator.EvaluateThreatLevel(): boolean
+	local threatActive = _scanThreatActive()
+	_state.IsThreatActive = threatActive
+
+	if threatActive then
+		_state.LastThreatSeenTick = _getTime()
+	end
+
+	local boardReady = _scanBoardReady()
+	_state.IsBoardReady = boardReady
+	_state.LastEvaluationTick = _getTime()
+
+	_log(
+		"EvaluateThreatLevel",
+		"| Threat =", threatActive,
+		"| BoardReady =", boardReady,
+		"| Pending =", #_state.PendingUpgradeInstances,
+		"| Protocol =", _state.ProtocolEngaged
+	)
+
+	if (not threatActive) or boardReady then
+		if _state.ProtocolEngaged then
+			_releaseEmergencyProtocol(threatActive and "BoardReady" or "ThreatCleared")
+		end
+		return false
+	end
+
+	_engageEmergencyProtocol()
+	return true
+end
+
+function EmergencyCoordinator.LockStandardRoutine()
+	_engageEmergencyProtocol()
+end
+
+function EmergencyCoordinator.ReleaseStandardRoutine()
+	_releaseEmergencyProtocol("ManualRelease")
+end
+
+function EmergencyCoordinator.Initialize(config: CoordinatorConfigType): {[string]: any}
+	_validateConfig(config)
+
+	_config = config
+	_runtime.IsInitialized = true
+
+	_state = {
+		IsThreatActive = false,
+		IsBoardReady = false,
+		ProtocolEngaged = false,
+		TargetEmergencyUnit = nil,
+		PendingUpgradeInstances = {},
+		LastEvaluationTick = 0,
+		LastThreatSeenTick = 0,
+		LastResult = "Initialized",
+		LastDeploymentAttemptTick = 0,
+	}
+
+	_log("Initialized successfully")
+
+	return {
+		Success = true,
+		State = _state,
+	}
+end
+
+function EmergencyCoordinator.GetState(): EmergencyStateType
+	return {
+		IsThreatActive = _state.IsThreatActive,
+		IsBoardReady = _state.IsBoardReady,
+		ProtocolEngaged = _state.ProtocolEngaged,
+		TargetEmergencyUnit = _state.TargetEmergencyUnit,
+		PendingUpgradeInstances = table.clone(_state.PendingUpgradeInstances),
+		LastEvaluationTick = _state.LastEvaluationTick,
+		LastThreatSeenTick = _state.LastThreatSeenTick,
+		LastResult = _state.LastResult,
+		LastDeploymentAttemptTick = _state.LastDeploymentAttemptTick,
+	}
+end
+
+function EmergencyCoordinator.Tick(): {[string]: any}
+	if not _runtime.IsInitialized or not _config then
+		return {
+			Success = false,
+			Reason = "NotInitialized",
+			State = EmergencyCoordinator.GetState(),
+		}
+	end
+
+	local evaluationSaysEmergency = EmergencyCoordinator.EvaluateThreatLevel()
+
+	if not evaluationSaysEmergency then
+		return {
+			Success = true,
+			Reason = "NoEmergencyRequired",
+			State = EmergencyCoordinator.GetState(),
+		}
+	end
+
+	local threatStillActive = _scanThreatActive()
+	_state.IsThreatActive = threatStillActive
+
+	if not threatStillActive then
+		_releaseEmergencyProtocol("ThreatClearedMidTick")
+		return {
+			Success = true,
+			Reason = "ThreatClearedMidTick",
+			State = EmergencyCoordinator.GetState(),
+		}
+	end
+
+	local pendingRecovered = _retryPendingUpgradesIfNeeded()
+	if pendingRecovered then
+		_state.LastResult = "RecoveredPendingUpgrade"
+		return {
+			Success = true,
+			Reason = "RecoveredPendingUpgrade",
+			State = EmergencyCoordinator.GetState(),
+		}
+	end
+
+	if #_state.PendingUpgradeInstances > 0 then
+		_state.LastResult = "WaitingForPendingUpgradeSync"
+		return {
+			Success = true,
+			Reason = "WaitingForPendingUpgradeSync",
+			State = EmergencyCoordinator.GetState(),
+		}
+	end
+
+	local selectedCard: {[string]: any}? = nil
+	local okFind, foundCard = _safePcall("FindOptimalEmergencyCard", function()
+		return _config.RapidDeploymentModule.FindOptimalEmergencyCard(_getMaxEmergencyStars())
+	end)
+
+	if not okFind or not foundCard then
+		_state.LastResult = "NoEmergencyCardAvailable"
+		_warn("No valid emergency card found in deck")
+		return {
+			Success = false,
+			Reason = "NoEmergencyCardAvailable",
+			State = EmergencyCoordinator.GetState(),
+		}
+	end
+
+	selectedCard = foundCard
+	_state.TargetEmergencyUnit = tostring(selectedCard.Name or "Unknown")
+	_state.LastDeploymentAttemptTick = _getTime()
+
+	_log("Selected emergency unit:", _state.TargetEmergencyUnit)
+
+	local threatRecheckBeforeDeploy = _scanThreatActive()
+	_state.IsThreatActive = threatRecheckBeforeDeploy
+
+	if not threatRecheckBeforeDeploy then
+		_releaseEmergencyProtocol("ThreatClearedBeforeDeploy")
+		return {
+			Success = true,
+			Reason = "ThreatClearedBeforeDeploy",
+			State = EmergencyCoordinator.GetState(),
+		}
+	end
+
+	local okDeploy, deployResult = _safePcall("ExecuteEmergencyDeployment", function()
+		return _config.RapidDeploymentModule.ExecuteEmergencyDeployment(selectedCard :: {[string]: any})
+	end)
+
+	if not okDeploy or not deployResult then
+		_state.LastResult = "EmergencyDeploymentFailed"
+		return {
+			Success = false,
+			Reason = "EmergencyDeploymentFailed",
+			State = EmergencyCoordinator.GetState(),
+		}
+	end
+
+	if deployResult.Success == true then
+		if deployResult.PlacedInstance and deployResult.UpgradeSucceeded ~= true then
+			table.insert(_state.PendingUpgradeInstances, deployResult.PlacedInstance)
+			_state.LastResult = "PlacedWaitingUpgradeSync"
+			_log("Emergency unit placed, awaiting upgrade sync:", deployResult.PlacedInstance:GetFullName())
+		else
+			_state.LastResult = "EmergencyDeploymentSucceeded"
+		end
+
+		return {
+			Success = true,
+			Reason = _state.LastResult,
+			State = EmergencyCoordinator.GetState(),
+			Result = deployResult,
+		}
+	end
+
+	if deployResult.PlacedInstance and _isInstanceAlive(deployResult.PlacedInstance) then
+		table.insert(_state.PendingUpgradeInstances, deployResult.PlacedInstance)
+		_state.LastResult = "PlacedButUpgradePending"
+		_warn("Emergency unit placed but upgrade pending:", deployResult.Reason or "Unknown")
+		return {
+			Success = true,
+			Reason = "PlacedButUpgradePending",
+			State = EmergencyCoordinator.GetState(),
+			Result = deployResult,
+		}
+	end
+
+	_state.LastResult = deployResult.Reason or "EmergencyDeploymentRejected"
+
+	return {
+		Success = false,
+		Reason = _state.LastResult,
+		State = EmergencyCoordinator.GetState(),
+		Result = deployResult,
+	}
+end
+
+function EmergencyCoordinator.StartLoop()
+	if not _runtime.IsInitialized then
+		return {
+			Success = false,
+			Reason = "NotInitialized",
+			State = EmergencyCoordinator.GetState(),
+		}
+	end
+
+	if _runtime.IsLoopRunning then
+		return {
+			Success = true,
+			Reason = "LoopAlreadyRunning",
+			State = EmergencyCoordinator.GetState(),
+		}
+	end
+
+	_runtime.IsLoopRunning = true
+	_log("Starting emergency loop with interval", _getTickInterval())
+
+	task.spawn(function()
+		while _runtime.IsLoopRunning do
+			local ok = pcall(function()
+				EmergencyCoordinator.Tick()
+			end)
+
+			if not ok then
+				_warn("Top-level emergency loop tick failed")
+			end
+
+			task.wait(_getTickInterval())
+		end
+	end)
+
+	return {
+		Success = true,
+		Reason = "LoopStarted",
+		State = EmergencyCoordinator.GetState(),
+	}
+end
+
+function EmergencyCoordinator.StopLoop()
+	_runtime.IsLoopRunning = false
+	_releaseEmergencyProtocol("LoopStopped")
+
+	return {
+		Success = true,
+		Reason = "LoopStopped",
+		State = EmergencyCoordinator.GetState(),
+	}
+end
+
 -- ========================================================================= --
 -- 🔴 [MODULE 2]: Auto Play
 -- ========================================================================= --
