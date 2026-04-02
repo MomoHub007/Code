@@ -648,6 +648,742 @@ local function StartLobbyMaster()
 end
 
 -- ========================================================================= --
+-- 🟡 [MODULE 3]: Path + Enemy Tracking + Placement Calculator
+-- ========================================================================= --
+
+local Module3 = {}
+
+local placementState = {
+	PathPoints = {},
+	EnemyTracking = {},
+	LastPathScan = 0,
+	LastEnemyScan = 0,
+}
+
+local function m3Log(...)
+	print("[Module3]", ...)
+end
+
+local function m3Warn(...)
+	warn("[Module3]", ...)
+end
+
+local function getPlaceableFolder(towerType)
+	local placeable = workspace:FindFirstChild("Placeable")
+	if not placeable then
+		return nil
+	end
+	return placeable:FindFirstChild(towerType or "Base")
+end
+
+function Module3.ScanPathTrajectory()
+	local result = {
+		Success = false,
+		Count = 0,
+		Points = {},
+		Reason = nil,
+	}
+
+	local folders = {"Paths", "2Paths", "3Paths", "4Paths"}
+	local collected = {}
+
+	for _, folderName in ipairs(folders) do
+		local folder = workspace:FindFirstChild(folderName)
+		if folder then
+			local parts = {}
+			for _, obj in ipairs(folder:GetDescendants()) do
+				if obj:IsA("BasePart") then
+					table.insert(parts, obj)
+				end
+			end
+
+			table.sort(parts, function(a, b)
+				return (tonumber(a.Name) or 0) < (tonumber(b.Name) or 0)
+			end)
+
+			for _, part in ipairs(parts) do
+				table.insert(collected, {
+					Name = part.Name,
+					Position = part.Position,
+					Part = part,
+				})
+			end
+		end
+	end
+
+	placementState.PathPoints = collected
+	placementState.LastPathScan = os.clock()
+
+	result.Success = #collected > 0
+	result.Count = #collected
+	result.Points = collected
+	result.Reason = result.Success and "OK" or "NoPathPoints"
+
+	if result.Success then
+		m3Log("ScanPathTrajectory success | points =", #collected)
+	else
+		m3Warn("ScanPathTrajectory failed | no path points")
+	end
+
+	return result
+end
+
+function Module3.TrackEnemies()
+	local result = {
+		Success = true,
+		Count = 0,
+		Enemies = {},
+		Reason = "OK",
+	}
+
+	local enemiesFolder = workspace:FindFirstChild("Enemies")
+	local tracked = {}
+
+	if enemiesFolder then
+		for _, enemy in ipairs(enemiesFolder:GetChildren()) do
+			local hrp = enemy:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				tracked[enemy] = {
+					Model = enemy,
+					Name = enemy.Name,
+					Position = hrp.Position,
+				}
+				result.Count += 1
+			end
+		end
+	end
+
+	placementState.EnemyTracking = tracked
+	placementState.LastEnemyScan = os.clock()
+	result.Enemies = tracked
+
+	return result
+end
+
+local function getCoverageEnemies(position, radius)
+	local hits = {}
+
+	for _, enemyData in pairs(placementState.EnemyTracking) do
+		if enemyData and enemyData.Position then
+			local distance = (enemyData.Position - position).Magnitude
+			if distance <= radius then
+				table.insert(hits, {
+					Name = enemyData.Name,
+					Distance = distance,
+					Position = enemyData.Position,
+				})
+			end
+		end
+	end
+
+	table.sort(hits, function(a, b)
+		return a.Distance < b.Distance
+	end)
+
+	return hits
+end
+
+function Module3.ValidatePlacementCell(candidatePosition, towerType, coverageRadius)
+	local result = {
+		Success = false,
+		InputPosition = candidatePosition,
+		TowerType = towerType or "Base",
+		CoverageRadius = tonumber(coverageRadius) or 25,
+		FinalPosition = nil,
+		CFrame = nil,
+		Checks = {
+			Ground = false,
+			Collision = false,
+			Coverage = false,
+			TowerType = false,
+		},
+		Reason = nil,
+		Score = 0,
+	}
+
+	if typeof(candidatePosition) ~= "Vector3" then
+		result.Reason = "InvalidPosition"
+		return result
+	end
+
+	local placeableFolder = getPlaceableFolder(result.TowerType)
+	if not placeableFolder then
+		result.Reason = "PlaceableFolderMissing"
+		return result
+	end
+	result.Checks.TowerType = true
+
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Include
+	rayParams.FilterDescendantsInstances = {placeableFolder}
+
+	local rayResult = nil
+	local rayOk, rayErr = pcall(function()
+		rayResult = workspace:Raycast(
+			candidatePosition + Vector3.new(0, 60, 0),
+			Vector3.new(0, -120, 0),
+			rayParams
+		)
+	end)
+
+	if not rayOk then
+		result.Reason = "GroundRaycastFailed:" .. tostring(rayErr)
+		return result
+	end
+
+	if not rayResult then
+		result.Reason = "GroundInvalid"
+		return result
+	end
+
+	result.Checks.Ground = true
+	result.FinalPosition = rayResult.Position
+	result.CFrame = CFrame.new(rayResult.Position)
+
+	local overlapParams = OverlapParams.new()
+	overlapParams.FilterType = Enum.RaycastFilterType.Include
+	if workspace:FindFirstChild("Unit") then
+		overlapParams.FilterDescendantsInstances = {workspace.Unit}
+	else
+		overlapParams.FilterDescendantsInstances = {}
+	end
+
+	local collisionCount = 0
+	local overlapOk, overlapErr = pcall(function()
+		collisionCount = #workspace:GetPartBoundsInBox(result.CFrame, Vector3.new(4, 4, 4), overlapParams)
+	end)
+
+	if not overlapOk then
+		result.Reason = "CollisionCheckFailed:" .. tostring(overlapErr)
+		return result
+	end
+
+	if collisionCount > 0 then
+		result.Reason = "BlockedByTower"
+		return result
+	end
+	result.Checks.Collision = true
+
+	local hits = getCoverageEnemies(result.FinalPosition, result.CoverageRadius)
+	if #hits <= 0 then
+		result.Reason = "NoCoverage"
+		return result
+	end
+	result.Checks.Coverage = true
+
+	local nearestDistance = hits[1] and hits[1].Distance or result.CoverageRadius
+	result.Score = (#hits * 100) - nearestDistance
+	result.Success = true
+	result.Reason = "OK"
+
+	return result
+end
+
+function Module3.CalculatePlacementPosition(towerName, towerType, coverageRadius)
+	local result = {
+		Success = false,
+		TowerName = towerName,
+		TowerType = towerType or "Base",
+		CoverageRadius = tonumber(coverageRadius) or 25,
+		Phase = nil,
+		BestPosition = nil,
+		BestCFrame = nil,
+		BestScore = -math.huge,
+		BestValidation = nil,
+		CandidatesChecked = 0,
+		Reason = nil,
+	}
+
+	local pathPoints = placementState.PathPoints
+	if #pathPoints == 0 then
+		local scanResult = Module3.ScanPathTrajectory()
+		pathPoints = scanResult.Points or {}
+	end
+
+	if #pathPoints == 0 then
+		result.Reason = "NoPathPoints"
+		return result
+	end
+
+	local bestValidation = nil
+
+	-- Phase 1A + 1B
+	for i = 1, #pathPoints, 3 do
+		local point = pathPoints[i]
+		if point and point.Position then
+			local validateResult = Module3.ValidatePlacementCell(point.Position, result.TowerType, result.CoverageRadius)
+			result.CandidatesChecked += 1
+
+			if validateResult.Success then
+				if (not bestValidation) or validateResult.Score > bestValidation.Score then
+					bestValidation = validateResult
+					result.BestPosition = validateResult.FinalPosition
+					result.BestCFrame = validateResult.CFrame
+					result.BestValidation = validateResult
+					result.BestScore = validateResult.Score
+					result.Phase = "Phase1"
+				end
+			end
+		end
+		task.wait()
+	end
+
+	if bestValidation then
+		result.Success = true
+		result.Reason = "OK"
+		return result
+	end
+
+	-- Phase 2 fallback to learned
+	local learnedType = learnedPlacements[towerName] or result.TowerType
+	local placeableFolder = getPlaceableFolder(learnedType)
+
+	if placeableFolder then
+		for _, obj in ipairs(placeableFolder:GetDescendants()) do
+			if obj:IsA("BasePart") then
+				local validateResult = Module3.ValidatePlacementCell(obj.Position, learnedType, result.CoverageRadius)
+				result.CandidatesChecked += 1
+
+				if validateResult.Success then
+					if (not bestValidation) or validateResult.Score > bestValidation.Score then
+						bestValidation = validateResult
+						result.BestPosition = validateResult.FinalPosition
+						result.BestCFrame = validateResult.CFrame
+						result.BestValidation = validateResult
+						result.BestScore = validateResult.Score
+						result.Phase = "Phase2"
+						result.TowerType = learnedType
+					end
+				end
+			end
+			task.wait()
+		end
+	end
+
+	if bestValidation then
+		result.Success = true
+		result.Reason = "OK"
+		return result
+	end
+
+	result.Reason = "NoValidPlacement"
+	return result
+end
+
+-- ========================================================================= --
+-- 🟠 [MODULE 4]: Real Placement Executor
+-- ========================================================================= --
+
+local Module4 = {}
+
+local function m4Log(...)
+	print("[Module4]", ...)
+end
+
+local function m4Warn(...)
+	warn("[Module4]", ...)
+end
+
+local function getDeckSnapshot()
+	local result = {
+		Success = false,
+		Cards = {},
+		Reason = nil,
+	}
+
+	local hud = LocalPlayer.PlayerGui:FindFirstChild("HUD")
+	if not hud then
+		result.Reason = "HUDMissing"
+		return result
+	end
+
+	local bottomFrame = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
+	if not bottomFrame then
+		result.Reason = "BottomFrameMissing"
+		return result
+	end
+
+	local unitFrame = bottomFrame:FindFirstChild("Unit")
+	if not unitFrame then
+		result.Reason = "UnitFrameMissing"
+		return result
+	end
+
+	for index, slotName in ipairs({"One", "Two", "Three", "Four", "Five", "Six"}) do
+		local slot = unitFrame:FindFirstChild(slotName)
+		if slot and slot:FindFirstChild("Unit") and slot.Unit.Value ~= "" then
+			local cost = 9999
+
+			for _, obj in ipairs(slot:GetDescendants()) do
+				if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Text:match("%d+") then
+					cost = tonumber(obj.Text:match("%d+")) or cost
+					break
+				end
+			end
+
+			table.insert(result.Cards, {
+				Index = index,
+				SlotName = slotName,
+				Name = tostring(slot.Unit.Value),
+				Cost = cost,
+			})
+		end
+	end
+
+	result.Success = true
+	result.Reason = "OK"
+	return result
+end
+
+local function resolveCardByIndex(cardIndex)
+	local deckResult = getDeckSnapshot()
+	if not deckResult.Success then
+		return {
+			Success = false,
+			Reason = deckResult.Reason,
+			Card = nil,
+		}
+	end
+
+	for _, card in ipairs(deckResult.Cards) do
+		if card.Index == tonumber(cardIndex) then
+			return {
+				Success = true,
+				Reason = "OK",
+				Card = card,
+			}
+		end
+	end
+
+	return {
+		Success = false,
+		Reason = "CardIndexNotFound",
+		Card = nil,
+	}
+end
+
+local function countOwnedUnitsByName(unitName)
+	local count = 0
+	local unitFolder = workspace:FindFirstChild("Unit")
+	if not unitFolder then
+		return count
+	end
+
+	for _, unit in ipairs(unitFolder:GetChildren()) do
+		if unit:FindFirstChild("Owner") and unit.Owner.Value == LocalPlayer and unit.Name == unitName then
+			count += 1
+		end
+	end
+
+	return count
+end
+
+local function normalizeToCFrame(positionOrCFrame)
+	if typeof(positionOrCFrame) == "CFrame" then
+		return positionOrCFrame
+	end
+	if typeof(positionOrCFrame) == "Vector3" then
+		return CFrame.new(positionOrCFrame)
+	end
+	return nil
+end
+
+function Module4.PlaceTowerAtPosition(cardIndex, positionOrCFrame, towerType)
+	local result = {
+		Success = false,
+		CardIndex = tonumber(cardIndex),
+		Card = nil,
+		TowerType = towerType or "Base",
+		CFrame = nil,
+		Reason = nil,
+		LearningUpdated = false,
+	}
+
+	local cardResult = resolveCardByIndex(cardIndex)
+	if not cardResult.Success then
+		result.Reason = cardResult.Reason
+		return result
+	end
+	result.Card = cardResult.Card
+
+	local cf = normalizeToCFrame(positionOrCFrame)
+	if not cf then
+		result.Reason = "InvalidPlacementCFrame"
+		return result
+	end
+	result.CFrame = cf
+
+	local moneyObj = LocalPlayer:FindFirstChild("Money")
+	local beforeMoney = moneyObj and tonumber(moneyObj.Value) or nil
+	local beforeCount = countOwnedUnitsByName(result.Card.Name)
+
+	local fireOk, fireErr = pcall(function()
+		inputRemote:FireServer("Summon", {
+			Rotation = 0,
+			cframe = cf,
+			Unit = result.Card.Name
+		})
+	end)
+
+	if not fireOk then
+		result.Reason = "RemoteFailed:" .. tostring(fireErr)
+		return result
+	end
+
+	task.wait(0.2)
+
+	local afterMoney = moneyObj and tonumber(moneyObj.Value) or beforeMoney
+	local afterCount = countOwnedUnitsByName(result.Card.Name)
+
+	if (beforeMoney and afterMoney and afterMoney < beforeMoney) or (afterCount > beforeCount) then
+		learnedPlacements[result.Card.Name] = result.TowerType
+		result.LearningUpdated = true
+		result.Success = true
+		result.Reason = "OK"
+		m4Log("Placed tower:", result.Card.Name, "| slot:", result.CardIndex, "| type:", result.TowerType)
+		return result
+	end
+
+	result.Reason = "PlacementRejected"
+	return result
+end
+
+function Module4.RetryPlacementWithFallback(cardIndex, primaryPosition, fallbackPositions, towerType)
+	local result = {
+		Success = false,
+		CardIndex = tonumber(cardIndex),
+		TowerType = towerType or "Base",
+		Attempts = {},
+		AttemptCount = 0,
+		WinningAttempt = nil,
+		Reason = nil,
+	}
+
+	local positions = {primaryPosition}
+	if type(fallbackPositions) == "table" then
+		for i = 1, math.min(3, #fallbackPositions) do
+			table.insert(positions, fallbackPositions[i])
+		end
+	end
+
+	for attemptIndex, pos in ipairs(positions) do
+		local attempt = Module4.PlaceTowerAtPosition(cardIndex, pos, towerType)
+		attempt.AttemptIndex = attemptIndex
+
+		table.insert(result.Attempts, attempt)
+		result.AttemptCount = #result.Attempts
+
+		if attempt.Success then
+			result.Success = true
+			result.WinningAttempt = attempt
+			result.Reason = "OK"
+			return result
+		end
+
+		if attemptIndex < #positions then
+			task.wait(0.2)
+		end
+	end
+
+	result.Reason = "AllPlacementAttemptsFailed"
+	m4Warn("RetryPlacementWithFallback failed | cardIndex =", tostring(cardIndex))
+	return result
+end
+
+-- ========================================================================= --
+-- 🔷 [MODULE X]: Coordinator
+-- ========================================================================= --
+
+local ModuleX = {}
+
+local coordinatorStarted = false
+local coordinatorRuntime = {
+	LastEnemyTrackAt = 0,
+	LastPathRescanAt = 0,
+	LastDecisionAt = 0,
+	LastPlacementReason = "None",
+}
+
+local function mxLog(...)
+	print("[ModuleX]", ...)
+end
+
+local function mxWarn(...)
+	warn("[ModuleX]", ...)
+end
+
+local function safeStatus(text)
+	pcall(function()
+		if _G.MoMoStatus then
+			_G.MoMoStatus(text)
+		end
+	end)
+end
+
+local function getAffordableTower()
+	local result = {
+		Success = false,
+		Card = nil,
+		Reason = nil,
+	}
+
+	local deckResult = getDeckSnapshot()
+	if not deckResult.Success then
+		result.Reason = deckResult.Reason
+		return result
+	end
+
+	local moneyObj = LocalPlayer:FindFirstChild("Money")
+	local moneyValue = moneyObj and tonumber(moneyObj.Value) or 0
+
+	for _, card in ipairs(deckResult.Cards) do
+		local placedCount = countOwnedUnitsByName(card.Name)
+
+		if not (knownLimits[card.Name] and placedCount >= knownLimits[card.Name]) then
+			if moneyValue >= (tonumber(card.Cost) or math.huge) then
+				result.Success = true
+				result.Card = card
+				result.Reason = "OK"
+				return result
+			end
+		end
+	end
+
+	result.Reason = "NoAffordableTower"
+	return result
+end
+
+local function buildFallbackPositions(bestPosition)
+	local out = {}
+	if typeof(bestPosition) ~= "Vector3" then
+		return out
+	end
+
+	table.insert(out, bestPosition + Vector3.new(4, 0, 0))
+	table.insert(out, bestPosition + Vector3.new(-4, 0, 0))
+	table.insert(out, bestPosition + Vector3.new(0, 0, 4))
+
+	return out
+end
+
+function ModuleX.StartCoordinator()
+	if coordinatorStarted then
+		return {
+			Success = true,
+			Reason = "AlreadyStarted",
+			Runtime = coordinatorRuntime,
+		}
+	end
+
+	coordinatorStarted = true
+	mxLog("Coordinator started")
+
+	-- Enemy Tracking: 100ms
+	task.spawn(function()
+		while task.wait(0.1) do
+			if not _G.AutoPlayActive then
+				continue
+			end
+
+			local ok, err = pcall(function()
+				Module3.TrackEnemies()
+				coordinatorRuntime.LastEnemyTrackAt = os.clock()
+			end)
+
+			if not ok then
+				mxWarn("EnemyTrackingLoop:", tostring(err))
+			end
+		end
+	end)
+
+	-- Path Rescan: every 30s
+	task.spawn(function()
+		while task.wait(30) do
+			if not _G.AutoPlayActive then
+				continue
+			end
+
+			local ok, err = pcall(function()
+				Module3.ScanPathTrajectory()
+				coordinatorRuntime.LastPathRescanAt = os.clock()
+			end)
+
+			if not ok then
+				mxWarn("PathRescanLoop:", tostring(err))
+			end
+		end
+	end)
+
+	-- Main Logic: 300ms
+	task.spawn(function()
+		while task.wait(0.3) do
+			if not _G.AutoPlayEnabled or not _G.AutoPlayActive then
+				continue
+			end
+
+			local ok, err = pcall(function()
+				coordinatorRuntime.LastDecisionAt = os.clock()
+
+				local affordable = getAffordableTower()
+				if not affordable.Success or not affordable.Card then
+					coordinatorRuntime.LastPlacementReason = affordable.Reason or "NoAffordableTower"
+					return
+				end
+
+				local card = affordable.Card
+				local learnedType = learnedPlacements[card.Name] or "Base"
+
+				safeStatus("กำลังคำนวณตำแหน่ง " .. tostring(card.Name) .. "...")
+
+				local calculation = Module3.CalculatePlacementPosition(card.Name, learnedType, 25)
+				if not calculation or not calculation.Success or not calculation.BestPosition then
+					if learnedPlacements[card.Name] == nil then
+						learnedPlacements[card.Name] = (learnedType == "Base") and "Hill" or "Base"
+					end
+					coordinatorRuntime.LastPlacementReason = calculation and calculation.Reason or "CalculationFailed"
+					return
+				end
+
+				safeStatus("กำลังวาง " .. tostring(card.Name) .. "...")
+
+				local placement = Module4.RetryPlacementWithFallback(
+					card.Index,
+					calculation.BestCFrame or calculation.BestPosition,
+					buildFallbackPositions(calculation.BestPosition),
+					calculation.TowerType or learnedType
+				)
+
+				if placement and placement.Success then
+					learnedPlacements[card.Name] = calculation.TowerType or learnedType
+					coordinatorRuntime.LastPlacementReason = "Placed"
+					mxLog("Placed tower:", card.Name, "| slot:", card.Index)
+				else
+					if learnedPlacements[card.Name] == nil then
+						learnedPlacements[card.Name] = (learnedType == "Base") and "Hill" or "Base"
+					else
+						local placedCount = countOwnedUnitsByName(card.Name)
+						knownLimits[card.Name] = placedCount
+					end
+
+					coordinatorRuntime.LastPlacementReason = placement and placement.Reason or "PlacementFailed"
+				end
+			end)
+
+			if not ok then
+				coordinatorRuntime.LastPlacementReason = tostring(err)
+				mxWarn("MainLogicLoop:", tostring(err))
+			end
+		end
+	end)
+
+	return {
+		Success = true,
+		Reason = "OK",
+		Runtime = coordinatorRuntime,
+	}
+end
+
+-- ========================================================================= --
 -- 🔴 [MODULE 2]: Auto Play
 -- ========================================================================= --
 local function StartAutoPlay()
@@ -692,138 +1428,34 @@ local function StartAutoPlay()
         end
     end)
 
-    local pathPartsCache = {}
-    local function loadPaths()
-        local fN = {"Paths", "2Paths", "3Paths", "4Paths"}
-        for _, n in ipairs(fN) do
-            local f = workspace:FindFirstChild(n)
-            if f then
-                local p = {}
-                for _, part in pairs(f:GetDescendants()) do if part:IsA("BasePart") then table.insert(p, part) end end
-                table.sort(p, function(a, b) return (tonumber(a.Name) or 0) < (tonumber(b.Name) or 0) end)
-                for _, v in ipairs(p) do table.insert(pathPartsCache, v) end
-            end
-        end
-    end
-    loadPaths()
-
-    local function getBasePos()
-        local b = workspace:FindFirstChild("Base")
-        return (b and b:IsA("BasePart")) and b.Position or (#pathPartsCache > 0 and pathPartsCache[#pathPartsCache].Position or Vector3.new(0,0,0))
-    end
-
-    local function findSpot(pT)
-        local pF = workspace:WaitForChild("Placeable"):FindFirstChild(pT or "Base")
-        if not pF then return nil end
-        local tP = Vector3.new(0,0,0)
-        local eF = workspace:FindFirstChild("Enemies")
-        local bP = getBasePos()
-        local leading = nil
-        local mBD = math.huge
-        if eF then for _, e in pairs(eF:GetChildren()) do if e:FindFirstChild("HumanoidRootPart") then local d = (e.HumanoidRootPart.Position-bP).Magnitude; if d < mBD then mBD = d; leading = e end end end end
-        tP = leading and leading.HumanoidRootPart.Position or (#pathPartsCache > 0 and pathPartsCache[1].Position or tP)
-        local rP = RaycastParams.new()
-        rP.FilterType = Enum.RaycastFilterType.Include
-        rP.FilterDescendantsInstances = {pF}
-        for r = 5, 40, 5 do for a = 0, 360, 45 do
-            local rad = math.rad(a)
-            local rO = Vector3.new(tP.X + math.cos(rad)*r, tP.Y + 50, tP.Z + math.sin(rad)*r)
-            local res = workspace:Raycast(rO, Vector3.new(0,-100,0), rP)
-            if res then
-                local tCF = CFrame.new(res.Position)
-                local oP = OverlapParams.new()
-                oP.FilterType = Enum.RaycastFilterType.Include
-                if workspace:FindFirstChild("Unit") then oP.FilterDescendantsInstances = {workspace.Unit} end
-                if #workspace:GetPartBoundsInBox(tCF, Vector3.new(4,4,4), oP) == 0 then return tCF end
-            end
-        end end
-        return nil
-    end
-
-    local function getDeck()
-        local h = LocalPlayer.PlayerGui:WaitForChild("HUD")
-        local uF = h:WaitForChild("BottomFrame"):WaitForChild("Unit")
-        local d = {}
-        for _, sN in ipairs({"One","Two","Three","Four","Five","Six"}) do
-            local s = uF:FindFirstChild(sN)
-            if s and s:FindFirstChild("Unit") and s.Unit.Value ~= "" then
-                local c = 9999
-                for _, t in pairs(s:GetDescendants()) do if (t:IsA("TextLabel") or t:IsA("TextButton")) and t.Text:match("%d+") then c = tonumber(t.Text:match("%d+")); break end end
-                table.insert(d, {Name = s.Unit.Value, Cost = c})
-            end
-        end
-        return d
-    end
-
-    local Money = LocalPlayer:WaitForChild("Money")
-    local nextUnitIndex = 1 
+    -- upgrade เดิม
     task.spawn(function()
+        local Money = LocalPlayer:WaitForChild("Money")
+
         while task.wait(0.5) do
             if not _G.AutoPlayEnabled or not _G.AutoPlayActive then continue end
-            local uF = workspace:FindFirstChild("Unit")
 
-            -- 🆙 1. ระบบอัปเกรดตัวละครอัตโนมัติ (อัปเกรดให้ตันก่อนเสมอ)
+            local uF = workspace:FindFirstChild("Unit")
             if uF then
                 for _, u in pairs(uF:GetChildren()) do
                     if u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer then
                         local cost = u:GetAttribute("UpgradeCost") or u:GetAttribute("NextUpgradeCost") or 150
-                        if Money.Value >= tonumber(cost) then 
-                            pcall(function() serverRemote:InvokeServer("Upgrade", u) end) 
+                        if Money.Value >= tonumber(cost) then
+                            pcall(function()
+                                serverRemote:InvokeServer("Upgrade", u)
+                            end)
                         end
-                    end
-                end
-            end
-
-            -- 🔄 2. ระบบสลับคิววางตัวละคร (Round-Robin Placement)
-            local deck = getDeck()
-            if #deck > 0 then
-                if nextUnitIndex > #deck then nextUnitIndex = 1 end
-
-                for i = 1, #deck do
-                    local checkIdx = ((nextUnitIndex + i - 2) % #deck) + 1
-                    local card = deck[checkIdx]
-
-                    local count = 0
-                    if uF then 
-                        for _, u in pairs(uF:GetChildren()) do 
-                            if u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer and u.Name == card.Name then 
-                                count = count + 1 
-                            end 
-                        end 
-                    end
-                    
-                    if not (knownLimits[card.Name] and count >= knownLimits[card.Name]) then
-                        if Money.Value >= card.Cost then
-                            local pT = learnedPlacements[card.Name] or "Base"
-                            local spot = findSpot(pT) 
-                            
-                            if spot then
-                                local preMoney = Money.Value
-                                pcall(function() inputRemote:FireServer("Summon", {Rotation = 0, cframe = spot, Unit = card.Name}) end)
-                                task.wait(0.5) 
-                                
-                                if Money.Value < preMoney then 
-                                    if not learnedPlacements[card.Name] then learnedPlacements[card.Name] = pT end
-                                    nextUnitIndex = (checkIdx % #deck) + 1
-                                    break 
-                                else 
-                                    if not learnedPlacements[card.Name] then 
-                                        learnedPlacements[card.Name] = (pT == "Base") and "Hill" or "Base" 
-                                    else 
-                                        knownLimits[card.Name] = count 
-                                        nextUnitIndex = (checkIdx % #deck) + 1
-                                    end 
-                                end
-                            end
-                        else
-                            break
-                        end
-                    else
-                        nextUnitIndex = (checkIdx % #deck) + 1
                     end
                 end
             end
         end
+    end)
+
+    -- start coordinator ใหม่
+    pcall(function()
+        Module3.ScanPathTrajectory()
+        Module3.TrackEnemies()
+        ModuleX.StartCoordinator()
     end)
 
     -- ⏭️ [SUB-MODULE]: Auto Play Next (ข้ามด่านต่อไปเมื่อจบเกม V9.5)
