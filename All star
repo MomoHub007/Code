@@ -916,10 +916,22 @@ function Module3.ValidatePlacementCell(candidatePosition, towerType, coverageRad
 
 	local hits = getCoverageEnemies(result.FinalPosition, result.CoverageRadius)
 	result.CoveredEnemies = #hits
+	-- ✅ FIX #1: ถ้าไม่มี enemy ในสนาม ให้ pass ได้ แต่ score จะต่ำ
+	-- จะไม่ block placement ตอนต้นเกมที่ enemy ยังไม่มา
 	if #hits <= 0 then
-		result.Reason = "NoCoverage"
-		dlog("Reject:", result.Reason)
-		return result
+		-- ยังถือว่า coverage pass ถ้าไม่มี enemy เลยในสนาม
+		local enemiesFolder = workspace:FindFirstChild("Enemies")
+		local hasAnyEnemy = enemiesFolder and #enemiesFolder:GetChildren() > 0
+		if hasAnyEnemy then
+			-- มี enemy แต่ไม่อยู่ใน range → reject จริง
+			result.Reason = "NoCoverage"
+			dlog("Reject:", result.Reason)
+			return result
+		end
+		-- ไม่มี enemy เลย → อนุญาต แต่ score ต่ำ
+		result.CoveredEnemies = 0
+	else
+		result.NearestEnemyDistance = hits[1] and hits[1].Distance or result.CoverageRadius
 	end
 	result.Checks.Coverage = true
 
@@ -958,10 +970,10 @@ function Module3.CalculatePlacementPosition(towerName, towerType, coverageRadius
 		Reason = nil,
 	}
 
-	local pathPoints = placementState.PathPoints
+	local pathPoints = table.clone(placementState.PathPoints)
 	if #pathPoints == 0 then
 		local scanResult = Module3.ScanPathTrajectory()
-		pathPoints = scanResult.Points or {}
+		pathPoints = table.clone(scanResult.Points or {})
 	end
 
 	if #pathPoints == 0 then
@@ -969,14 +981,23 @@ function Module3.CalculatePlacementPosition(towerName, towerType, coverageRadius
 		return result
 	end
 
+	-- ✅ Sort: ปลายทาง (Anchor) มาก่อน เพื่อเน้นตั้งรับในจุดที่ลึกที่สุดก่อน
+	table.sort(pathPoints, function(a, b)
+		return (tonumber(a.Name) or 0) > (tonumber(b.Name) or 0)
+	end)
+
 	local bestValidation = nil
-	local radii = {8, 10, 12}
-	local angles = {0, 45, 90, 135, 180, 225, 270, 315}
+	local radii = {8, 12, 16}
+	local angles = {0, 90, 180, 270, 45, 135, 225, 315}
+	local maxScanRadius = (tonumber(coverageRadius) or 25) * 2
 
 	for i = 1, #pathPoints, 3 do
 		local point = pathPoints[i]
 		if point and point.Position then
 			for _, radius in ipairs(radii) do
+				-- ✅ Limit Scan Radius: ไม่สแกนไกลเกินรัศมีช่วยเหลือของ point นี้
+				if radius > maxScanRadius then break end
+
 				for _, angle in ipairs(angles) do
 					local rad = math.rad(angle)
 					local candidate = point.Position + Vector3.new(math.cos(rad) * radius, 0, math.sin(rad) * radius)
@@ -991,13 +1012,20 @@ function Module3.CalculatePlacementPosition(towerName, towerType, coverageRadius
 							result.BestCFrame = validateResult.CFrame
 							result.BestValidation = validateResult
 							result.BestScore = validateResult.Score
-							result.Phase = "Phase1"
+							result.Phase = "DynamicAnchor"
 						end
 					end
+
+					-- ✅ Early Exit: ถ้าเจอจุดที่คลุม enemy ได้เยอะพอแล้วใน candidate scan เบื้องต้น
+					if bestValidation and bestValidation.CoveredEnemies >= 5 and result.CandidatesChecked >= 24 then
+						break
+					end
 				end
-				task.wait()
+				if bestValidation and bestValidation.CoveredEnemies >= 5 and result.CandidatesChecked >= 24 then break end
 			end
 		end
+		if bestValidation and bestValidation.CoveredEnemies >= 5 and result.CandidatesChecked >= 24 then break end
+		task.wait()
 	end
 
 	if bestValidation then
@@ -1010,6 +1038,77 @@ function Module3.CalculatePlacementPosition(towerName, towerType, coverageRadius
 	result.Reason = "NoValidPlacement"
 	dwarn("NoValidPlacement for", tostring(towerName), "| checked =", result.CandidatesChecked)
 	return result
+end
+
+function Module3.DetectLeak()
+	local enemiesFolder = workspace:FindFirstChild("Enemies")
+	if not enemiesFolder or #enemiesFolder:GetChildren() == 0 then
+		return { State = "Handled", Reason = "NoEnemies" }
+	end
+
+	local enemies = enemiesFolder:GetChildren()
+	local pathPoints = placementState.PathPoints
+
+	-- 1. หาตัวที่ "เดินหน้าสุด" (Leading Enemy)
+	-- โดยปกติ Enemy ที่มี Distance สูงสุด หรืออยู่ใกล้ Path point เลขสูงๆ คือตัวหน้าสุด
+	local leader = nil
+	local leaderIndex = -math.huge
+
+	for _, enemy in ipairs(enemies) do
+		local hrp = enemy:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			-- หา Path point ที่ใกล้ศัตรูนี้ที่สุดเพื่อประเมินความคืบหน้า
+			local nearestPointIndex = 0
+			local minDist = math.huge
+			for i, pt in ipairs(pathPoints) do
+				local d = (pt.Position - hrp.Position).Magnitude
+				if d < minDist then
+					minDist = d
+					nearestPointIndex = i
+				end
+			end
+
+			if nearestPointIndex > leaderIndex then
+				leaderIndex = nearestPointIndex
+				leader = enemy
+			end
+		end
+	end
+
+	if not leader then return { State = "Handled" } end
+
+	local leaderHrp = leader:FindFirstChild("HumanoidRootPart")
+	local leaderPos = leaderHrp.Position
+
+	-- 2. เช็คว่ามี Unit ของเราคลุมถึงหรือไม่
+	local unitFolder = workspace:FindFirstChild("Unit")
+	local isHandled = false
+
+	if unitFolder then
+		for _, unit in ipairs(unitFolder:GetChildren()) do
+			local owner = unit:FindFirstChild("Owner")
+			local hrp = unit:FindFirstChild("HumanoidRootPart")
+			if owner and owner.Value == LocalPlayer and hrp then
+				-- ประเมิน Range (คร่าวๆ 25-50 studs)
+				local range = 35 -- ค่าเฉลี่ย
+				if (hrp.Position - leaderPos).Magnitude <= range then
+					isHandled = true
+					break
+				end
+			end
+		end
+	end
+
+	if isHandled then
+		return { State = "Handled", LeadingEnemy = leader }
+	else
+		return {
+			State = "Leaking",
+			LeadingEnemy = leader,
+			LeadingPos = leaderPos,
+			PathIndex = leaderIndex
+		}
+	end
 end
 
 -- ========================================================================= --
@@ -1325,6 +1424,25 @@ local function buildFallbackPositions(bestPosition)
 	return out
 end
 
+-- [[ 🛡️ SCOPE HELPERS ]] 
+local function GetOwnedUnits()
+	local units = {}
+	local unitFolder = workspace:FindFirstChild("Unit")
+	if not unitFolder then
+		return units
+	end
+
+	for _, u in ipairs(unitFolder:GetChildren()) do
+		local ok = pcall(function()
+			if u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer then
+				table.insert(units, u)
+			end
+		end)
+	end
+
+	return units
+end
+
 function ModuleX.StartCoordinator()
 	if coordinatorStarted then
 		return {
@@ -1373,69 +1491,130 @@ function ModuleX.StartCoordinator()
 		end
 	end)
 
-	-- Main Logic: 300ms
+	-- [[ 🛡️ LOCAL HELPERS ]] 
+	local function safeCall(tag, fn, ...)
+		if typeof(fn) ~= "function" then
+			warn("[ModuleX]", tag, "is nil or not a function")
+			return false, { Success = false, Reason = "NilFunction", Tag = tag }
+		end
+		local ok, result = pcall(fn, ...)
+		if not ok then
+			warn("[ModuleX]", tag, "failed:", result)
+			return false, { Success = false, Reason = "RuntimeError", Tag = tag, Error = tostring(result) }
+		end
+		return true, result
+	end
+
+	local function doUpgradeAll()
+		local status = { Success = false, Count = 0 }
+		local uF = workspace:FindFirstChild("Unit")
+		local moneyObj = LocalPlayer:FindFirstChild("Money")
+		local currentMoney = moneyObj and tonumber(moneyObj.Value) or 0
+		if not uF then return status end
+
+		for _, u in pairs(uF:GetChildren()) do
+			local owner = u:FindFirstChild("Owner")
+			if owner and owner.Value == LocalPlayer then
+				local cost = tonumber(u:GetAttribute("UpgradeCost") or u:GetAttribute("NextUpgradeCost") or 150)
+				if currentMoney >= cost then
+					local ok = pcall(function() serverRemote:InvokeServer("Upgrade", u) end)
+					if ok then
+						currentMoney -= cost
+						status.Count += 1
+						status.Success = true
+						task.wait(0.1)
+					end
+				end
+			end
+		end
+		return status
+	end
+
+	-- Unified Combat Director: 0.6s
 	task.spawn(function()
-		while task.wait(0.3) do
+		while task.wait(0.6) do
 			if not _G.AutoPlayEnabled or not _G.AutoPlayActive then
 				continue
 			end
 
 			if EmergencyState.ProtocolEngaged then
-				ELog("Standard placement paused by emergency protocol")
+				ELog("Standard combat routine paused by emergency protocol")
 				continue
 			end
 
 			local ok, err = pcall(function()
 				coordinatorRuntime.LastDecisionAt = os.clock()
 
-				local affordable = getAffordableTower()
-				if not affordable.Success or not affordable.Card then
-					coordinatorRuntime.LastPlacementReason = affordable.Reason or "NoAffordableTower"
+				local enemiesFolder = workspace:FindFirstChild("Enemies")
+				local hasEnemies = enemiesFolder and #enemiesFolder:GetChildren() > 0
+				local totalOwned = #GetOwnedUnits()
+
+				-- ✅ Protection: วางตัวละครได้แค่ 1 ตัวก่อนศัตรูมา (ป้องกัน Spawn Spam)
+				if not hasEnemies and totalOwned >= 1 then
+					coordinatorRuntime.LastPlacementReason = "NoEnemyYet"
 					return
 				end
 
-				local card = affordable.Card
-				local learnedType = learnedPlacements[card.Name] or "Base"
+				-- 1. Leak Detection (Check State)
+				local _, leakStatus = safeCall("Module3.DetectLeak", Module3 and Module3.DetectLeak)
+				leakStatus = leakStatus or { State = "Handled", Reason = "Fallback" }
+				
+				if leakStatus.State == "Leaking" then
+					mxLog("Leak detected! Intercepting...")
+					safeStatus("⚠️ กำลังสกัดกั้นศัตรูที่หลุด...")
 
-				safeStatus("กำลังคำนวณตำแหน่ง " .. tostring(card.Name) .. "...")
-
-				local calculation = Module3.CalculatePlacementPosition(card.Name, learnedType, 25)
-				if not calculation or not calculation.Success or not calculation.BestPosition then
-					if learnedPlacements[card.Name] == nil then
-						learnedPlacements[card.Name] = (learnedType == "Base") and "Hill" or "Base"
+					local _, affordable = safeCall("getAffordableTower", getAffordableTower)
+					if affordable and affordable.Success and affordable.Card then
+						local card = affordable.Card
+						local learnedType = learnedPlacements[card.Name] or "Base"
+						
+						local _, calculation = safeCall("Module3.CalculatePlacementPosition", Module3 and Module3.CalculatePlacementPosition, card.Name, learnedType, 25)
+						if calculation and calculation.Success then
+							local _, placement = safeCall("Module4.RetryPlacementWithFallback", Module4 and Module4.RetryPlacementWithFallback, card.Index, calculation.BestCFrame, buildFallbackPositions(calculation.BestPosition), learnedType)
+							if placement and placement.Success then
+								mxLog("Intercept deployment successful")
+							end
+						end
 					end
-					coordinatorRuntime.LastPlacementReason = calculation and calculation.Reason or "CalculationFailed"
 					return
 				end
 
-				safeStatus("กำลังวาง " .. tostring(card.Name) .. "...")
+				-- 2. Standard State (Handled)
+				-- A. Upgrade Priority
+				local _, upgraded = safeCall("doUpgradeAll", doUpgradeAll)
 
-				local placement = Module4.RetryPlacementWithFallback(
-					card.Index,
-					calculation.BestCFrame or calculation.BestPosition,
-					buildFallbackPositions(calculation.BestPosition),
-					calculation.TowerType or learnedType
-				)
+				-- B. Placement Logic (Conditional)
+				-- วางต่อเฉพาะถ้ามีเงินเหลือใบที่ 2 (Surplus Money)
+				local _, affordable = safeCall("getAffordableTower", getAffordableTower)
+				if affordable and affordable.Success and affordable.Card then
+					local moneyObj = LocalPlayer:FindFirstChild("Money")
+					local currentMoney = moneyObj and tonumber(moneyObj.Value) or 0
+					local cheapestCost = affordable.Card.Cost or 500
 
-				if placement and placement.Success then
-					learnedPlacements[card.Name] = calculation.TowerType or learnedType
-					coordinatorRuntime.LastPlacementReason = "Placed"
-					mxLog("Placed tower:", card.Name, "| slot:", card.Index)
-				else
-					if learnedPlacements[card.Name] == nil then
-						learnedPlacements[card.Name] = (learnedType == "Base") and "Hill" or "Base"
-					else
-						local placedCount = countOwnedUnitsByName(card.Name)
-						knownLimits[card.Name] = placedCount
+					if currentMoney >= (cheapestCost * 2) then
+						local card = affordable.Card
+						local learnedType = learnedPlacements[card.Name] or "Base"
+						
+						local _, calculation = safeCall("Module3.CalculatePlacementPosition", Module3 and Module3.CalculatePlacementPosition, card.Name, learnedType, 25)
+						if calculation and calculation.Success then
+							local _, placement = safeCall("Module4.RetryPlacementWithFallback", Module4 and Module4.RetryPlacementWithFallback, card.Index, calculation.BestCFrame, buildFallbackPositions(calculation.BestPosition), learnedType)
+							
+							if placement and placement.Success then
+								learnedPlacements[card.Name] = calculation.TowerType or learnedType
+								coordinatorRuntime.LastPlacementReason = "Placed"
+							else
+								local count = countOwnedUnitsByName(card.Name)
+								if count > 0 then
+									knownLimits[card.Name] = count
+								end
+							end
+						end
 					end
-
-					coordinatorRuntime.LastPlacementReason = placement and placement.Reason or "PlacementFailed"
 				end
 			end)
 
 			if not ok then
-				coordinatorRuntime.LastPlacementReason = tostring(err)
-				mxWarn("MainLogicLoop:", tostring(err))
+				mxWarn("UnifiedCombatLoop:", tostring(err))
 			end
 		end
 	end)
@@ -1446,6 +1625,8 @@ function ModuleX.StartCoordinator()
 		Runtime = coordinatorRuntime,
 	}
 end
+
+
 
 -- ========================================================================= --
 -- 🚨 [MODULE X]: EMERGENCY COORDINATOR
@@ -1460,126 +1641,163 @@ local function EWarn(...)
 	warn("[EmergencyCoordinator]", ...)
 end
 
-local function GetOwnedUnits()
-	local units = {}
-	local unitFolder = workspace:FindFirstChild("Unit")
-	if not unitFolder then
-		return units
-	end
 
-	for _, u in ipairs(unitFolder:GetChildren()) do
-		local ok = pcall(function()
-			if u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer then
-				table.insert(units, u)
-			end
-		end)
-		if not ok then
-			EWarn("GetOwnedUnits > failed to inspect unit", u.Name)
-		end
-	end
-
-	return units
-end
 
 local function ScanForModifier(modifierString)
 	local enemiesFolder = workspace:FindFirstChild("Enemies")
 	if not enemiesFolder then
-		return false
+		return false, nil
 	end
 
 	for _, enemy in ipairs(enemiesFolder:GetChildren()) do
 		local ok, found = pcall(function()
+			-- 1. Check Metadata BBGUI (TITLE_BBGUI)
 			local head = enemy:FindFirstChild("Head")
-			if not head then return false end
-
-			local bb = head:FindFirstChild("TITLE_BBGUI")
-			if not bb then return false end
-
-			local label = bb:FindFirstChild("TextLabel")
-			if not label or not label:IsA("TextLabel") then return false end
-
-			return label.Text == modifierString
-		end)
-
-		if ok and found then
-			ELog("Threat detected:", modifierString, "| Enemy =", enemy.Name)
-			return true
-		end
-	end
-
-	return false
-end
-
-local function HasUpgradedDefenders(minimumTier)
-	for _, unit in ipairs(GetOwnedUnits()) do
-		local ok, value = pcall(function()
-			local upgradeTag = unit:FindFirstChild("UpgradeTag")
-			if not upgradeTag then
-				return nil
-			end
-			return tonumber(upgradeTag.Value)
-		end)
-
-		if ok and value and value >= minimumTier then
-			ELog("Board ready with upgraded defender:", unit.Name, "| Tier =", value)
-			return true
-		end
-	end
-
-	return false
-end
-
-local function GetDeckWithStars()
-	local deck = {}
-	local hud = LocalPlayer.PlayerGui:FindFirstChild("HUD")
-	if not hud then
-		return deck
-	end
-
-	local bottomFrame = hud:FindFirstChild("BottomFrame")
-	if not bottomFrame then
-		return deck
-	end
-
-	local unitFrame = bottomFrame:FindFirstChild("Unit")
-	if not unitFrame then
-		return deck
-	end
-
-	for _, slotName in ipairs({"One","Two","Three","Four","Five","Six"}) do
-		local slot = unitFrame:FindFirstChild(slotName)
-		if slot and slot:FindFirstChild("Unit") and slot.Unit.Value ~= "" then
-			local cost = 9999
-			local stars = nil
-
-			for _, obj in ipairs(slot:GetDescendants()) do
-				if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Text then
-					if not stars and obj.Text:match("^%d+$") then
-						local n = tonumber(obj.Text)
-						if n and n >= 1 and n <= 6 then
-							stars = n
-						end
-					end
-
-					if obj.Text:match("%d+") then
-						local n = tonumber(obj.Text:match("%d+"))
-						if n and n < cost then
-							cost = n
+			if head then
+				local bb = head:FindFirstChild("TITLE_BBGUI")
+				if bb then
+					for _, label in ipairs(bb:GetDescendants()) do
+						if label:IsA("TextLabel") and label.Text == modifierString then
+							return true
 						end
 					end
 				end
 			end
 
-			table.insert(deck, {
-				Name = slot.Unit.Value,
-				Cost = cost,
-				Stars = stars or 6,
-				SlotName = slotName,
-			})
+			-- 2. Check Attributes & Tags
+			if enemy:GetAttribute("Modifier") == modifierString or enemy:FindFirstChild(modifierString) then
+				return true
+			end
+
+			-- 3. High HP Check (Substitutes for Powerful/Boss)
+			local hum = enemy:FindFirstChildOfClass("Humanoid")
+			if hum and hum.MaxHealth > 100000 then -- ตัวอย่างค่า HP สำหรับบอส
+				return true
+			end
+
+			-- 4. Name Pattern
+			if enemy.Name:find(modifierString) then
+				return true
+			end
+			
+			return false
+		end)
+
+		if ok and found then
+			ELog("Threat detected:", modifierString, "| Enemy =", enemy.Name)
+			return true, enemy
 		end
 	end
 
-	return deck
+	return false, nil
+end
+
+local function HasUpgradedDefenders(enemyInstance)
+	if not enemyInstance then return false end
+	local enemyHrp = enemyInstance:FindFirstChild("HumanoidRootPart")
+	if not enemyHrp then return false end
+	
+	local enemyPos = enemyHrp.Position
+	local threatRadius = 40 -- รัศมีรอบศัตรูที่ต้องการเช็ค
+
+	for _, unit in ipairs(GetOwnedUnits()) do
+		local ok, handled = pcall(function()
+			local hrp = unit:FindFirstChild("HumanoidRootPart")
+			local upgradeTag = unit:FindFirstChild("UpgradeTag")
+			if not hrp or not upgradeTag then return false end
+
+			local distToEnemy = (hrp.Position - enemyPos).Magnitude
+			local level = tonumber(upgradeTag.Value) or 0
+
+			-- ✅ Scope เฉพาะยูนิตที่อยู่ภายรัศมี 40 studs จาก enemy + Level >= 2
+			if distToEnemy <= threatRadius and level >= 2 then
+				return true
+			end
+			return false
+		end)
+
+		if ok and handled then
+			ELog("Board ready with upgraded defender near threat:", unit.Name)
+			return true
+		end
+	end
+
+	return false
+end
+
+-- ==========================================================
+-- 🔍 ฟังก์ชันอ่านดาวจากสี UIGradient (ดักจับ 4 ดาว vs 5 ดาว)
+-- ==========================================================
+local function DetermineStarsFromSlot(slotObj)
+    local estimatedStars = 6 -- ค่าเริ่มต้น (ถ้าหาไม่เจอให้ตีเป็นตัวแพงไว้ก่อน)
+
+    for _, desc in pairs(slotObj:GetDescendants()) do
+        if (desc.Name == "Rayburst" or desc.Name == "UIStroke") and desc:IsA("UIGradient") then
+            pcall(function()
+                local color = desc.Color.Keypoints[1].Value
+                local r = math.floor(color.R * 255 + 0.5)
+                local g = math.floor(color.G * 255 + 0.5)
+                local b = math.floor(color.B * 255 + 0.5)
+
+                -- 🟩 เช็คสีเขียว 4 ดาว (G สูง, B ต่ำ)
+                if g > 200 and b < 150 then
+                    estimatedStars = 4
+                -- 🟦 เช็คสีฟ้า 5 ดาว (B สูง, G ต่ำ)
+                elseif b > 200 and g < 150 then
+                    estimatedStars = 5
+                end
+            end)
+            if estimatedStars ~= 6 then break end -- ถ้าเจอแล้วให้หยุดหาประหยัดทรัพยากร
+        end
+    end
+
+    return estimatedStars
+end
+
+-- ==========================================================
+-- 📇 ดึงข้อมูล Deck ปัจจุบันพร้อมระดับดาวที่แท้จริง
+-- ==========================================================
+local function GetDeckWithStars()
+    local deck = {}
+    local hud = LocalPlayer.PlayerGui:FindFirstChild("HUD")
+    if not hud then return deck end
+
+    local bottomFrame = hud:FindFirstChild("BottomFrame")
+    if not bottomFrame then return deck end
+
+    local unitFrame = bottomFrame:FindFirstChild("Unit")
+    if not unitFrame then return deck end
+
+    for _, slotName in ipairs({"One","Two","Three","Four","Five","Six"}) do
+        local slot = unitFrame:FindFirstChild(slotName)
+        if slot and slot:FindFirstChild("Unit") and slot.Unit.Value ~= "" then
+            local cost = 9999
+
+            -- 1. หาค่า Cost จาก TextLabel
+            for _, obj in ipairs(slot:GetDescendants()) do
+                if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Text then
+                    if obj.Text:match("%d+") then
+                        local n = tonumber(obj.Text:match("%d+"))
+                        if n and n < cost then
+                            cost = n
+                        end
+                    end
+                end
+            end
+
+            -- 2. หาค่า Stars จากสีของ UIGradient! (ใช้ฟังก์ชันใหม่)
+            local stars = DetermineStarsFromSlot(slot)
+
+            table.insert(deck, {
+                Name = slot.Unit.Value,
+                Cost = cost,
+                Stars = stars,
+                SlotName = slotName,
+            })
+        end
+    end
+
+    return deck
 end
 
 local function FindOptimalEmergencyCard(maxStars)
@@ -1655,68 +1873,68 @@ local function FindOwnedUnitByName(name)
 	return nil
 end
 
-local function FindSpotForEmergency()
-	local pathPartsCache = {}
-	for _, folderName in ipairs({"Paths","2Paths","3Paths","4Paths"}) do
-		local folder = workspace:FindFirstChild(folderName)
-		if folder then
-			for _, part in ipairs(folder:GetDescendants()) do
-				if part:IsA("BasePart") then
-					table.insert(pathPartsCache, part)
-				end
+local function FindSpotForEmergency(enemyInstance)
+	if not enemyInstance then return nil, "NoEnemyProvided" end
+	local enemyHrp = enemyInstance:FindFirstChild("HumanoidRootPart")
+	if not enemyHrp then return nil, "NoHrp" end
+
+	local enemyPos = enemyHrp.Position
+	local travelDir = Vector3.new(0, 0, 0)
+
+	-- คำนวณทิศทาง (Toward Base/Nearest Path)
+	local pathPoints = placementState.PathPoints
+	if #pathPoints > 0 then
+		local nearestPt = 1
+		local minDist = math.huge
+		for i, pt in ipairs(pathPoints) do
+			local d = (pt.Position - enemyPos).Magnitude
+			if d < minDist then
+				minDist = d
+				nearestPt = i
 			end
 		end
+		
+		-- ทิศทางไปจุดถัดไป
+		local nextPt = pathPoints[nearestPt + 1] or pathPoints[nearestPt]
+		travelDir = (nextPt.Position - enemyPos).Unit
 	end
-
-	table.sort(pathPartsCache, function(a, b)
-		return (tonumber(a.Name) or 0) < (tonumber(b.Name) or 0)
-	end)
 
 	local placeableRoot = workspace:FindFirstChild("Placeable")
-	if not placeableRoot then
-		return nil, "NoPlaceableRoot"
-	end
+	if not placeableRoot then return nil, "NoPlaceableRoot" end
 
-	for _, placeType in ipairs({"Base", "Hill"}) do
-		local placeableFolder = placeableRoot:FindFirstChild(placeType)
-		if placeableFolder then
-			local rayParams = RaycastParams.new()
-			rayParams.FilterType = Enum.RaycastFilterType.Include
-			rayParams.FilterDescendantsInstances = {placeableFolder}
+	-- ✅ Intercept Logic: ดักหน้าศัตรู 20/35/50 studs
+	local interceptDistances = {20, 35, 50}
 
-			for _, refPart in ipairs(pathPartsCache) do
-				local p = refPart.Position
+	for _, dist in ipairs(interceptDistances) do
+		local interceptPoint = enemyPos + (travelDir * dist)
 
-				for r = 8, 24, 4 do
-					for a = 0, 315, 45 do
-						local rad = math.rad(a)
-						local origin = Vector3.new(p.X + math.cos(rad) * r, p.Y + 50, p.Z + math.sin(rad) * r)
-						local ray = workspace:Raycast(origin, Vector3.new(0, -100, 0), rayParams)
+		for _, placeType in ipairs({"Base", "Hill"}) do
+			local placeableFolder = placeableRoot:FindFirstChild(placeType)
+			if placeableFolder then
+				local rayParams = RaycastParams.new()
+				rayParams.FilterType = Enum.RaycastFilterType.Include
+				rayParams.FilterDescendantsInstances = {placeableFolder}
 
-						if ray then
-							local cf = CFrame.new(ray.Position)
-							local overlap = OverlapParams.new()
-							overlap.FilterType = Enum.RaycastFilterType.Include
-							if workspace:FindFirstChild("Unit") then
-								overlap.FilterDescendantsInstances = {workspace.Unit}
-							end
+				local ray = workspace:Raycast(interceptPoint + Vector3.new(0, 50, 0), Vector3.new(0, -100, 0), rayParams)
+				if ray then
+					local cf = CFrame.new(ray.Position)
+					local overlap = OverlapParams.new()
+					overlap.FilterType = Enum.RaycastFilterType.Include
+					if workspace:FindFirstChild("Unit") then overlap.FilterDescendantsInstances = {workspace.Unit} end
 
-							local blocked = false
-							local ok = pcall(function()
-								blocked = #workspace:GetPartBoundsInBox(cf, Vector3.new(6,6,6), overlap) > 0
-							end)
+					local blocked = false
+					pcall(function() blocked = #workspace:GetPartBoundsInBox(cf, Vector3.new(6,6,6), overlap) > 0 end)
 
-							if ok and not blocked then
-								return cf, placeType
-							end
-						end
+					if not blocked then
+						ELog("Intercept spot found at distance:", dist)
+						return cf, placeType
 					end
 				end
 			end
 		end
 	end
 
-	return nil, "NoEmergencySpot"
+	return nil, "NoInterceptSpot"
 end
 
 local function RetryPendingEmergencyUpgrade()
@@ -1774,12 +1992,12 @@ local function RetryPendingEmergencyUpgrade()
 	return false
 end
 
-local function ExecuteEmergencyDeployment(cardData)
+local function ExecuteEmergencyDeployment(cardData, enemyInstance)
 	if not cardData then
 		return false, "NoCardData"
 	end
 
-	local threatStillActive = ScanForModifier("Powerful")
+	local threatStillActive, currentThreat = ScanForModifier("Powerful")
 	if not threatStillActive then
 		return false, "ThreatGone"
 	end
@@ -1803,7 +2021,7 @@ local function ExecuteEmergencyDeployment(cardData)
 		return false, "ExistingUnitPendingUpgrade"
 	end
 
-	local spot, placeType = FindSpotForEmergency()
+	local spot, placeType = FindSpotForEmergency(enemyInstance or currentThreat)
 	if not spot then
 		return false, tostring(placeType or "NoSpot")
 	end
@@ -1929,16 +2147,17 @@ function EmergencyCoordinator.ReleaseStandardRoutine()
 end
 
 function EmergencyCoordinator.EvaluateThreatLevel()
-	EmergencyState.IsThreatActive = ScanForModifier("Powerful")
-	EmergencyState.IsBoardReady = HasUpgradedDefenders(1)
+	local active, enemy = ScanForModifier("Powerful")
+	EmergencyState.IsThreatActive = active
+	EmergencyState.IsBoardReady = HasUpgradedDefenders(enemy)
 
 	if (not EmergencyState.IsThreatActive) or EmergencyState.IsBoardReady then
 		EmergencyCoordinator.ReleaseStandardRoutine()
-		return false
+		return false, nil
 	end
 
 	EmergencyCoordinator.LockStandardRoutine()
-	return true
+	return true, enemy
 end
 
 function EmergencyCoordinator.Tick()
@@ -1955,13 +2174,8 @@ function EmergencyCoordinator.Tick()
 		return true
 	end
 
-	local emergencyNeeded = EmergencyCoordinator.EvaluateThreatLevel()
+	local emergencyNeeded, threatEnemy = EmergencyCoordinator.EvaluateThreatLevel()
 	if not emergencyNeeded then
-		return false
-	end
-
-	if ScanForModifier("Powerful") == false then
-		EmergencyCoordinator.ReleaseStandardRoutine()
 		return false
 	end
 
@@ -1978,7 +2192,7 @@ function EmergencyCoordinator.Tick()
 	end
 	EmergencyState.LastAction = tick()
 
-	local success, reason = ExecuteEmergencyDeployment(cardData)
+	local success, reason = ExecuteEmergencyDeployment(cardData, threatEnemy)
 	ELog("Emergency Tick Result:", tostring(success), "|", tostring(reason))
 
 	if success then
@@ -2047,34 +2261,7 @@ local function StartAutoPlay()
         end
     end)
 
-    -- upgrade เดิม
-    task.spawn(function()
-        local Money = LocalPlayer:WaitForChild("Money")
-
-        while task.wait(0.5) do
-            if not _G.AutoPlayEnabled or not _G.AutoPlayActive then continue end
-            if EmergencyState.ProtocolEngaged then
-                ELog("Standard upgrade paused by emergency protocol")
-                continue
-            end
-
-            local uF = workspace:FindFirstChild("Unit")
-            if uF then
-                for _, u in pairs(uF:GetChildren()) do
-                    if u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer then
-                        local cost = u:GetAttribute("UpgradeCost") or u:GetAttribute("NextUpgradeCost") or 150
-                        if Money.Value >= tonumber(cost) then
-                            pcall(function()
-                                serverRemote:InvokeServer("Upgrade", u)
-                            end)
-                        end
-                    end
-                end
-            end
-        end
-    end)
-
-    -- start coordinator ใหม่
+    -- Unified Combat Director ถูกเริ่มผ่าน ModuleX.StartCoordinator()
     pcall(function()
         Module3.ScanPathTrajectory()
         Module3.TrackEnemies()
