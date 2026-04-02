@@ -668,6 +668,20 @@ local function m3Warn(...)
 	warn("[Module3]", ...)
 end
 
+local DEBUG_PLACEMENT = true
+
+local function dlog(...)
+	if DEBUG_PLACEMENT then
+		print("[PlacementDebug]", ...)
+	end
+end
+
+local function dwarn(...)
+	if DEBUG_PLACEMENT then
+		warn("[PlacementDebug]", ...)
+	end
+end
+
 local function getPlaceableFolder(towerType)
 	local placeable = workspace:FindFirstChild("Placeable")
 	if not placeable then
@@ -796,9 +810,13 @@ function Module3.ValidatePlacementCell(candidatePosition, towerType, coverageRad
 			Collision = false,
 			Coverage = false,
 			TowerType = false,
+			PathDistance = false,
 		},
 		Reason = nil,
 		Score = 0,
+		CoveredEnemies = 0,
+		NearestEnemyDistance = math.huge,
+		NearestPathDistance = math.huge,
 	}
 
 	if typeof(candidatePosition) ~= "Vector3" then
@@ -828,11 +846,13 @@ function Module3.ValidatePlacementCell(candidatePosition, towerType, coverageRad
 
 	if not rayOk then
 		result.Reason = "GroundRaycastFailed:" .. tostring(rayErr)
+		dwarn("Reject:", result.Reason)
 		return result
 	end
 
 	if not rayResult then
 		result.Reason = "GroundInvalid"
+		dlog("Reject:", result.Reason, "| towerType =", result.TowerType)
 		return result
 	end
 
@@ -840,6 +860,24 @@ function Module3.ValidatePlacementCell(candidatePosition, towerType, coverageRad
 	result.FinalPosition = rayResult.Position
 	result.CFrame = CFrame.new(rayResult.Position)
 
+	-- กันชิด path เกินไป
+	for _, point in ipairs(placementState.PathPoints) do
+		if point and point.Position then
+			local dist = (point.Position - result.FinalPosition).Magnitude
+			if dist < result.NearestPathDistance then
+				result.NearestPathDistance = dist
+			end
+		end
+	end
+
+	if result.NearestPathDistance < 4 then
+		result.Reason = "TooCloseToPath"
+		dlog("Reject:", result.Reason, "| dist =", math.floor(result.NearestPathDistance * 100) / 100)
+		return result
+	end
+	result.Checks.PathDistance = true
+
+	-- ขยาย collision box ให้เข้มขึ้น
 	local overlapParams = OverlapParams.new()
 	overlapParams.FilterType = Enum.RaycastFilterType.Include
 	if workspace:FindFirstChild("Unit") then
@@ -850,31 +888,47 @@ function Module3.ValidatePlacementCell(candidatePosition, towerType, coverageRad
 
 	local collisionCount = 0
 	local overlapOk, overlapErr = pcall(function()
-		collisionCount = #workspace:GetPartBoundsInBox(result.CFrame, Vector3.new(4, 4, 4), overlapParams)
+		collisionCount = #workspace:GetPartBoundsInBox(result.CFrame, Vector3.new(6, 6, 6), overlapParams)
 	end)
 
 	if not overlapOk then
 		result.Reason = "CollisionCheckFailed:" .. tostring(overlapErr)
+		dwarn("Reject:", result.Reason)
 		return result
 	end
 
 	if collisionCount > 0 then
 		result.Reason = "BlockedByTower"
+		dlog("Reject:", result.Reason, "| collisions =", collisionCount)
 		return result
 	end
 	result.Checks.Collision = true
 
 	local hits = getCoverageEnemies(result.FinalPosition, result.CoverageRadius)
+	result.CoveredEnemies = #hits
 	if #hits <= 0 then
 		result.Reason = "NoCoverage"
+		dlog("Reject:", result.Reason)
 		return result
 	end
 	result.Checks.Coverage = true
 
-	local nearestDistance = hits[1] and hits[1].Distance or result.CoverageRadius
-	result.Score = (#hits * 100) - nearestDistance
+	result.NearestEnemyDistance = hits[1] and hits[1].Distance or result.CoverageRadius
+
+	-- ให้ score ชอบจุดที่ไม่ชิด path เกินไป และมี coverage ดี
+	result.Score = (#hits * 100) - result.NearestEnemyDistance + math.min(result.NearestPathDistance, 15)
+
 	result.Success = true
 	result.Reason = "OK"
+
+	dlog(
+		"Accept:",
+		"towerType =", result.TowerType,
+		"| coverage =", result.CoveredEnemies,
+		"| enemyDist =", math.floor(result.NearestEnemyDistance * 100) / 100,
+		"| pathDist =", math.floor(result.NearestPathDistance * 100) / 100,
+		"| score =", math.floor(result.Score * 100) / 100
+	)
 
 	return result
 end
@@ -906,67 +960,45 @@ function Module3.CalculatePlacementPosition(towerName, towerType, coverageRadius
 	end
 
 	local bestValidation = nil
+	local radii = {8, 10, 12}
+	local angles = {0, 45, 90, 135, 180, 225, 270, 315}
 
-	-- Phase 1A + 1B
 	for i = 1, #pathPoints, 3 do
 		local point = pathPoints[i]
 		if point and point.Position then
-			local validateResult = Module3.ValidatePlacementCell(point.Position, result.TowerType, result.CoverageRadius)
-			result.CandidatesChecked += 1
+			for _, radius in ipairs(radii) do
+				for _, angle in ipairs(angles) do
+					local rad = math.rad(angle)
+					local candidate = point.Position + Vector3.new(math.cos(rad) * radius, 0, math.sin(rad) * radius)
 
-			if validateResult.Success then
-				if (not bestValidation) or validateResult.Score > bestValidation.Score then
-					bestValidation = validateResult
-					result.BestPosition = validateResult.FinalPosition
-					result.BestCFrame = validateResult.CFrame
-					result.BestValidation = validateResult
-					result.BestScore = validateResult.Score
-					result.Phase = "Phase1"
-				end
-			end
-		end
-		task.wait()
-	end
+					local validateResult = Module3.ValidatePlacementCell(candidate, result.TowerType, result.CoverageRadius)
+					result.CandidatesChecked += 1
 
-	if bestValidation then
-		result.Success = true
-		result.Reason = "OK"
-		return result
-	end
-
-	-- Phase 2 fallback to learned
-	local learnedType = learnedPlacements[towerName] or result.TowerType
-	local placeableFolder = getPlaceableFolder(learnedType)
-
-	if placeableFolder then
-		for _, obj in ipairs(placeableFolder:GetDescendants()) do
-			if obj:IsA("BasePart") then
-				local validateResult = Module3.ValidatePlacementCell(obj.Position, learnedType, result.CoverageRadius)
-				result.CandidatesChecked += 1
-
-				if validateResult.Success then
-					if (not bestValidation) or validateResult.Score > bestValidation.Score then
-						bestValidation = validateResult
-						result.BestPosition = validateResult.FinalPosition
-						result.BestCFrame = validateResult.CFrame
-						result.BestValidation = validateResult
-						result.BestScore = validateResult.Score
-						result.Phase = "Phase2"
-						result.TowerType = learnedType
+					if validateResult.Success then
+						if (not bestValidation) or validateResult.Score > bestValidation.Score then
+							bestValidation = validateResult
+							result.BestPosition = validateResult.FinalPosition
+							result.BestCFrame = validateResult.CFrame
+							result.BestValidation = validateResult
+							result.BestScore = validateResult.Score
+							result.Phase = "Phase1"
+						end
 					end
 				end
+				task.wait()
 			end
-			task.wait()
 		end
 	end
 
 	if bestValidation then
 		result.Success = true
 		result.Reason = "OK"
+		dlog("Best placement chosen:", towerName, "| phase =", result.Phase, "| score =", result.BestScore)
 		return result
 	end
 
 	result.Reason = "NoValidPlacement"
+	dwarn("NoValidPlacement for", tostring(towerName), "| checked =", result.CandidatesChecked)
 	return result
 end
 
@@ -1097,6 +1129,7 @@ function Module4.PlaceTowerAtPosition(cardIndex, positionOrCFrame, towerType)
 		CFrame = nil,
 		Reason = nil,
 		LearningUpdated = false,
+		Debug = {},
 	}
 
 	local cardResult = resolveCardByIndex(cardIndex)
@@ -1127,24 +1160,40 @@ function Module4.PlaceTowerAtPosition(cardIndex, positionOrCFrame, towerType)
 
 	if not fireOk then
 		result.Reason = "RemoteFailed:" .. tostring(fireErr)
+		dwarn("Summon remote failed:", result.Card.Name, "|", tostring(fireErr))
 		return result
 	end
 
-	task.wait(0.2)
+	task.wait(0.35)
 
 	local afterMoney = moneyObj and tonumber(moneyObj.Value) or beforeMoney
 	local afterCount = countOwnedUnitsByName(result.Card.Name)
+
+	result.Debug.BeforeMoney = beforeMoney
+	result.Debug.AfterMoney = afterMoney
+	result.Debug.BeforeCount = beforeCount
+	result.Debug.AfterCount = afterCount
+	result.Debug.Position = cf.Position
+
+	dlog(
+		"Summon result:",
+		result.Card.Name,
+		"| beforeMoney =", tostring(beforeMoney),
+		"| afterMoney =", tostring(afterMoney),
+		"| beforeCount =", tostring(beforeCount),
+		"| afterCount =", tostring(afterCount)
+	)
 
 	if (beforeMoney and afterMoney and afterMoney < beforeMoney) or (afterCount > beforeCount) then
 		learnedPlacements[result.Card.Name] = result.TowerType
 		result.LearningUpdated = true
 		result.Success = true
 		result.Reason = "OK"
-		m4Log("Placed tower:", result.Card.Name, "| slot:", result.CardIndex, "| type:", result.TowerType)
 		return result
 	end
 
 	result.Reason = "PlacementRejected"
+	dwarn("Placement rejected:", result.Card.Name, "| pos =", tostring(cf.Position), "| towerType =", result.TowerType)
 	return result
 end
 
