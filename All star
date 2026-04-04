@@ -124,6 +124,86 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local inputRemote = Remotes:WaitForChild("Input")
 local serverRemote = Remotes:WaitForChild("Server")
 
+local LOBBY_GIFTBOXES = {
+    {
+        Date = 1851491,
+        Currency = "StardustStone",
+        Desc = "Awarded for completed Story Missions",
+        Amount = 3
+    },
+    {
+        Date = 1851491,
+        Currency = "StardustStone",
+        Desc = "Long-Time returning player reward.",
+        Amount = 200
+    },
+    {
+        Date = 1851491,
+        Currency = "StardustStone",
+        Desc = "Daily Reward for new Banner Launch!",
+        Amount = 3
+    },
+    {
+        Date = 1851491,
+        Currency = "StardustStone",
+        Desc = "Banner Celebration, Initial Login Reward!",
+        Amount = 55
+    },
+    {
+        Date = 1861474,
+        Currency = "StardustStone",
+        Desc = "Daily Reward for new Banner Launch!",
+        Amount = 3
+    },
+    {
+        Date = 1861474,
+        Currency = "Gems",
+        Desc = "Daily Reward",
+        Amount = 50
+    }
+}
+
+local lobbyGiftState = {
+    LastClaimAttempt = 0,
+    ClaimCooldown = 20
+}
+
+local function ClaimAllLobbyGiftboxes()
+    local now = os.clock()
+    if (now - lobbyGiftState.LastClaimAttempt) < lobbyGiftState.ClaimCooldown then
+        return
+    end
+    lobbyGiftState.LastClaimAttempt = now
+
+    if not _G.LobbyActive then
+        return
+    end
+
+    if _G.MoMoStatus then
+        _G.MoMoStatus("อยู่ใน Lobby -> กำลังรับ Giftbox...")
+    end
+
+    for _, giftData in ipairs(LOBBY_GIFTBOXES) do
+        local ok, err = pcall(function()
+            inputRemote:FireServer("ClaimGiftbox", giftData)
+        end)
+
+        if ok then
+            print(string.format(
+                "🎁 [LobbyGift] Claim sent | %s | %s x%d | Date=%s",
+                tostring(giftData.Desc),
+                tostring(giftData.Currency),
+                tonumber(giftData.Amount) or 0,
+                tostring(giftData.Date)
+            ))
+        else
+            warn("❌ [LobbyGift] Claim failed:", tostring(err))
+        end
+
+        task.wait(0.25)
+    end
+end
+
 _G.AutoPlayEnabled = true 
 _G.LobbyActive = false
 _G.AutoPlayActive = false
@@ -669,6 +749,19 @@ local function StartLobbyMaster()
                 break
             end
             task.wait(5)
+        end
+    end)
+
+    -- 🎁 Giftbox Claim Loop
+    task.spawn(function()
+        while task.wait(5) do
+            if not _G.LobbyActive then
+                continue
+            end
+
+            pcall(function()
+                ClaimAllLobbyGiftboxes()
+            end)
         end
     end)
 end
@@ -1527,15 +1620,37 @@ local function TryUpgradeSpecificUnit(unit)
         return false, "NoUnit"
     end
 
-    local cost = FindFirstUpgradeCost(unit)
+    -- ✅ แก้ Bug #1: ไม่ใช้ UpgradeTag เป็น confirmation แล้ว
+    -- ให้ใช้การเปลี่ยนแปลงของ Money เป็น indicator แทน (เร็วกว่า Replicate)
     local moneyObj = LocalPlayer:FindFirstChild("Money")
-    local money = moneyObj and tonumber(moneyObj.Value) or 0
-    if not cost or money < cost then
+    local moneyBefore = moneyObj and tonumber(moneyObj.Value) or 0
+
+    -- ✅ แก้ Bug #2: ดึง cost หลายทาง + fallback ที่สมเหตุสมผล
+    local cost = nil
+    pcall(function()
+        cost = tonumber(unit:GetAttribute("UpgradeCost"))
+               or tonumber(unit:GetAttribute("NextUpgradeCost"))
+               or tonumber(unit:GetAttribute("Cost"))
+               or tonumber(unit:GetAttribute("upgrade_cost"))
+    end)
+
+    -- ถ้ายังไม่เจอ ลองอ่านจาก child Value object
+    if not cost then
+        for _, child in ipairs(unit:GetDescendants()) do
+            if child.Name:lower():find("upgradecost") or child.Name:lower():find("nextcost") then
+                local v = tonumber(child.Value)
+                if v and v > 0 then cost = v; break end
+            end
+        end
+    end
+
+    -- ถ้าหาไม่เจอเลย ให้ยิงไปก่อนแล้วเช็คเงิน (เกมส่วนใหญ่จะ reject ถ้าเงินไม่พอ)
+    -- ไม่ใช้ fallback 150 อีกต่อไปเพราะมันทำให้ข้ามการเช็คเงิน
+    if cost and moneyBefore < cost then
         return false, "NotEnoughMoney"
     end
 
-    local beforeLevel = GetUnitUpgradeLevel(unit)
-
+    -- ยิง Upgrade
     local ok, err = pcall(function()
         serverRemote:InvokeServer("Upgrade", unit)
     end)
@@ -1543,10 +1658,19 @@ local function TryUpgradeSpecificUnit(unit)
         return false, tostring(err)
     end
 
-    task.wait(0.25)
+    -- ✅ แก้ Bug #1: รอให้ Money replicate (ซึ่งเร็วกว่า UpgradeTag มาก)
+    task.wait(0.4)
+    local moneyAfter = moneyObj and tonumber(moneyObj.Value) or moneyBefore
 
-    local afterLevel = GetUnitUpgradeLevel(unit)
-    if afterLevel > beforeLevel then
+    -- เงินลดลง = upgrade สำเร็จ
+    if moneyAfter < moneyBefore then
+        return true, "OK"
+    end
+
+    -- รอนานขึ้นอีกหน่อยแล้วเช็คซ้ำ (กรณี server lag)
+    task.wait(0.4)
+    moneyAfter = moneyObj and tonumber(moneyObj.Value) or moneyBefore
+    if moneyAfter < moneyBefore then
         return true, "OK"
     end
 
@@ -1625,14 +1749,35 @@ function ModuleX.StartCoordinator()
 		for _, u in pairs(uF:GetChildren()) do
 			local owner = u:FindFirstChild("Owner")
 			if owner and owner.Value == LocalPlayer then
-				local cost = tonumber(u:GetAttribute("UpgradeCost") or u:GetAttribute("NextUpgradeCost") or 150)
-				if currentMoney >= cost then
+				-- ✅ แก้ Bug #2: ดึง cost หลายทาง ถ้าหาไม่เจอให้ยิงไปเลย (ไม่ fallback 150)
+				local cost = nil
+				pcall(function()
+					cost = tonumber(u:GetAttribute("UpgradeCost"))
+						   or tonumber(u:GetAttribute("NextUpgradeCost"))
+						   or tonumber(u:GetAttribute("Cost"))
+				end)
+				if not cost then
+					for _, child in ipairs(u:GetDescendants()) do
+						if child.Name:lower():find("upgradecost") or child.Name:lower():find("nextcost") then
+							local v = tonumber(child.Value)
+							if v and v > 0 then cost = v; break end
+						end
+					end
+				end
+
+				-- ถ้าหา cost ไม่ได้เลย ให้ยิงไปเลย (ให้ server ตัดสิน)
+				local canAfford = (not cost) or (currentMoney >= cost)
+				if canAfford then
+					local moneyBefore = moneyObj and tonumber(moneyObj.Value) or currentMoney
 					local ok = pcall(function() serverRemote:InvokeServer("Upgrade", u) end)
 					if ok then
-						currentMoney -= cost
-						status.Count += 1
-						status.Success = true
-						task.wait(0.1)
+						task.wait(0.15)
+						local moneyNow = moneyObj and tonumber(moneyObj.Value) or moneyBefore
+						if moneyNow < moneyBefore then
+							currentMoney = moneyNow
+							status.Count += 1
+							status.Success = true
+						end
 					end
 				end
 			end
@@ -1800,14 +1945,24 @@ function ModuleX.StartCoordinator()
 
 				-- ถ้ามีตัวที่เพิ่งวาง และยังต้องอัปเกรดก่อนวางตัวถัดไป
 				if placementProgress.RequireUpgradeBeforeNextPlace and placementProgress.LastPlacedUnit then
+					-- ✅ แก้ Bug #3: doUpgradeAll รันก่อนเสมอ ไม่ว่าจะ block หรือไม่
+					safeCall("doUpgradeAll", doUpgradeAll)
+
 					local upgradedOk, reason = TryUpgradeSpecificUnit(placementProgress.LastPlacedUnit)
 					if upgradedOk then
 						placementProgress.LastPlacedUpgradeCount += 1
 						placementProgress.RequireUpgradeBeforeNextPlace = false
-						mxLog("Last placed unit upgraded at least once, next placement unlocked")
+						mxLog("Last placed unit upgraded, next placement unlocked")
 					else
-						coordinatorRuntime.LastPlacementReason = "WaitingUpgrade:" .. tostring(reason)
-						return
+						-- ✅ Safety: ถ้า unit นั้น parent == nil (ถูก destroy) ให้ปลดล็อกเลย
+						if placementProgress.LastPlacedUnit.Parent == nil then
+							mxLog("LastPlacedUnit destroyed, releasing lock")
+							placementProgress.RequireUpgradeBeforeNextPlace = false
+							placementProgress.LastPlacedUnit = nil
+						else
+							coordinatorRuntime.LastPlacementReason = "WaitingUpgrade:" .. tostring(reason)
+							-- ไม่ return ออก เพื่อให้ยังรัน doUpgradeAll สำหรับ unit อื่นต่อได้
+						end
 					end
 				end
 
