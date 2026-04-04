@@ -3,3 +3,3320 @@
 -- =====================================================================
 if not game:IsLoaded() then game.Loaded:Wait() end
 repeat task.wait(7) until game:GetService("Players").LocalPlayer and game:GetService("Players").LocalPlayer.Character and game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+
+local CoreGui = game:GetService("CoreGui")
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+
+-- ลบ UI เก่าออก (ถ้ารันซ้ำจะได้ไม่ซ้อนกัน)
+for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "MoMoHub_UI" then v:Destroy() end end
+for _, v in pairs(Players.LocalPlayer.PlayerGui:GetChildren()) do if v.Name == "MoMoHub_UI" then v:Destroy() end end
+for _, v in pairs(Lighting:GetChildren()) do if v.Name == "MoMoBlur" then v:Destroy() end end
+
+-- 1. สร้าง ScreenGui
+local MoMoGui = Instance.new("ScreenGui")
+MoMoGui.Name = "MoMoHub_UI"
+MoMoGui.ResetOnSpawn = false
+pcall(function() MoMoGui.Parent = CoreGui end) -- สำหรับ Exploit
+if not MoMoGui.Parent then MoMoGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui") end
+
+-- 2. สร้างระบบเบลอหน้าจอ (Blur)
+local Blur = Instance.new("BlurEffect")
+Blur.Name = "MoMoBlur"
+Blur.Size = 15
+Blur.Parent = Lighting
+
+-- 3. พื้นหลังดำโปร่งใส (Background)
+local BG = Instance.new("Frame")
+BG.Size = UDim2.new(1, 0, 1, 0)
+BG.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+BG.BackgroundTransparency = 1
+BG.Parent = MoMoGui
+
+-- 4. กรอบหลักตรงกลาง (Main Frame)
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 450, 0, 300)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -150)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = BG
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(0, 200, 255)
+UIStroke.Thickness = 2
+UIStroke.Parent = MainFrame
+
+-- 5. ข้อความด้านบน (Title)
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 50)
+Title.Position = UDim2.new(0, 0, 0, 10)
+Title.BackgroundTransparency = 1
+Title.Text = "MoMoHub All Star Kaitun"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 24
+Title.Parent = MainFrame
+
+-- 6. รูปโลโก้ตรงกลาง (Logo)
+local Logo = Instance.new("ImageLabel")
+Logo.Size = UDim2.new(0, 130, 0, 130)
+Logo.Position = UDim2.new(0.5, -65, 0.5, -65)
+Logo.BackgroundTransparency = 1
+Logo.Image = "rbxthumb://type=Asset&id=121052363208302&w=150&h=150"
+Logo.Parent = MainFrame
+
+-- 7. ข้อความ Status ด้านล่าง (Dynamic Status)
+local StatusText = Instance.new("TextLabel")
+StatusText.Size = UDim2.new(1, -20, 0, 40)
+StatusText.Position = UDim2.new(0, 10, 1, -50)
+StatusText.BackgroundTransparency = 1
+StatusText.Text = "Status: กำลังโหลดสคริปต์..."
+StatusText.TextColor3 = Color3.fromRGB(0, 255, 127)
+StatusText.Font = Enum.Font.GothamSemibold
+StatusText.TextSize = 16
+StatusText.TextWrapped = true
+StatusText.Parent = MainFrame
+
+-- 8. ฟังก์ชันเปลี่ยนข้อความ Status (เรียกใช้ได้ทุกที่ในสคริปต์)
+_G.MoMoStatus = function(text)
+    if StatusText then
+        StatusText.Text = "Status: " .. text
+    end
+end
+
+-- 9. ปุ่มเปิด/ปิดมุมขวาล่าง (Toggle Button)
+local ToggleBtn = Instance.new("ImageButton")
+ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+ToggleBtn.Position = UDim2.new(1, -70, 1, -70)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+ToggleBtn.Image = "rbxthumb://type=Asset&id=121052363208302&w=150&h=150" -- ใช้รูปโลโก้เป็นปุ่มเลย
+ToggleBtn.Parent = MoMoGui
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(1, 0) -- ทำให้กลม
+BtnCorner.Parent = ToggleBtn
+
+local BtnStroke = Instance.new("UIStroke")
+BtnStroke.Color = Color3.fromRGB(0, 200, 255)
+BtnStroke.Thickness = 2
+BtnStroke.Parent = ToggleBtn
+
+-- 10. ระบบกดปุ่ม (Click Logic)
+local isOpen = true
+ToggleBtn.MouseButton1Click:Connect(function()
+    isOpen = not isOpen
+    BG.Visible = isOpen
+    Blur.Enabled = isOpen
+end)
+
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local VirtualUser = game:GetService("VirtualUser")
+local TeleportService = game:GetService("TeleportService")
+local LocalPlayer = Players.LocalPlayer
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local inputRemote = Remotes:WaitForChild("Input")
+local serverRemote = Remotes:WaitForChild("Server")
+
+local LOBBY_GIFTBOXES = {
+    {
+        Date = 1851491,
+        Currency = "StardustStone",
+        Desc = "Awarded for completed Story Missions",
+        Amount = 3
+    },
+    {
+        Date = 1851491,
+        Currency = "StardustStone",
+        Desc = "Long-Time returning player reward.",
+        Amount = 200
+    },
+    {
+        Date = 1851491,
+        Currency = "StardustStone",
+        Desc = "Daily Reward for new Banner Launch!",
+        Amount = 3
+    },
+    {
+        Date = 1851491,
+        Currency = "StardustStone",
+        Desc = "Banner Celebration, Initial Login Reward!",
+        Amount = 55
+    },
+    {
+        Date = 1861474,
+        Currency = "StardustStone",
+        Desc = "Daily Reward for new Banner Launch!",
+        Amount = 3
+    },
+    {
+        Date = 1861474,
+        Currency = "Gems",
+        Desc = "Daily Reward",
+        Amount = 50
+    }
+}
+
+local LOBBY_TASK_CLAIMS = {
+    "levelinggoal",
+    "ClaimAllDamage",
+    "maxwave",
+	"unitgoal"
+}
+
+local lobbyGiftState = {
+    LastClaimAttempt = 0,
+    ClaimCooldown = 20
+}
+
+local function ClaimAllLobbyTasks()
+    if not _G.LobbyActive then
+        return
+    end
+
+    for _, taskName in ipairs(LOBBY_TASK_CLAIMS) do
+        local ok, err = pcall(function()
+            inputRemote:FireServer("ClaimTask", taskName)
+        end)
+
+        if ok then
+            print(string.format("✅ [LobbyTask] Claim sent | %s", tostring(taskName)))
+        else
+            warn(string.format("❌ [LobbyTask] Claim failed | %s | %s", tostring(taskName), tostring(err)))
+        end
+
+        task.wait(0.2)
+    end
+end
+
+local function ClaimAllLobbyRewards()
+    local now = os.clock()
+    if (now - lobbyGiftState.LastClaimAttempt) < lobbyGiftState.ClaimCooldown then
+        return
+    end
+    lobbyGiftState.LastClaimAttempt = now
+
+    if not _G.LobbyActive then
+        return
+    end
+
+    if _G.MoMoStatus then
+        _G.MoMoStatus("อยู่ใน Lobby -> กำลังรับ Giftbox / Task...")
+    end
+
+    ClaimAllLobbyGiftboxes()
+    task.wait(0.4)
+    ClaimAllLobbyTasks()
+end
+
+_G.AutoPlayEnabled = true 
+_G.LobbyActive = false
+_G.AutoPlayActive = false
+
+-- === 🧠 สมองส่วนความจำของบอท ===
+local learnedPlacements = {} 
+local knownLimits = {}
+
+local EmergencyState = {
+	IsThreatActive = false,
+	IsBoardReady = false,
+	ProtocolEngaged = false,
+	TargetEmergencyUnit = nil,
+	PendingUpgradeInstances = {},
+	LastScan = 0,
+	LastAction = 0,
+}       
+
+-- ========================================================================= --
+-- 🟢 [MODULE 1]: Lobby Master
+-- ========================================================================= --
+local function StartLobbyMaster()
+    local hud = LocalPlayer.PlayerGui:WaitForChild("HUD")
+    local Tutorial = {}
+
+    local function AttemptJoinPortals()
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not (char and hrp) then return false end
+
+        _G.MoMoStatus("กำลังวาร์ปเข้าด่าน...")
+        print("🚀 [AttemptJoinPortals] วาร์ปไปพิกัด 2647, -115, -1651")
+
+        -- ✅ Step 1: วาร์ป HRP ไปพิกัดที่กำหนด
+        hrp.CFrame = CFrame.new(Vector3.new(2647, -115, -1651))
+        task.wait(2)  -- รอให้ตัวละครลงพื้นและโหลด
+
+        -- ✅ Step 2: เลือก Stage ด้วย Remote
+        print("📡 [AttemptJoinPortals] ส่ง Script448Level เลือกด่าน -1")
+        local ok1, err1 = pcall(function()
+            inputRemote:FireServer("Script448Level", "-1", false)
+        end)
+        if ok1 then
+            print("✅ [AttemptJoinPortals] Script448Level ส่งสำเร็จ")
+        else
+            warn("❌ [AttemptJoinPortals] Script448Level ล้มเหลว:", tostring(err1))
+        end
+
+        task.wait(1.5)  -- รอให้ Server รับและประมวลผลการเลือกด่าน
+
+        -- ✅ Step 3: กด Start ด้วย Remote
+        print("📡 [AttemptJoinPortals] ส่ง Script448Start เริ่มเกม")
+        local ok2, err2 = pcall(function()
+            inputRemote:FireServer("Script448Start")
+        end)
+        if ok2 then
+            print("✅ [AttemptJoinPortals] Script448Start ส่งสำเร็จ")
+            _G.MoMoStatus("ส่ง Start สำเร็จ! รอโหลดด่าน...")
+            return true
+        else
+            warn("❌ [AttemptJoinPortals] Script448Start ล้มเหลว:", tostring(err2))
+            return false
+        end
+    end
+
+    function Tutorial.SkipDialogueAndSummon()
+        pcall(function()
+            local tutV2 = hud:FindFirstChild("TutorialV2")
+            if tutV2 and tutV2:FindFirstChild("TutorialDialogue") and tutV2.TutorialDialogue.Visible then
+                inputRemote:FireServer("AdvanceTutorialStep")
+            end
+            local isSummoning = false
+            for _, v in pairs(hud:GetChildren()) do
+                if v:IsA("GuiObject") and v.Visible and (v.Name:find("Summon") or v.Name:find("Animation")) and v.Name ~= "SummonBanners" then
+                    isSummoning = true; break
+                end
+            end
+            if isSummoning then
+                local vS = workspace.CurrentCamera.ViewportSize
+                VirtualUser:Button1Down(Vector2.new(vS.X/2, vS.Y/2))
+                task.wait(0.05)
+                VirtualUser:Button1Up(Vector2.new(vS.X/2, vS.Y/2))
+            end
+        end)
+    end
+
+    function Tutorial.ForceLoadInventoryUI()
+        local VIM = game:GetService("VirtualInputManager")
+        local invV2 = hud:FindFirstChild("InventoryV2")
+        if not invV2 or not invV2.Visible then
+            local invB = hud:FindFirstChild("LeftButton") and hud.LeftButton:FindFirstChild("InventoryButton")
+            if invB and invB.Visible then
+                local aP, aS = invB.AbsolutePosition, invB.AbsoluteSize
+                pcall(function()
+                    VIM:SendMouseButtonEvent(aP.X + aS.X/2, aP.Y + aS.Y/2 + 36, 0, true, game, 1)
+                    task.wait(0.05)
+                    VIM:SendMouseButtonEvent(aP.X + aS.X/2, aP.Y + aS.Y/2 + 36, 0, false, game, 1)
+                end)
+            end
+        end
+    end
+
+    local function NormalizeName(text)
+        return tostring(text or ""):lower():gsub("%s+", "")
+    end
+
+    local function HasTargetUnitInInventory()
+        local targetNames = {
+            "Android17",
+            "KidLuffy",
+			"Blackbeard"
+        }
+
+        Tutorial.ForceLoadInventoryUI()
+        task.wait(1.5)
+
+        local invV2 = hud:FindFirstChild("InventoryV2")
+        local scroll = invV2 and invV2:FindFirstChildWhichIsA("ScrollingFrame", true)
+        if not scroll then
+            warn("❌ [HasTargetUnitInInventory] หา Inventory Scroll ไม่เจอ")
+            return false
+        end
+
+        for _, uiObj in pairs(scroll:GetChildren()) do
+            if uiObj:IsA("GuiObject") then
+                local unitName = uiObj.Name
+                local nameLabel = uiObj:FindFirstChild("UnitName", true) or uiObj:FindFirstChild("MainName", true)
+                if nameLabel and nameLabel:IsA("TextLabel") and nameLabel.Text ~= "" then
+                    unitName = nameLabel.Text
+                end
+
+                local normalizedUnit = NormalizeName(unitName)
+                for _, target in ipairs(targetNames) do
+                    local normalizedTarget = NormalizeName(target)
+                    if normalizedUnit == normalizedTarget or normalizedUnit:find(normalizedTarget) then
+                        print("✅ [SummonCheck] พบยูนิตเป้าหมายแล้ว:", unitName)
+                        return true
+                    end
+                end
+            end
+        end
+
+        return false
+    end
+
+    -- ==========================================
+-- 🎒 [BagHelper] ดึงสถานะกระเป๋าปัจจุบัน
+-- ==========================================
+local function GetBagStatus()
+    Tutorial.ForceLoadInventoryUI()
+    task.wait(1.5)
+
+    local hud = LocalPlayer.PlayerGui:WaitForChild("HUD")
+    local invV2 = hud:FindFirstChild("InventoryV2")
+    if not invV2 then
+        return nil, nil, "NoInventoryUI"
+    end
+
+    local unitAmountLbl = invV2:FindFirstChild("Page")
+        and invV2.Page:FindFirstChild("Main")
+        and invV2.Page.Main:FindFirstChild("Top")
+        and invV2.Page.Main.Top:FindFirstChild("List")
+        and invV2.Page.Main.Top.List:FindFirstChild("UnitsBox")
+        and invV2.Page.Main.Top.List.UnitsBox:FindFirstChild("UnitAmount")
+
+    if not unitAmountLbl or not unitAmountLbl:IsA("TextLabel") then
+        return nil, nil, "NoUnitAmountLabel"
+    end
+
+    local current, max = unitAmountLbl.Text:match("(%d+)%s*/%s*(%d+)")
+    if not current or not max then
+        return nil, nil, "ParseFailed:" .. tostring(unitAmountLbl.Text)
+    end
+
+    return tonumber(current), tonumber(max), "OK"
+end
+
+-- ==========================================
+-- 📬 [BagHelper] กดรับของทั้งหมดจาก Storage
+-- ==========================================
+local function ClaimAllStorageRewards()
+    if _G.MoMoStatus then
+        _G.MoMoStatus("กำลังกดรับของทั้งหมดจาก Storage...")
+    end
+
+    -- ลอง Remote หลักที่เกมใช้รับของจาก Storage/Mailbox
+    local claimCmds = {
+        "ClaimAllStorage",
+        "ClaimStorage",
+        "CollectAll",
+        "ClaimAll",
+        "MailboxClaimAll",
+    }
+
+    for _, cmd in ipairs(claimCmds) do
+        local ok, err = pcall(function()
+            serverRemote:InvokeServer(cmd)
+        end)
+        if ok then
+            print(string.format("📬 [ClaimStorage] ส่ง %s สำเร็จ", cmd))
+        else
+            -- FireServer แบบ inputRemote ด้วย
+            pcall(function() inputRemote:FireServer(cmd) end)
+        end
+        task.wait(0.3)
+    end
+
+    task.wait(1.5)
+    print("📬 [ClaimStorage] ส่ง ClaimAll เสร็จแล้ว")
+end
+
+-- ==========================================
+-- 🔓 [BagHelper] ขยายกระเป๋าถ้าเต็ม (พร้อม Fallback รับของก่อน)
+-- ==========================================
+local function EnsureBagHasSpace()
+    local maxRetries = 3
+
+    for attempt = 1, maxRetries do
+        local current, max, reason = GetBagStatus()
+
+        if reason ~= "OK" or not current or not max then
+            warn(string.format("⚠️ [EnsureBag] ดึงสถานะกระเป๋าไม่ได้ (attempt %d) reason: %s", attempt, tostring(reason)))
+            task.wait(1)
+            continue
+        end
+
+        print(string.format("🎒 [EnsureBag] กระเป๋า: %d/%d (attempt %d)", current, max, attempt))
+
+        -- ✅ กระเป๋าว่าง → ไม่ต้องทำอะไร
+        if current < max then
+            if _G.MoMoStatus then
+                _G.MoMoStatus(string.format("กระเป๋าว่าง (%d/%d) พร้อมสุ่ม!", current, max))
+            end
+            return true
+        end
+
+        -- 🔴 กระเป๋าเต็ม → ลองขยายก่อน
+        if _G.MoMoStatus then
+            _G.MoMoStatus(string.format("กระเป๋าเต็ม (%d/%d)! กำลังขยาย...", current, max))
+        end
+
+        print(string.format("🎒 [EnsureBag] กระเป๋าเต็ม! ส่ง UpgradeInventory (attempt %d)...", attempt))
+        pcall(function()
+            serverRemote:InvokeServer("UpgradeInventory")
+        end)
+        task.wait(1.5)
+
+        -- เช็คว่า max เพิ่มขึ้นไหม
+        local newCurrent, newMax, newReason = GetBagStatus()
+        if newReason == "OK" and newMax and newMax > max then
+            -- ✅ ขยายสำเร็จ
+            print(string.format("✅ [EnsureBag] ขยายกระเป๋าสำเร็จ! %d/%d -> %d/%d", current, max, newCurrent, newMax))
+            if _G.MoMoStatus then
+                _G.MoMoStatus(string.format("ขยายกระเป๋าสำเร็จ! %d/%d พร้อมสุ่ม!", newCurrent, newMax))
+            end
+            return true
+        end
+
+        -- ❌ ขยายไม่ได้ (ไม่มีเงิน หรือ max ถูก cap) → กดรับของก่อน แล้วลองขยายอีกรอบ
+        print(string.format("⚠️ [EnsureBag] ขยายไม่ได้ (max ไม่เพิ่ม: %s) -> กดรับของก่อน...", tostring(newMax)))
+        if _G.MoMoStatus then
+            _G.MoMoStatus("ขยายกระเป๋าไม่ได้! กำลังรับของค้างก่อน...")
+        end
+
+        ClaimAllStorageRewards()
+        task.wait(1)
+
+        -- ลองขยายอีกครั้งหลังรับของแล้ว
+        print("[EnsureBag]ลองขยายกระเป๋าอีกรอบหลังรับของ...")
+        pcall(function()
+            serverRemote:InvokeServer("UpgradeInventory")
+        end)
+        task.wait(1.5)
+
+        -- เช็ครอบสุดท้าย
+        local finalCurrent, finalMax, finalReason = GetBagStatus()
+        if finalReason == "OK" and finalMax and finalMax > max then
+            print(string.format("✅ [EnsureBag] ขยายกระเป๋าสำเร็จหลังรับของ! %d/%d", finalCurrent, finalMax))
+            if _G.MoMoStatus then
+                _G.MoMoStatus(string.format("ขยายกระเป๋าสำเร็จ! (%d/%d)", finalCurrent, finalMax))
+            end
+            return true
+        end
+
+        -- ยังไม่ได้อีก → วนลูปลอง attempt ถัดไป
+        warn(string.format("❌ [EnsureBag] ยังขยายไม่ได้หลังรับของ (attempt %d/%d)", attempt, maxRetries))
+        task.wait(1)
+    end
+
+    -- ถ้าผ่าน maxRetries แล้วยังไม่ได้ → return false ให้ caller จัดการเอง
+    warn("❌ [EnsureBag] ขยายกระเป๋าไม่สำเร็จหลังพยายาม " .. maxRetries .. " ครั้ง")
+    return false
+end
+
+-- ==========================================
+-- 🎒 [BagHelper] ดึงสถานะกระเป๋าปัจจุบัน
+-- ==========================================
+local function GetBagStatus()
+    Tutorial.ForceLoadInventoryUI()
+    task.wait(1.5)
+
+    local hud = LocalPlayer.PlayerGui:WaitForChild("HUD")
+    local invV2 = hud:FindFirstChild("InventoryV2")
+    if not invV2 then
+        return nil, nil, "NoInventoryUI"
+    end
+
+    local unitAmountLbl = invV2:FindFirstChild("Page")
+        and invV2.Page:FindFirstChild("Main")
+        and invV2.Page.Main:FindFirstChild("Top")
+        and invV2.Page.Main.Top:FindFirstChild("List")
+        and invV2.Page.Main.Top.List:FindFirstChild("UnitsBox")
+        and invV2.Page.Main.Top.List.UnitsBox:FindFirstChild("UnitAmount")
+
+    if not unitAmountLbl or not unitAmountLbl:IsA("TextLabel") then
+        return nil, nil, "NoUnitAmountLabel"
+    end
+
+    local current, max = unitAmountLbl.Text:match("(%d+)%s*/%s*(%d+)")
+    if not current or not max then
+        return nil, nil, "ParseFailed:" .. tostring(unitAmountLbl.Text)
+    end
+
+    return tonumber(current), tonumber(max), "OK"
+end
+
+-- ==========================================
+-- 📬 [BagHelper] กดรับของทั้งหมดจาก Storage
+-- ==========================================
+local function ClaimAllStorageRewards()
+    if _G.MoMoStatus then
+        _G.MoMoStatus("กำลังกดรับของทั้งหมดจาก Storage...")
+    end
+
+    -- ลอง Remote หลักที่เกมใช้รับของจาก Storage/Mailbox
+    local claimCmds = {
+        "ClaimAllStorage",
+        "ClaimStorage",
+        "CollectAll",
+        "ClaimAll",
+        "MailboxClaimAll",
+    }
+
+    for _, cmd in ipairs(claimCmds) do
+        local ok, err = pcall(function()
+            serverRemote:InvokeServer(cmd)
+        end)
+        if ok then
+            print(string.format("📬 [ClaimStorage] ส่ง %s สำเร็จ", cmd))
+        else
+            -- FireServer แบบ inputRemote ด้วย
+            pcall(function() inputRemote:FireServer(cmd) end)
+        end
+        task.wait(0.3)
+    end
+
+    task.wait(1.5)
+    print("📬 [ClaimStorage] ส่ง ClaimAll เสร็จแล้ว")
+end
+
+-- ==========================================
+-- 🔓 [BagHelper] ขยายกระเป๋าถ้าเต็ม (พร้อม Fallback รับของก่อน)
+-- ==========================================
+local function EnsureBagHasSpace()
+    local maxRetries = 3
+
+    for attempt = 1, maxRetries do
+        local current, max, reason = GetBagStatus()
+
+        if reason ~= "OK" or not current or not max then
+            warn(string.format("⚠️ [EnsureBag] ดึงสถานะกระเป๋าไม่ได้ (attempt %d) reason: %s", attempt, tostring(reason)))
+            task.wait(1)
+            continue
+        end
+
+        print(string.format("🎒 [EnsureBag] กระเป๋า: %d/%d (attempt %d)", current, max, attempt))
+
+        -- ✅ กระเป๋าว่าง → ไม่ต้องทำอะไร
+        if current < max then
+            if _G.MoMoStatus then
+                _G.MoMoStatus(string.format("กระเป๋าว่าง (%d/%d) พร้อมสุ่ม!", current, max))
+            end
+            return true
+        end
+
+        -- 🔴 กระเป๋าเต็ม → ลองขยายก่อน
+        if _G.MoMoStatus then
+            _G.MoMoStatus(string.format("กระเป๋าเต็ม (%d/%d)! กำลังขยาย...", current, max))
+        end
+
+        print(string.format("🎒 [EnsureBag] กระเป๋าเต็ม! ส่ง UpgradeInventory (attempt %d)...", attempt))
+        pcall(function()
+            serverRemote:InvokeServer("UpgradeInventory")
+        end)
+        task.wait(1.5)
+
+        -- เช็คว่า max เพิ่มขึ้นไหม
+        local newCurrent, newMax, newReason = GetBagStatus()
+        if newReason == "OK" and newMax and newMax > max then
+            -- ✅ ขยายสำเร็จ
+            print(string.format("✅ [EnsureBag] ขยายกระเป๋าสำเร็จ! %d/%d -> %d/%d", current, max, newCurrent, newMax))
+            if _G.MoMoStatus then
+                _G.MoMoStatus(string.format("ขยายกระเป๋าสำเร็จ! %d/%d พร้อมสุ่ม!", newCurrent, newMax))
+            end
+            return true
+        end
+
+        -- ❌ ขยายไม่ได้ (ไม่มีเงิน หรือ max ถูก cap) → กดรับของก่อน แล้วลองขยายอีกรอบ
+        print(string.format("⚠️ [EnsureBag] ขยายไม่ได้ (max ไม่เพิ่ม: %s) -> กดรับของก่อน...", tostring(newMax)))
+        if _G.MoMoStatus then
+            _G.MoMoStatus("ขยายกระเป๋าไม่ได้! กำลังรับของค้างก่อน...")
+        end
+
+        ClaimAllStorageRewards()
+        task.wait(1)
+
+        -- ลองขยายอีกครั้งหลังรับของแล้ว
+        print("[EnsureBag]ลองขยายกระเป๋าอีกรอบหลังรับของ...")
+        pcall(function()
+            serverRemote:InvokeServer("UpgradeInventory")
+        end)
+        task.wait(1.5)
+
+        -- เช็ครอบสุดท้าย
+        local finalCurrent, finalMax, finalReason = GetBagStatus()
+        if finalReason == "OK" and finalMax and finalMax > max then
+            print(string.format("✅ [EnsureBag] ขยายกระเป๋าสำเร็จหลังรับของ! %d/%d", finalCurrent, finalMax))
+            if _G.MoMoStatus then
+                _G.MoMoStatus(string.format("ขยายกระเป๋าสำเร็จ! (%d/%d)", finalCurrent, finalMax))
+            end
+            return true
+        end
+
+        -- ยังไม่ได้อีก → วนลูปลอง attempt ถัดไป
+        warn(string.format("❌ [EnsureBag] ยังขยายไม่ได้หลังรับของ (attempt %d/%d)", attempt, maxRetries))
+        task.wait(1)
+    end
+
+    -- ถ้าผ่าน maxRetries แล้วยังไม่ได้ → return false ให้ caller จัดการเอง
+    warn("❌ [EnsureBag] ขยายกระเป๋าไม่สำเร็จหลังพยายาม " .. maxRetries .. " ครั้ง")
+    return false
+end
+
+function Tutorial.AutoSummonUntilFound()
+    if HasTargetUnitInInventory() then
+        print("✅ [AutoSummon] มียูนิตเป้าหมายอยู่แล้ว ไม่ต้อง summon")
+        return true
+    end
+
+    local summonAttempts = 0
+    local maxAttempts = 50
+
+    while summonAttempts < maxAttempts do
+
+        -- 🔑 ตรวจกระเป๋าก่อนสุ่มทุกครั้ง
+        local bagReady = EnsureBagHasSpace()
+        if not bagReady then
+            -- กระเป๋ายังเต็มและขยายไม่ได้ -> รอรอบถัดไป
+            warn("⚠️ [AutoSummon] กระเป๋ายังเต็ม/ขยายไม่ได้ -> รอ 5s แล้วลองใหม่")
+            if _G.MoMoStatus then
+                _G.MoMoStatus("กระเป๋าเต็ม/ขยายไม่ได้ รอ 5s...")
+            end
+            task.wait(5)
+            continue
+        end
+
+        -- ✅ กระเป๋าว่างแล้ว → สุ่มได้
+        summonAttempts += 1
+        if _G.MoMoStatus then
+            _G.MoMoStatus(string.format("กระเป๋าว่าง -> กำลังสุ่ม Banner... (ครั้งที่ %d)", summonAttempts))
+        end
+
+        local ok, err = pcall(function()
+            local args = {
+                "BannerSummon",
+                10,
+                "Rerun101"
+            }
+            serverRemote:InvokeServer(unpack(args))
+        end)
+
+        if ok then
+            print("🎰 [AutoSummon] สุ่มครั้งที่", summonAttempts, "สำเร็จ")
+        else
+            warn("❌ [AutoSummon] summon ล้มเหลว:", tostring(err))
+        end
+
+        task.wait(2.5)
+
+        if HasTargetUnitInInventory() then
+            print("🏁 [AutoSummon] พบยูนิตเป้าหมายหลังจาก summon ครั้งที่", summonAttempts)
+            return true
+        end
+
+        task.wait(0.75)
+    end
+
+    warn("⚠️ [AutoSummon] เกินจำนวนครั้งที่กำหนด แต่ยังไม่พบยูนิตเป้าหมาย")
+    return false
+end
+
+    function Tutorial.SmartEquip()
+        _G.MoMoStatus("กำลังตรวจสอบยูนิตเป้าหมายในกระเป๋า...")
+
+        local hasUnit = Tutorial.AutoSummonUntilFound()
+        if not hasUnit then
+            warn("❌ [SmartEquip] ไม่พบยูนิตเป้าหมายหลังพยายาม summon แล้ว")
+            return false
+        end
+
+        _G.MoMoStatus("พบยูนิตเป้าหมายแล้ว กำลังจัดทีม...")
+        Tutorial.ForceLoadInventoryUI()
+        task.wait(2)
+
+        local invV2 = hud:FindFirstChild("InventoryV2")
+        local scroll = invV2 and invV2:FindFirstChildWhichIsA("ScrollingFrame", true)
+        if not scroll then
+            warn("❌ [SmartEquip] หา Inventory Scroll ไม่เจอ")
+            return false
+        end
+
+        -- กำหนดยูนิตที่ต้องการใส่ในแต่ละสล็อต (slot 1,2,3)
+        local slotTargets = {
+            { slot = 1, names = {"Android17", "KidLuffy", "Ikki (HalfMask)", "Jotaro Kujo"} }
+        }
+
+        local currentTeam = {}
+
+        -- อ่านทีมปัจจุบัน
+        do
+            local bF = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
+            if bF then
+                for _, v in pairs(bF:GetDescendants()) do
+                    if v:IsA("StringValue") and v.Value ~= "" and v.Value ~= "Empty" then
+                        table.insert(currentTeam, tostring(v.Value))
+                    end
+                end
+            end
+        end
+
+        -- ค้นหายูนิตที่ตรงกับแต่ละสล็อตจาก Inventory
+        local equipList = {}  -- { slot = 1, unit = {Name, ID, Level} }
+
+        print("========== DEBUG INVENTORY ==========")
+        print("Scroll ชื่อ:", scroll.Name, "จำนวนลูก:", #scroll:GetChildren())
+        for _, uiObj in pairs(scroll:GetChildren()) do
+            if uiObj:IsA("GuiObject") then
+                local nameLabel = uiObj:FindFirstChild("UnitName", true) or uiObj:FindFirstChild("MainName", true)
+                local displayName = nameLabel and nameLabel.Text or uiObj.Name
+                print("  -", displayName, "(uiObj.Name=" .. uiObj.Name .. ")")
+            end
+        end
+        print("=====================================")
+
+        for _, target in ipairs(slotTargets) do
+            local foundUnit = nil
+            local foundID = nil
+            local foundLevel = 1
+
+            for _, uiObj in pairs(scroll:GetChildren()) do
+                if uiObj:IsA("GuiObject") then
+                    local unitName = uiObj.Name
+                    local nameLabel = uiObj:FindFirstChild("UnitName", true) or uiObj:FindFirstChild("MainName", true)
+                    if nameLabel and nameLabel:IsA("TextLabel") and nameLabel.Text ~= "" then
+                        unitName = nameLabel.Text
+                    end
+
+                    -- ตรวจสอบชื่อตรงกับ names ใน target หรือไม่ (แบบยืดหยุ่น)
+                    local match = false
+                    local normalizedUnit = unitName:lower():gsub("%s+", "")  -- ลบช่องว่าง, พิมพ์เล็ก
+                    for _, n in ipairs(target.names) do
+                        local normalizedTarget = n:lower():gsub("%s+", "")
+                        if normalizedUnit == normalizedTarget or normalizedUnit:find(normalizedTarget) then
+                            match = true
+                            break
+                        end
+                    end
+                    if not match then continue end
+
+                    -- ดึง ID และ Level
+                    local unitID = nil
+                    local unitLevel = 1
+                    pcall(function()
+                        unitID = uiObj:GetAttribute("uid") or uiObj:GetAttribute("uuid") or uiObj:GetAttribute("ID")
+                        unitLevel = tonumber(uiObj:GetAttribute("level") or uiObj:GetAttribute("Level")) or 1
+                    end)
+
+                    -- Fallback 1: หา child ที่ชื่อมี id/uid/uuid
+                    if not unitID then
+                        for _, child in pairs(uiObj:GetDescendants()) do
+                            if child:IsA("StringValue") or child:IsA("IntValue") or child:IsA("NumberValue") then
+                                local cn = child.Name:lower()
+                                if cn:find("id") or cn:find("uid") or cn == "uuid" then
+                                    unitID = child.Value
+                                    break
+                                end
+                            end
+                        end
+                    end
+
+                    -- Fallback 2: ใช้ memory scan (getgc)
+                    if not unitID then
+                        pcall(function()
+                            for _, v in pairs(getgc(true)) do
+                                if type(v) == "table" then
+                                    local id = rawget(v, "uid") or rawget(v, "uuid") or rawget(v, "ID")
+                                    local name = rawget(v, "unitId") or rawget(v, "Name") or rawget(v, "UnitName")
+                                    if id and name then
+                                        local nameStr = tostring(name)
+                                        if nameStr == unitName or nameStr:lower() == unitName:lower() then
+                                            unitID = id
+                                            unitLevel = rawget(v, "level") or rawget(v, "Level") or 1
+                                            break
+                                        end
+                                    end
+                                end
+                            end
+                        end)
+                    end
+                    if unitID then
+                        foundUnit = unitName
+                        foundID = unitID
+                        foundLevel = unitLevel
+                        break
+                    end
+                end
+            end
+
+            if foundUnit and foundID then
+                table.insert(equipList, {
+                    slot = target.slot,
+                    name = foundUnit,
+                    id = foundID,
+                    level = foundLevel
+                })
+                print(string.format("✅ พบ %s สำหรับสล็อต %d", foundUnit, target.slot))
+            else
+                warn(string.format("⚠️ ไม่พบยูนิตสำหรับสล็อต %d (ชื่อ: %s)", target.slot, table.concat(target.names, ", ")))
+            end
+        end
+
+        -- ถอดทีมเก่าทั้งหมด
+        for _, currentID in ipairs(currentTeam) do
+            pcall(function() inputRemote:FireServer("Unequip", {Stats = currentID}) end)
+            task.wait(0.3)
+        end
+        task.wait(1)
+
+        -- ใส่ทีมใหม่ตาม equipList
+        -- เรียง equipList ตาม slot
+        table.sort(equipList, function(a,b) return a.slot < b.slot end)
+
+        for _, item in ipairs(equipList) do
+            local idStr
+            if type(item.id) == "string" and not tonumber(item.id) then
+                idStr = '"' .. tostring(item.id) .. '"'
+            else
+                idStr = tostring(item.id)
+            end
+            local safeName = tostring(item.name):gsub('"', '\\"')
+            local statsJson = string.format('{"ID":%s,"Level":%d,"Name":"%s"}', idStr, item.level, safeName)
+
+            local success, err = pcall(function()
+                serverRemote:InvokeServer("Equip", {Stats = statsJson})
+            end)
+            if success then
+                print(string.format("✅ ใส่ %s ในสล็อต %d สำเร็จ", item.name, item.slot))
+            else
+                warn(string.format("❌ ใส่ %s ในสล็อต %d ล้มเหลว: %s", item.name, item.slot, tostring(err)))
+            end
+            task.wait(0.6)
+        end
+
+        task.wait(1.5)
+
+        -- validate หลังใส่
+        local equippedNow = {}
+        do
+            local bF = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
+            if bF then
+                for _, v in pairs(bF:GetDescendants()) do
+                    if v:IsA("StringValue") and v.Value ~= "" and v.Value ~= "Empty" then
+                        table.insert(equippedNow, tostring(v.Value))
+                    end
+                end
+            end
+        end
+
+        if #equippedNow >= #equipList then
+            print("🏁 [SmartEquip] ใส่ทีมสำเร็จ")
+            return true
+        end
+
+        warn("❌ [SmartEquip] ถอดตัวแล้ว แต่ใส่กลับไม่ครบ")
+        return false
+    end
+
+    function Tutorial.Rejoin()
+        task.wait(1)
+        if #Players:GetPlayers() <= 1 then TeleportService:Teleport(game.PlaceId, LocalPlayer)
+        else TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end
+    end
+
+    -- 🚀 Tutorial Master Loop V6.6
+    task.spawn(function()
+        local hasCompleted = LocalPlayer:GetAttribute("TutorialStage") == "Completed" 
+                           or (LocalPlayer:FindFirstChild("Stats") and LocalPlayer.Stats:FindFirstChild("Level") and LocalPlayer.Stats.Level.Value > 1)
+        if hasCompleted then return end
+        
+        while task.wait(1.5) do 
+            if not _G.LobbyActive then continue end
+            local tutV2 = hud:FindFirstChild("TutorialV2")
+            local isTut = tutV2 and tutV2.Visible
+            
+            Tutorial.SkipDialogueAndSummon()
+
+            local invB = hud:FindFirstChild("LeftButton") and hud.LeftButton:FindFirstChild("InventoryButton")
+            if invB and invB.Visible then
+                Tutorial.ForceLoadInventoryUI()
+                task.wait(1.5)
+
+                if hud:FindFirstChild("InventoryV2") and hud.InventoryV2.Visible then
+                    Tutorial.SmartEquip()
+                end
+            end
+
+            task.wait(0.75)
+
+            local equippedCount = 0
+            local bF = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
+            if bF then
+                for _, v in pairs(bF:GetDescendants()) do
+                    if v:IsA("StringValue") and v.Value ~= "" and v.Value ~= "Empty" then
+                        equippedCount = equippedCount + 1
+                    end
+                end
+            end
+
+            if equippedCount >= 3 and not isTut then
+                break
+            end
+        end
+    end)
+
+    -- 🚀 Auto Join Loop (V9.1 - Inventory Check & Smart Progression)
+    task.spawn(function()
+        while task.wait(3) do
+            if not _G.LobbyActive then continue end
+            
+            -- 🛑 1. เช็คความพร้อม: ต้องมีตัวละครใส่อยู่ในทีมถึงจะไปลุยด่านได้
+            local eC = 0
+            local bF = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
+            if bF then
+                for _, v in pairs(bF:GetDescendants()) do
+                    if v:IsA("StringValue") and v.Value ~= "" and v.Value ~= "Empty" then 
+                        eC = eC + 1 
+                    end
+                end
+            end
+            
+            if eC == 0 then continue end
+            
+            -- 🎒 2. ก่อนไปลุยด่าน ขอเช็คกระเป๋าก่อนว่าเต็มไหม!
+            pcall(function()
+                if _G.MoMoStatus then _G.MoMoStatus("กำลังเช็คพื้นที่กระเป๋า...") end
+                Tutorial.ForceLoadInventoryUI()
+                task.wait(1.5)
+                
+                local invV2 = hud:FindFirstChild("InventoryV2")
+                if invV2 then
+                    -- เจาะทะลวง Path ตามที่ Tester ระบุ
+                    local unitAmountLbl = invV2:FindFirstChild("Page") 
+                        and invV2.Page:FindFirstChild("Main") 
+                        and invV2.Page.Main:FindFirstChild("Top") 
+                        and invV2.Page.Main.Top:FindFirstChild("List") 
+                        and invV2.Page.Main.Top.List:FindFirstChild("UnitsBox") 
+                        and invV2.Page.Main.Top.List.UnitsBox:FindFirstChild("UnitAmount")
+                        
+                    if unitAmountLbl and unitAmountLbl:IsA("TextLabel") then
+                        -- แยกตัวเลข ปัจจุบัน/สูงสุด (เช่น "16/15" -> จะดึง 16 กับ 15 ออกมา)
+                        local current, max = unitAmountLbl.Text:match("(%d+)%s*/%s*(%d+)")
+                        if current and max then
+                            if tonumber(current) >= tonumber(max) then
+                                print("🎒 [System] กระเป๋าเต็ม (" .. current .. "/" .. max .. ")! สั่งซื้อช่องเพิ่ม...")
+                                if _G.MoMoStatus then _G.MoMoStatus("กระเป๋าเต็ม! กำลังขยายช่อง...") end
+                                
+                                -- 💰 ยิง Remote สั่งซื้อช่องกระเป๋า
+                                serverRemote:InvokeServer("UpgradeInventory")
+                                task.wait(1.5) -- รอให้ระบบตัดเงินและอัปเดต UI
+                            end
+                        end
+                    end
+                end
+                
+                -- ปิดกระเป๋าทิ้งเพื่อเตรียมวาร์ปไม่ให้ UI บังหน้าจอ
+                local invB = hud:FindFirstChild("LeftButton") and hud.LeftButton:FindFirstChild("InventoryButton")
+                if invB and invB.Visible and invV2 and invV2.Visible then
+                    local VIM = game:GetService("VirtualInputManager")
+                    local aP, aS = invB.AbsolutePosition, invB.AbsoluteSize
+                    VIM:SendMouseButtonEvent(aP.X + aS.X/2, aP.Y + aS.Y/2 + 36, 0, true, game, 1)
+                    task.wait(0.05)
+                    VIM:SendMouseButtonEvent(aP.X + aS.X/2, aP.Y + aS.Y/2 + 36, 0, false, game, 1)
+                    task.wait(0.5)
+                end
+            end)
+
+            task.wait(0.5)
+            Tutorial.SmartEquip()
+            task.wait(0.5)
+
+            -- 🟢 3. พยายามเข้า Portal ที่เปิดอยู่
+            if AttemptJoinPortals() then
+                break
+            end
+            task.wait(5)
+        end
+    end)
+
+    -- 🎁 Giftbox Claim Loop
+    task.spawn(function()
+        while task.wait(5) do
+            if not _G.LobbyActive then
+                continue
+            end
+
+            pcall(function()
+                ClaimAllLobbyRewards()
+            end)
+        end
+    end)
+end
+
+-- ========================================================================= --
+-- 🟡 [MODULE 3]: Path + Enemy Tracking + Placement Calculator
+-- ========================================================================= --
+
+local Module3 = {}
+
+local placementState = {
+	PathPoints = {},
+	EnemyTracking = {},
+	LastPathScan = 0,
+	LastEnemyScan = 0,
+}
+
+local function m3Log(...)
+	print("[Module3]", ...)
+end
+
+local function m3Warn(...)
+	warn("[Module3]", ...)
+end
+
+local DEBUG_PLACEMENT = true
+
+local function dlog(...)
+	if DEBUG_PLACEMENT then
+		print("[PlacementDebug]", ...)
+	end
+end
+
+local function dwarn(...)
+	if DEBUG_PLACEMENT then
+		warn("[PlacementDebug]", ...)
+	end
+end
+
+local function getPlaceableFolder(towerType)
+	local placeable = workspace:FindFirstChild("Placeable")
+	if not placeable then
+		return nil
+	end
+	return placeable:FindFirstChild(towerType or "Base")
+end
+
+function Module3.ScanPathTrajectory()
+	local result = {
+		Success = false,
+		Count = 0,
+		Points = {},
+		Reason = nil,
+	}
+
+	local folders = {"Paths", "2Paths", "3Paths", "4Paths"}
+	local collected = {}
+
+	for _, folderName in ipairs(folders) do
+		local folder = workspace:FindFirstChild(folderName)
+		if folder then
+			local parts = {}
+			for _, obj in ipairs(folder:GetDescendants()) do
+				if obj:IsA("BasePart") then
+					table.insert(parts, obj)
+				end
+			end
+
+			table.sort(parts, function(a, b)
+				return (tonumber(a.Name) or 0) < (tonumber(b.Name) or 0)
+			end)
+
+			for _, part in ipairs(parts) do
+				table.insert(collected, {
+					Name = part.Name,
+					Position = part.Position,
+					Part = part,
+				})
+			end
+		end
+	end
+
+	placementState.PathPoints = collected
+	placementState.LastPathScan = os.clock()
+
+	result.Success = #collected > 0
+	result.Count = #collected
+	result.Points = collected
+	result.Reason = result.Success and "OK" or "NoPathPoints"
+
+	if result.Success then
+		m3Log("ScanPathTrajectory success | points =", #collected)
+	else
+		m3Warn("ScanPathTrajectory failed | no path points")
+	end
+
+	return result
+end
+
+function Module3.TrackEnemies()
+	local result = {
+		Success = true,
+		Count = 0,
+		Enemies = {},
+		Reason = "OK",
+	}
+
+	local enemiesFolder = workspace:FindFirstChild("Enemies")
+	local tracked = {}
+
+	if enemiesFolder then
+		for _, enemy in ipairs(enemiesFolder:GetChildren()) do
+			local hrp = enemy:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				tracked[enemy] = {
+					Model = enemy,
+					Name = enemy.Name,
+					Position = hrp.Position,
+				}
+				result.Count += 1
+			end
+		end
+	end
+
+	placementState.EnemyTracking = tracked
+	placementState.LastEnemyScan = os.clock()
+	result.Enemies = tracked
+
+	return result
+end
+
+local function getCoverageEnemies(position, radius)
+	local hits = {}
+
+	for _, enemyData in pairs(placementState.EnemyTracking) do
+		if enemyData and enemyData.Position then
+			local distance = (enemyData.Position - position).Magnitude
+			if distance <= radius then
+				table.insert(hits, {
+					Name = enemyData.Name,
+					Distance = distance,
+					Position = enemyData.Position,
+				})
+			end
+		end
+	end
+
+	table.sort(hits, function(a, b)
+		return a.Distance < b.Distance
+	end)
+
+	return hits
+end
+
+function Module3.ValidatePlacementCell(candidatePosition, towerType, coverageRadius)
+	local result = {
+		Success = false,
+		InputPosition = candidatePosition,
+		TowerType = towerType or "Base",
+		CoverageRadius = tonumber(coverageRadius) or 25,
+		FinalPosition = nil,
+		CFrame = nil,
+		Checks = {
+			Ground = false,
+			Collision = false,
+			Coverage = false,
+			TowerType = false,
+			PathDistance = false,
+		},
+		Reason = nil,
+		Score = 0,
+		CoveredEnemies = 0,
+		NearestEnemyDistance = math.huge,
+		NearestPathDistance = math.huge,
+	}
+
+	if typeof(candidatePosition) ~= "Vector3" then
+		result.Reason = "InvalidPosition"
+		return result
+	end
+
+	local placeableFolder = getPlaceableFolder(result.TowerType)
+	if not placeableFolder then
+		result.Reason = "PlaceableFolderMissing"
+		return result
+	end
+	result.Checks.TowerType = true
+
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Include
+	rayParams.FilterDescendantsInstances = {placeableFolder}
+
+	local rayResult = nil
+	local rayOk, rayErr = pcall(function()
+		rayResult = workspace:Raycast(
+			candidatePosition + Vector3.new(0, 60, 0),
+			Vector3.new(0, -120, 0),
+			rayParams
+		)
+	end)
+
+	if not rayOk then
+		result.Reason = "GroundRaycastFailed:" .. tostring(rayErr)
+		dwarn("Reject:", result.Reason)
+		return result
+	end
+
+	if not rayResult then
+		result.Reason = "GroundInvalid"
+		dlog("Reject:", result.Reason, "| towerType =", result.TowerType)
+		return result
+	end
+
+	result.Checks.Ground = true
+	result.FinalPosition = rayResult.Position
+	result.CFrame = CFrame.new(rayResult.Position)
+
+	-- กันชิด path เกินไป
+	for _, point in ipairs(placementState.PathPoints) do
+		if point and point.Position then
+			local dist = (point.Position - result.FinalPosition).Magnitude
+			if dist < result.NearestPathDistance then
+				result.NearestPathDistance = dist
+			end
+		end
+	end
+
+	if result.NearestPathDistance < 1.5 then
+		result.Reason = "TooCloseToPath"
+		dlog("Reject:", result.Reason, "| dist =", math.floor(result.NearestPathDistance * 100) / 100)
+		return result
+	end
+	result.Checks.PathDistance = true
+
+	-- ขยาย collision box ให้เข้มขึ้น
+	local overlapParams = OverlapParams.new()
+	overlapParams.FilterType = Enum.RaycastFilterType.Include
+	if workspace:FindFirstChild("Unit") then
+		overlapParams.FilterDescendantsInstances = {workspace.Unit}
+	else
+		overlapParams.FilterDescendantsInstances = {}
+	end
+
+	local collisionCount = 0
+	local overlapOk, overlapErr = pcall(function()
+		collisionCount = #workspace:GetPartBoundsInBox(result.CFrame, Vector3.new(4, 4, 4), overlapParams)
+	end)
+
+	if not overlapOk then
+		result.Reason = "CollisionCheckFailed:" .. tostring(overlapErr)
+		dwarn("Reject:", result.Reason)
+		return result
+	end
+
+	if collisionCount > 0 then
+		result.Reason = "BlockedByTower"
+		dlog("Reject:", result.Reason, "| collisions =", collisionCount)
+		return result
+	end
+	result.Checks.Collision = true
+
+	local hits = getCoverageEnemies(result.FinalPosition, result.CoverageRadius)
+	result.CoveredEnemies = #hits
+	-- ✅ FIX #1: ถ้าไม่มี enemy ในสนาม ให้ pass ได้ แต่ score จะต่ำ
+	-- จะไม่ block placement ตอนต้นเกมที่ enemy ยังไม่มา
+	if #hits <= 0 then
+		-- ยังถือว่า coverage pass ถ้าไม่มี enemy เลยในสนาม
+		local enemiesFolder = workspace:FindFirstChild("Enemies")
+		local hasAnyEnemy = enemiesFolder and #enemiesFolder:GetChildren() > 0
+		if hasAnyEnemy then
+			-- มี enemy แต่ไม่อยู่ใน range → reject จริง
+			result.Reason = "NoCoverage"
+			dlog("Reject:", result.Reason)
+			return result
+		end
+		-- ไม่มี enemy เลย → อนุญาต แต่ score ต่ำ
+		result.CoveredEnemies = 0
+	else
+		result.NearestEnemyDistance = hits[1] and hits[1].Distance or result.CoverageRadius
+	end
+	result.Checks.Coverage = true
+
+	result.NearestEnemyDistance = hits[1] and hits[1].Distance or result.CoverageRadius
+
+	-- ให้ score ชอบจุดที่ชิด path (Hug the Path) และมี coverage ดี
+	result.Score = (#hits * 100) - result.NearestEnemyDistance - (result.NearestPathDistance * 2)
+
+	result.Success = true
+	result.Reason = "OK"
+
+	dlog(
+		"Accept:",
+		"towerType =", result.TowerType,
+		"| coverage =", result.CoveredEnemies,
+		"| enemyDist =", math.floor(result.NearestEnemyDistance * 100) / 100,
+		"| pathDist =", math.floor(result.NearestPathDistance * 100) / 100,
+		"| score =", math.floor(result.Score * 100) / 100
+	)
+
+	return result
+end
+
+function Module3.CalculatePlacementPosition(towerName, towerType, coverageRadius)
+	local result = {
+		Success = false,
+		TowerName = towerName,
+		TowerType = towerType or "Base",
+		CoverageRadius = tonumber(coverageRadius) or 25,
+		Phase = nil,
+		BestPosition = nil,
+		BestCFrame = nil,
+		BestScore = -math.huge,
+		BestValidation = nil,
+		CandidatesChecked = 0,
+		Reason = nil,
+	}
+
+	local pathPoints = table.clone(placementState.PathPoints)
+	if #pathPoints == 0 then
+		local scanResult = Module3.ScanPathTrajectory()
+		pathPoints = table.clone(scanResult.Points or {})
+	end
+
+	if #pathPoints == 0 then
+		result.Reason = "NoPathPoints"
+		return result
+	end
+
+	-- ✅ Sort: ปลายทาง (Anchor) มาก่อน เพื่อเน้นตั้งรับในจุดที่ลึกที่สุดก่อน
+	table.sort(pathPoints, function(a, b)
+		return (tonumber(a.Name) or 0) > (tonumber(b.Name) or 0)
+	end)
+
+	local bestValidation = nil
+	local radii = {8, 12, 16}
+	local angles = {0, 90, 180, 270, 45, 135, 225, 315}
+	local maxScanRadius = (tonumber(coverageRadius) or 25) * 2
+
+	for i = 1, #pathPoints, 3 do
+		local point = pathPoints[i]
+		if point and point.Position then
+			for _, radius in ipairs(radii) do
+				-- ✅ Limit Scan Radius: ไม่สแกนไกลเกินรัศมีช่วยเหลือของ point นี้
+				if radius > maxScanRadius then break end
+
+				for _, angle in ipairs(angles) do
+					local rad = math.rad(angle)
+					local candidate = point.Position + Vector3.new(math.cos(rad) * radius, 0, math.sin(rad) * radius)
+
+					local validateResult = Module3.ValidatePlacementCell(candidate, result.TowerType, result.CoverageRadius)
+					result.CandidatesChecked += 1
+
+					if validateResult.Success then
+						if (not bestValidation) or validateResult.Score > bestValidation.Score then
+							bestValidation = validateResult
+							result.BestPosition = validateResult.FinalPosition
+							result.BestCFrame = validateResult.CFrame
+							result.BestValidation = validateResult
+							result.BestScore = validateResult.Score
+							result.Phase = "DynamicAnchor"
+						end
+					end
+
+					-- ✅ Early Exit: ถ้าเจอจุดที่คลุม enemy ได้เยอะพอแล้วใน candidate scan เบื้องต้น
+					if bestValidation and bestValidation.CoveredEnemies >= 5 and result.CandidatesChecked >= 24 then
+						break
+					end
+				end
+				if bestValidation and bestValidation.CoveredEnemies >= 5 and result.CandidatesChecked >= 24 then break end
+			end
+		end
+		if bestValidation and bestValidation.CoveredEnemies >= 5 and result.CandidatesChecked >= 24 then break end
+		task.wait()
+	end
+
+	if bestValidation then
+		result.Success = true
+		result.Reason = "OK"
+		dlog("Best placement chosen:", towerName, "| phase =", result.Phase, "| score =", result.BestScore)
+		return result
+	end
+
+	result.Reason = "NoValidPlacement"
+	dwarn("NoValidPlacement for", tostring(towerName), "| checked =", result.CandidatesChecked)
+	return result
+end
+
+function Module3.DetectLeak()
+	local enemiesFolder = workspace:FindFirstChild("Enemies")
+	if not enemiesFolder or #enemiesFolder:GetChildren() == 0 then
+		return { State = "Handled", Reason = "NoEnemies" }
+	end
+
+	local enemies = enemiesFolder:GetChildren()
+	local pathPoints = placementState.PathPoints
+
+	-- 1. หาตัวที่ "เดินหน้าสุด" (Leading Enemy)
+	-- โดยปกติ Enemy ที่มี Distance สูงสุด หรืออยู่ใกล้ Path point เลขสูงๆ คือตัวหน้าสุด
+	local leader = nil
+	local leaderIndex = -math.huge
+
+	for _, enemy in ipairs(enemies) do
+		local hrp = enemy:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			-- หา Path point ที่ใกล้ศัตรูนี้ที่สุดเพื่อประเมินความคืบหน้า
+			local nearestPointIndex = 0
+			local minDist = math.huge
+			for i, pt in ipairs(pathPoints) do
+				local d = (pt.Position - hrp.Position).Magnitude
+				if d < minDist then
+					minDist = d
+					nearestPointIndex = i
+				end
+			end
+
+			if nearestPointIndex > leaderIndex then
+				leaderIndex = nearestPointIndex
+				leader = enemy
+			end
+		end
+	end
+
+	if not leader then return { State = "Handled" } end
+
+	local leaderHrp = leader:FindFirstChild("HumanoidRootPart")
+	local leaderPos = leaderHrp.Position
+
+	-- 2. เช็คว่ามี Unit ของเราคลุมถึงหรือไม่ (ลำดับ Node)
+	local unitFolder = workspace:FindFirstChild("Unit")
+	local coveredByUnit = false
+	local LEAK_AHEAD_BUFFER = 2  -- ลดลงเพื่อตอบสนองเร็วขึ้น
+
+	if unitFolder then
+		for _, unit in ipairs(unitFolder:GetChildren()) do
+			local owner = unit:FindFirstChild("Owner")
+			local hrp = unit:FindFirstChild("HumanoidRootPart")
+			if owner and owner.Value == LocalPlayer and hrp then
+				-- หา Node ที่ยูนิตตั้งอยู่
+				local unitPathIndex = 0
+				local uMinDist = math.huge
+				for i, pt in ipairs(pathPoints) do
+					local d = (pt.Position - hrp.Position).Magnitude
+					if d < uMinDist then
+						uMinDist = d
+						unitPathIndex = i
+					end
+				end
+
+				-- เปรียบเทียบลำดับการเดิน (Node Index)
+				if leaderIndex <= (unitPathIndex + LEAK_AHEAD_BUFFER) then
+					coveredByUnit = true
+					break
+				end
+			end
+		end
+	end
+
+	if coveredByUnit then
+		return { State = "Handled", LeadingEnemy = leader }
+	else
+		return {
+			State = "Leaking",
+			LeadingEnemy = leader,
+			LeadingPos = leaderPos,
+			PathIndex = leaderIndex
+		}
+	end
+end
+
+-- ========================================================================= --
+-- 🟠 [MODULE 4]: Real Placement Executor
+-- ========================================================================= --
+
+local Module4 = {}
+
+local function m4Log(...)
+	print("[Module4]", ...)
+end
+
+local function m4Warn(...)
+	warn("[Module4]", ...)
+end
+
+local function getDeckSnapshot()
+	local result = {
+		Success = false,
+		Cards = {},
+		Reason = nil,
+	}
+
+	local hud = LocalPlayer.PlayerGui:FindFirstChild("HUD")
+	if not hud then
+		result.Reason = "HUDMissing"
+		return result
+	end
+
+	local bottomFrame = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
+	if not bottomFrame then
+		result.Reason = "BottomFrameMissing"
+		return result
+	end
+
+	local unitFrame = bottomFrame:FindFirstChild("Unit")
+	if not unitFrame then
+		result.Reason = "UnitFrameMissing"
+		return result
+	end
+
+	for index, slotName in ipairs({"One", "Two", "Three", "Four", "Five", "Six"}) do
+		local slot = unitFrame:FindFirstChild(slotName)
+		if slot and slot:FindFirstChild("Unit") and slot.Unit.Value ~= "" then
+			local cost = 9999
+
+			for _, obj in ipairs(slot:GetDescendants()) do
+				if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Text:match("%d+") then
+					cost = tonumber(obj.Text:match("%d+")) or cost
+					break
+				end
+			end
+
+			table.insert(result.Cards, {
+				Index = index,
+				SlotName = slotName,
+				Name = tostring(slot.Unit.Value),
+				Cost = cost,
+			})
+		end
+	end
+
+	result.Success = true
+	result.Reason = "OK"
+	return result
+end
+
+local function resolveCardByIndex(cardIndex)
+	local deckResult = getDeckSnapshot()
+	if not deckResult.Success then
+		return {
+			Success = false,
+			Reason = deckResult.Reason,
+			Card = nil,
+		}
+	end
+
+	for _, card in ipairs(deckResult.Cards) do
+		if card.Index == tonumber(cardIndex) then
+			return {
+				Success = true,
+				Reason = "OK",
+				Card = card,
+			}
+		end
+	end
+
+	return {
+		Success = false,
+		Reason = "CardIndexNotFound",
+		Card = nil,
+	}
+end
+
+local function countOwnedUnitsByName(unitName)
+	local count = 0
+	local unitFolder = workspace:FindFirstChild("Unit")
+	if not unitFolder then
+		return count
+	end
+
+	for _, unit in ipairs(unitFolder:GetChildren()) do
+		if unit:FindFirstChild("Owner") and unit.Owner.Value == LocalPlayer and unit.Name == unitName then
+			count += 1
+		end
+	end
+
+	return count
+end
+
+local function normalizeToCFrame(positionOrCFrame)
+	if typeof(positionOrCFrame) == "CFrame" then
+		return positionOrCFrame
+	end
+	if typeof(positionOrCFrame) == "Vector3" then
+		return CFrame.new(positionOrCFrame)
+	end
+	return nil
+end
+
+function Module4.PlaceTowerAtPosition(cardIndex, positionOrCFrame, towerType)
+	local result = {
+		Success = false,
+		CardIndex = tonumber(cardIndex),
+		Card = nil,
+		TowerType = towerType or "Base",
+		CFrame = nil,
+		Reason = nil,
+		LearningUpdated = false,
+		Debug = {},
+	}
+
+	local cardResult = resolveCardByIndex(cardIndex)
+	if not cardResult.Success then
+		result.Reason = cardResult.Reason
+		return result
+	end
+	result.Card = cardResult.Card
+
+	local cf = normalizeToCFrame(positionOrCFrame)
+	if not cf then
+		result.Reason = "InvalidPlacementCFrame"
+		return result
+	end
+	result.CFrame = cf
+
+	local moneyObj = LocalPlayer:FindFirstChild("Money")
+	local beforeMoney = moneyObj and tonumber(moneyObj.Value) or nil
+	local beforeCount = countOwnedUnitsByName(result.Card.Name)
+
+	local fireOk, fireErr = pcall(function()
+		inputRemote:FireServer("Summon", {
+			Rotation = 0,
+			cframe = cf,
+			Unit = result.Card.Name
+		})
+	end)
+
+	if not fireOk then
+		result.Reason = "RemoteFailed:" .. tostring(fireErr)
+		dwarn("Summon remote failed:", result.Card.Name, "|", tostring(fireErr))
+		return result
+	end
+
+	task.wait(0.35)
+
+	local afterMoney = moneyObj and tonumber(moneyObj.Value) or beforeMoney
+	local afterCount = countOwnedUnitsByName(result.Card.Name)
+
+	result.Debug.BeforeMoney = beforeMoney
+	result.Debug.AfterMoney = afterMoney
+	result.Debug.BeforeCount = beforeCount
+	result.Debug.AfterCount = afterCount
+	result.Debug.Position = cf.Position
+
+	dlog(
+		"Summon result:",
+		result.Card.Name,
+		"| beforeMoney =", tostring(beforeMoney),
+		"| afterMoney =", tostring(afterMoney),
+		"| beforeCount =", tostring(beforeCount),
+		"| afterCount =", tostring(afterCount)
+	)
+
+	if (beforeMoney and afterMoney and afterMoney < beforeMoney) or (afterCount > beforeCount) then
+		learnedPlacements[result.Card.Name] = result.TowerType
+		result.LearningUpdated = true
+		result.Success = true
+		result.Reason = "OK"
+		return result
+	end
+
+	result.Reason = "PlacementRejected"
+	dwarn("Placement rejected:", result.Card.Name, "| pos =", tostring(cf.Position), "| towerType =", result.TowerType)
+	return result
+end
+
+function Module4.RetryPlacementWithFallback(cardIndex, primaryPosition, fallbackPositions, towerType)
+	local result = {
+		Success = false,
+		CardIndex = tonumber(cardIndex),
+		TowerType = towerType or "Base",
+		Attempts = {},
+		AttemptCount = 0,
+		WinningAttempt = nil,
+		Reason = nil,
+	}
+
+	local positions = {primaryPosition}
+	if type(fallbackPositions) == "table" then
+		for i = 1, math.min(3, #fallbackPositions) do
+			table.insert(positions, fallbackPositions[i])
+		end
+	end
+
+	for attemptIndex, pos in ipairs(positions) do
+		local attempt = Module4.PlaceTowerAtPosition(cardIndex, pos, towerType)
+		attempt.AttemptIndex = attemptIndex
+
+		table.insert(result.Attempts, attempt)
+		result.AttemptCount = #result.Attempts
+
+		if attempt.Success then
+			result.Success = true
+			result.WinningAttempt = attempt
+			result.Reason = "OK"
+			return result
+		end
+
+		if attemptIndex < #positions then
+			task.wait(0.2)
+		end
+	end
+
+	result.Reason = "AllPlacementAttemptsFailed"
+	m4Warn("RetryPlacementWithFallback failed | cardIndex =", tostring(cardIndex))
+	return result
+end
+
+-- ========================================================================= --
+-- 🔷 [MODULE X]: Coordinator
+-- ========================================================================= --
+
+local ModuleX = {}
+
+local coordinatorStarted = false
+local coordinatorRuntime = {
+	LastEnemyTrackAt = 0,
+	LastPathRescanAt = 0,
+	LastDecisionAt = 0,
+	LastPlacementReason = "None",
+}
+
+local placementProgress = {
+    LastPlacedUnit = nil,
+    RequireUpgradeBeforeNextPlace = false,
+    LastPlacedUpgradeCount = 0,
+
+    FirstPlacedUnit = nil,
+    FirstPlacedUpgradeCount = 0,
+    RequireFirstPlacementUpgrade = false,
+}
+
+-- [[ 🚨 Leak Response State ]]
+local leakResponseState = {
+    LastLeakPlacementAt = 0,
+    LeakPlacementCooldown = 8,   -- วางตัวสกัดได้ทุก 8 วินาที ไม่รัว
+    TotalLeakPlacements = 0,
+    MaxLeakPlacements = 3,        -- วางสกัดได้สูงสุด 3 ตัวต่อเกม
+}
+
+local function mxLog(...)
+	print("[ModuleX]", ...)
+end
+
+local function mxWarn(...)
+	warn("[ModuleX]", ...)
+end
+
+local function safeStatus(text)
+	pcall(function()
+		if _G.MoMoStatus then
+			_G.MoMoStatus(text)
+		end
+	end)
+end
+
+local function getAffordableTower()
+	local result = {
+		Success = false,
+		Card = nil,
+		Reason = nil,
+	}
+
+	local deckResult = getDeckSnapshot()
+	if not deckResult.Success then
+		result.Reason = deckResult.Reason
+		return result
+	end
+
+	local moneyObj = LocalPlayer:FindFirstChild("Money")
+	local moneyValue = moneyObj and tonumber(moneyObj.Value) or 0
+
+	for _, card in ipairs(deckResult.Cards) do
+		local placedCount = countOwnedUnitsByName(card.Name)
+
+		if not (knownLimits[card.Name] and placedCount >= knownLimits[card.Name]) then
+			if moneyValue >= (tonumber(card.Cost) or math.huge) then
+				result.Success = true
+				result.Card = card
+				result.Reason = "OK"
+				return result
+			end
+		end
+	end
+
+	result.Reason = "NoAffordableTower"
+	return result
+end
+
+local function buildFallbackPositions(bestPosition)
+	local out = {}
+	if typeof(bestPosition) ~= "Vector3" then
+		return out
+	end
+
+	table.insert(out, bestPosition + Vector3.new(4, 0, 0))
+	table.insert(out, bestPosition + Vector3.new(-4, 0, 0))
+	table.insert(out, bestPosition + Vector3.new(0, 0, 4))
+
+	return out
+end
+
+-- [[ 🛡️ SCOPE HELPERS ]] 
+local function GetOwnedUnits()
+	local units = {}
+	local unitFolder = workspace:FindFirstChild("Unit")
+	if not unitFolder then
+		return units
+	end
+
+	for _, unit in ipairs(unitFolder:GetChildren()) do
+		local ok = pcall(function()
+			return unit:FindFirstChild("Owner") and unit.Owner.Value == LocalPlayer
+		end)
+
+		if ok and unit:FindFirstChild("Owner") and unit.Owner.Value == LocalPlayer then
+			table.insert(units, unit)
+		end
+	end
+
+	return units
+end
+
+local function FindNewestOwnedUnitByName(unitName)
+    local unitFolder = workspace:FindFirstChild("Unit")
+    if not unitFolder then return nil end
+
+    local newest = nil
+    for _, unit in ipairs(unitFolder:GetChildren()) do
+        local ok = pcall(function()
+            return unit:FindFirstChild("Owner") and unit.Owner.Value == LocalPlayer and unit.Name == unitName
+        end)
+
+        if ok and unit:FindFirstChild("Owner") and unit.Owner.Value == LocalPlayer and unit.Name == unitName then
+            newest = unit
+        end
+    end
+
+    return newest
+end
+
+local function GetUnitUpgradeLevel(unit)
+    if not unit then return 0 end
+    local upgradeTag = unit:FindFirstChild("UpgradeTag")
+    return (upgradeTag and tonumber(upgradeTag.Value)) or 0
+end
+
+-- ✅ ย้ายมาอยู่ตรงนี้ก่อน TryUpgradeSpecificUnit
+local function FindFirstUpgradeCost(unitInstance)
+    if not unitInstance then return nil end
+    local ok, cost = pcall(function()
+        return tonumber(unitInstance:GetAttribute("UpgradeCost") 
+            or unitInstance:GetAttribute("NextUpgradeCost"))
+    end)
+    if ok and cost and cost > 0 then return cost end
+    return nil
+end
+
+-- ✅ ตอนนี้ FindFirstUpgradeCostมีอยู่แล้วก่อนถูกเรียก
+local function TryUpgradeSpecificUnit(unit)
+    if not unit or unit.Parent == nil then
+        return false, "NoUnit"
+    end
+
+    -- ✅ แก้ Bug #1: ไม่ใช้ UpgradeTag เป็น confirmation แล้ว
+    -- ให้ใช้การเปลี่ยนแปลงของ Money เป็น indicator แทน (เร็วกว่า Replicate)
+    local moneyObj = LocalPlayer:FindFirstChild("Money")
+    local moneyBefore = moneyObj and tonumber(moneyObj.Value) or 0
+
+    -- ✅ แก้ Bug #2: ดึง cost หลายทาง + fallback ที่สมเหตุสมผล
+    local cost = nil
+    pcall(function()
+        cost = tonumber(unit:GetAttribute("UpgradeCost"))
+               or tonumber(unit:GetAttribute("NextUpgradeCost"))
+               or tonumber(unit:GetAttribute("Cost"))
+               or tonumber(unit:GetAttribute("upgrade_cost"))
+    end)
+
+    -- ถ้ายังไม่เจอ ลองอ่านจาก child Value object
+    if not cost then
+        for _, child in ipairs(unit:GetDescendants()) do
+            if child.Name:lower():find("upgradecost") or child.Name:lower():find("nextcost") then
+                local v = tonumber(child.Value)
+                if v and v > 0 then cost = v; break end
+            end
+        end
+    end
+
+    -- ถ้าหาไม่เจอเลย ให้ยิงไปก่อนแล้วเช็คเงิน (เกมส่วนใหญ่จะ reject ถ้าเงินไม่พอ)
+    -- ไม่ใช้ fallback 150 อีกต่อไปเพราะมันทำให้ข้ามการเช็คเงิน
+    if cost and moneyBefore < cost then
+        return false, "NotEnoughMoney"
+    end
+
+    -- ยิง Upgrade
+    local ok, err = pcall(function()
+        serverRemote:InvokeServer("Upgrade", unit)
+    end)
+    if not ok then
+        return false, tostring(err)
+    end
+
+    -- ✅ แก้ Bug #1: รอให้ Money replicate (ซึ่งเร็วกว่า UpgradeTag มาก)
+    task.wait(0.4)
+    local moneyAfter = moneyObj and tonumber(moneyObj.Value) or moneyBefore
+
+    -- เงินลดลง = upgrade สำเร็จ
+    if moneyAfter < moneyBefore then
+        return true, "OK"
+    end
+
+    -- รอนานขึ้นอีกหน่อยแล้วเช็คซ้ำ (กรณี server lag)
+    task.wait(0.4)
+    moneyAfter = moneyObj and tonumber(moneyObj.Value) or moneyBefore
+    if moneyAfter < moneyBefore then
+        return true, "OK"
+    end
+
+    return false, "UpgradeNotConfirmed"
+end
+
+function ModuleX.StartCoordinator()
+	if coordinatorStarted then
+		return {
+			Success = true,
+			Reason = "AlreadyStarted",
+			Runtime = coordinatorRuntime,
+		}
+	end
+
+	coordinatorStarted = true
+	mxLog("Coordinator started")
+
+	-- Enemy Tracking: 100ms
+	task.spawn(function()
+		while task.wait(0.1) do
+			if not _G.AutoPlayActive then
+				continue
+			end
+
+			local ok, err = pcall(function()
+				Module3.TrackEnemies()
+				coordinatorRuntime.LastEnemyTrackAt = os.clock()
+			end)
+
+			if not ok then
+				mxWarn("EnemyTrackingLoop:", tostring(err))
+			end
+		end
+	end)
+
+	-- Path Rescan: every 30s
+	task.spawn(function()
+		while task.wait(30) do
+			if not _G.AutoPlayActive then
+				continue
+			end
+
+			local ok, err = pcall(function()
+				Module3.ScanPathTrajectory()
+				coordinatorRuntime.LastPathRescanAt = os.clock()
+			end)
+
+			if not ok then
+				mxWarn("PathRescanLoop:", tostring(err))
+			end
+		end
+	end)
+
+	-- [[ 🛡️ LOCAL HELPERS ]] 
+	local function safeCall(tag, fn, ...)
+		if typeof(fn) ~= "function" then
+			warn("[ModuleX]", tag, "is nil or not a function")
+			return false, { Success = false, Reason = "NilFunction", Tag = tag }
+		end
+		local ok, result = pcall(fn, ...)
+		if not ok then
+			warn("[ModuleX]", tag, "failed:", result)
+			return false, { Success = false, Reason = "RuntimeError", Tag = tag, Error = tostring(result) }
+		end
+		return true, result
+	end
+
+	local function doUpgradeAll()
+		local status = { Success = false, Count = 0 }
+		local uF = workspace:FindFirstChild("Unit")
+		local moneyObj = LocalPlayer:FindFirstChild("Money")
+		local currentMoney = moneyObj and tonumber(moneyObj.Value) or 0
+		if not uF then return status end
+
+		for _, u in pairs(uF:GetChildren()) do
+			local owner = u:FindFirstChild("Owner")
+			if owner and owner.Value == LocalPlayer then
+				-- ✅ แก้ Bug #2: ดึง cost หลายทาง ถ้าหาไม่เจอให้ยิงไปเลย (ไม่ fallback 150)
+				local cost = nil
+				pcall(function()
+					cost = tonumber(u:GetAttribute("UpgradeCost"))
+						   or tonumber(u:GetAttribute("NextUpgradeCost"))
+						   or tonumber(u:GetAttribute("Cost"))
+				end)
+				if not cost then
+					for _, child in ipairs(u:GetDescendants()) do
+						if child.Name:lower():find("upgradecost") or child.Name:lower():find("nextcost") then
+							local v = tonumber(child.Value)
+							if v and v > 0 then cost = v; break end
+						end
+					end
+				end
+
+				-- ถ้าหา cost ไม่ได้เลย ให้ยิงไปเลย (ให้ server ตัดสิน)
+				local canAfford = (not cost) or (currentMoney >= cost)
+				if canAfford then
+					local moneyBefore = moneyObj and tonumber(moneyObj.Value) or currentMoney
+					local ok = pcall(function() serverRemote:InvokeServer("Upgrade", u) end)
+					if ok then
+						task.wait(0.15)
+						local moneyNow = moneyObj and tonumber(moneyObj.Value) or moneyBefore
+						if moneyNow < moneyBefore then
+							currentMoney = moneyNow
+							status.Count += 1
+							status.Success = true
+						end
+					end
+				end
+			end
+		end
+		return status
+	end
+
+	-- Unified Combat Director: 0.6s
+	task.spawn(function()
+		while task.wait(0.6) do
+			if not _G.AutoPlayEnabled or not _G.AutoPlayActive then
+				continue
+			end
+
+			if EmergencyState.ProtocolEngaged then
+				ELog("Standard combat routine paused by emergency protocol")
+				continue
+			end
+
+			local ok, err = pcall(function()
+				coordinatorRuntime.LastDecisionAt = os.clock()
+
+				local enemiesFolder = workspace:FindFirstChild("Enemies")
+				local hasEnemies = enemiesFolder and #enemiesFolder:GetChildren() > 0
+				local totalOwned = #GetOwnedUnits()
+			end)
+				local totalOwned = #GetOwnedUnits()
+
+				-- ✅ [FIRST UNIT FIXED PLACEMENT]
+				-- วางตัวแรกที่ workspace.Placeable.Base:GetChildren()[33].Base_Part เสมอ
+				if totalOwned == 0 then
+					local _, affordable = safeCall("getAffordableTower", getAffordableTower)
+					if affordable and affordable.Success and affordable.Card then
+						local card = affordable.Card
+
+						local fixedCF = nil
+						pcall(function()
+							local placeableBase = workspace:FindFirstChild("Placeable")
+								and workspace.Placeable:FindFirstChild("Base")
+							if placeableBase then
+								local children = placeableBase:GetChildren()
+								local slot = children[33]
+								if slot then
+									local basePart = slot:FindFirstChild("Base_Part")
+											   or (slot:IsA("BasePart") and slot)
+									if basePart then
+										fixedCF = basePart.CFrame
+									end
+								end
+							end
+						end)
+
+						if fixedCF then
+							mxLog("First unit: using fixed slot[33].Base_Part position")
+							safeStatus("🎯 วางตัวแรกที่จุดกำหนด (Slot 33)...")
+
+							local learnedType = learnedPlacements[card.Name] or "Base"
+							local _, placement = safeCall(
+								"Module4.RetryPlacementWithFallback",
+								Module4.RetryPlacementWithFallback,
+								card.Index,
+								fixedCF,
+								{
+									fixedCF * CFrame.new(2,0,0),
+									fixedCF * CFrame.new(-2,0,0),
+									fixedCF * CFrame.new(0,0,2),
+								},
+								learnedType
+							)
+
+							if placement and placement.Success then
+								mxLog("✅ First unit placed at fixed slot[33]")
+								safeStatus("✅ วางตัวแรกสำเร็จ! (" .. card.Name .. ")")
+								task.wait(0.3)
+								local placedUnit = FindNewestOwnedUnitByName(card.Name)
+								if placedUnit then
+									placementProgress.LastPlacedUnit = placedUnit
+									placementProgress.LastPlacedUpgradeCount = 0
+									placementProgress.RequireUpgradeBeforeNextPlace = true
+									-- อัปเกรดตัวแรกทันทีถ้ามีเงิน
+									for _ = 1, 3 do
+										local okUp = TryUpgradeSpecificUnit(placedUnit)
+										if okUp then
+											placementProgress.LastPlacedUpgradeCount += 1
+											placementProgress.RequireUpgradeBeforeNextPlace = false
+										else
+											break
+										end
+										task.wait(0.2)
+									end
+								end
+							end
+						else
+							mxLog("First unit: slot[33].Base_Part not found, falling back to standard placement")
+							safeStatus("⚠️ หา Slot 33 ไม่เจอ → ใช้การวางปกติ")
+						end
+					end
+					return  -- ✅ return อยู่ใน if totalOwned == 0 เท่านั้น
+				end
+
+				-- ✅ Protection: วางตัวละครได้แค่ 1 ตัวก่อนศัตรูมา (ป้องกัน Spawn Spam)
+				if not hasEnemies and totalOwned >= 1 then
+					coordinatorRuntime.LastPlacementReason = "NoEnemyYet"
+					return
+				end
+
+				-- 1. Leak Detection (Check State)
+				local _, leakStatus = safeCall("Module3.DetectLeak", Module3 and Module3.DetectLeak)
+				leakStatus = leakStatus or { State = "Handled", Reason = "Fallback" }
+
+				if leakStatus.State == "Leaking" then
+					mxLog("Leak detected! LeaderPathIndex =", tostring(leakStatus.PathIndex))
+					safeStatus("⚠️ ศัตรูหลุด! กำลังวางตัวสกัด...")
+
+					-- ป้องกันวางซ้ำเร็วเกินไปและวางเกิน limit
+					local now = os.clock()
+					local sinceLastLeak = now - leakResponseState.LastLeakPlacementAt
+					local overLimit = leakResponseState.TotalLeakPlacements >= leakResponseState.MaxLeakPlacements
+					local onCooldown = sinceLastLeak < leakResponseState.LeakPlacementCooldown
+
+					if overLimit then
+						mxLog("Leak: max leak placements reached, skipping")
+						-- ยังมีเงิน? อัปเกรด unit ที่มีอยู่แทน
+						safeCall("doUpgradeAll", doUpgradeAll)
+						return
+					end
+
+					if onCooldown then
+						mxLog("Leak: cooldown active, remaining =", math.floor(leakResponseState.LeakPlacementCooldown - sinceLastLeak) .. "s")
+						-- ระหว่างรอ cooldown ให้อัปเกรด unit ที่มีอยู่ก่อน
+						safeCall("doUpgradeAll", doUpgradeAll)
+						return
+					end
+
+					-- ตรวจสอบเงินและ card ที่วางได้
+					local _, affordable = safeCall("getAffordableTower", getAffordableTower)
+					if not (affordable and affordable.Success and affordable.Card) then
+						mxLog("Leak: no affordable card, upgrading instead")
+						safeCall("doUpgradeAll", doUpgradeAll)
+						return
+					end
+
+					local card = affordable.Card
+
+					-- ✅ ใช้ FindSpotForEmergency เพื่อดักหน้าศัตรูโดยตรง
+					local interceptSpot = nil
+					local interceptType = "Base"
+
+					if leakStatus.LeadingEnemy then
+						local spotOk, spotResult = pcall(function()
+							return FindSpotForEmergency(leakStatus.LeadingEnemy)
+						end)
+						if spotOk and spotResult then
+							interceptSpot = spotResult
+							-- FindSpotForEmergency return (cf, placeType) — รับตัวที่ 2 ด้วย
+							local _, pt = pcall(function()
+								return FindSpotForEmergency(leakStatus.LeadingEnemy)
+							end)
+							if pt and type(pt) == "string" then
+								interceptType = pt
+							end
+						end
+					end
+
+					-- Fallback: ถ้าดักหน้าไม่ได้ ให้ใช้ CalculatePlacementPosition ปกติ
+					if not interceptSpot then
+						mxLog("Leak: no intercept spot, falling back to standard placement")
+						local learnedType = learnedPlacements[card.Name] or "Base"
+						local _, calculation = safeCall(
+							"Module3.CalculatePlacementPosition",
+							Module3.CalculatePlacementPosition,
+							card.Name, learnedType, 25
+						)
+						if calculation and calculation.Success then
+							interceptSpot = calculation.BestCFrame
+							interceptType = learnedType
+						end
+					end
+
+					if not interceptSpot then
+						mxLog("Leak: cannot find any valid spot, upgrading instead")
+						safeCall("doUpgradeAll", doUpgradeAll)
+						return
+					end
+
+					-- ยิง Summon
+					local preCount = countOwnedUnitsByName(card.Name)
+					local summonOk, summonErr = pcall(function()
+						inputRemote:FireServer("Summon", {
+							Rotation = 0,
+							cframe = interceptSpot,
+							Unit = card.Name
+						})
+					end)
+
+					if not summonOk then
+						mxWarn("Leak summon failed:", tostring(summonErr))
+						return
+					end
+
+					-- รอยืนยัน
+					task.wait(0.4)
+					local postCount = countOwnedUnitsByName(card.Name)
+					local moneyObj = LocalPlayer:FindFirstChild("Money")
+					local moneyAfter = moneyObj and tonumber(moneyObj.Value) or 0
+
+					if postCount > preCount then
+						learnedPlacements[card.Name] = interceptType
+						leakResponseState.LastLeakPlacementAt = os.clock()
+						leakResponseState.TotalLeakPlacements += 1
+						mxLog("✅ Leak intercept placed:", card.Name, 
+						      "| total leak placements =", leakResponseState.TotalLeakPlacements)
+						safeStatus("✅ วางตัวสกัดสำเร็จ! (" .. card.Name .. ")")
+
+						-- ✅ หลังวางสำเร็จ ถ้ามีเงินเหลือให้อัปเกรดทันที
+						task.wait(0.3)
+						local leakUnit = FindNewestOwnedUnitByName(card.Name)
+						if leakUnit then
+							for _ = 1, 5 do
+								local okUp, _ = TryUpgradeSpecificUnit(leakUnit)
+								if not okUp then break end
+								task.wait(0.2)
+							end
+						end
+					else
+						mxLog("Leak summon not confirmed (money check:", moneyAfter, ")")
+						-- ถ้าวางไม่ได้ เป็นไปได้ว่าติด limit → บันทึก knownLimits
+						knownLimits[card.Name] = preCount
+					end
+
+					return
+				end
+
+				-- 2. Standard State (Handled)
+				local _, upgraded = safeCall("doUpgradeAll", doUpgradeAll)
+
+				local totalOwned = #GetOwnedUnits()
+				local enemiesCount = enemiesFolder and #enemiesFolder:GetChildren() or 0
+
+				-- ✅ ตรวจสอบว่าตัวแรกอัปเกรดครบถึง 1 ครั้งแล้ว
+				if placementProgress.FirstPlacedUpgradeCount >= 1 then
+					placementProgress.RequireFirstPlacementUpgrade = false
+				end
+
+				-- 🔒 ต้องอัปตัวแรกที่วางก่อนเท่านั้น จะวางตัวเพิ่มได้
+				if placementProgress.RequireFirstPlacementUpgrade and placementProgress.FirstPlacedUnit then
+					local firstUnit = placementProgress.FirstPlacedUnit
+
+					if firstUnit.Parent == nil then
+						mxLog("FirstPlacedUnit destroyed, releasing first-unit lock")
+						placementProgress.RequireFirstPlacementUpgrade = false
+						placementProgress.FirstPlacedUnit = nil
+					else
+						local upgradedOk, reason = TryUpgradeSpecificUnit(firstUnit)
+						if upgradedOk then
+							placementProgress.FirstPlacedUpgradeCount += 1
+							placementProgress.RequireFirstPlacementUpgrade = false
+							placementProgress.RequireUpgradeBeforeNextPlace = false
+							mxLog("First placed unit upgraded, placement unlocked")
+						else
+							coordinatorRuntime.LastPlacementReason = "WaitingFirstUnitUpgrade:" .. tostring(reason)
+							return
+						end
+					end
+				end
+
+				-- วางตัวเพิ่มได้ ก็ต่อเมื่อไม่มีภารกิจบังคับอัปตัวแรก
+				if enemiesCount > 0
+					and totalOwned < 4
+					and not placementProgress.RequireUpgradeBeforeNextPlace
+					and not placementProgress.RequireFirstPlacementUpgrade then
+					local _, affordable = safeCall("getAffordableTower", getAffordableTower)
+					if affordable and affordable.Success and affordable.Card then
+						local card = affordable.Card
+						local learnedType = learnedPlacements[card.Name] or "Base"
+
+						local _, calculation = safeCall(
+							"Module3.CalculatePlacementPosition",
+							Module3.CalculatePlacementPosition,
+							card.Name,
+							learnedType,
+							25
+						)
+
+						if calculation and calculation.Success then
+							local _, placement = safeCall(
+								"Module4.RetryPlacementWithFallback",
+								Module4.RetryPlacementWithFallback,
+								card.Index,
+								calculation.BestCFrame,
+								buildFallbackPositions(calculation.BestPosition),
+								learnedType
+							)
+
+							if placement and placement.Success then
+								mxLog("Normal placement successful")
+
+								task.wait(0.3)
+								local placedUnit = FindNewestOwnedUnitByName(card.Name)
+								if placedUnit then
+									placementProgress.LastPlacedUnit = placedUnit
+									placementProgress.LastPlacedUpgradeCount = 0
+									placementProgress.RequireUpgradeBeforeNextPlace = true
+
+									-- จำตัวแรกที่วางไว้เป็นตัวบังคับอัปก่อนวางตัวอื่น
+									if not placementProgress.FirstPlacedUnit or placementProgress.FirstPlacedUnit.Parent == nil then
+										placementProgress.FirstPlacedUnit = placedUnit
+										placementProgress.FirstPlacedUpgradeCount = 0
+										placementProgress.RequireFirstPlacementUpgrade = true
+										mxLog("First placed unit registered:", placedUnit.Name)
+									end
+									end
+
+									if instantUpgradeOk then
+										mxLog("Freshly placed unit upgraded immediately after placement")
+									end
+								end
+							end
+						end
+					end
+				end
+
+				coordinatorRuntime.LastPlacementReason = "HandledMode"
+			end)
+
+
+
+-- ========================================================================= --
+-- 🚨 [MODULE X]: EMERGENCY COORDINATOR
+-- ========================================================================= --
+local EmergencyCoordinator = {}
+
+local function ELog(...)
+	print("[EmergencyCoordinator]", ...)
+end
+
+local function EWarn(...)
+	warn("[EmergencyCoordinator]", ...)
+end
+
+
+
+local function ScanForModifier(modifierString)
+	local enemiesFolder = workspace:FindFirstChild("Enemies")
+	if not enemiesFolder then
+		return false, nil
+	end
+
+	for _, enemy in ipairs(enemiesFolder:GetChildren()) do
+		local ok, found = pcall(function()
+			-- 1. Check Metadata BBGUI (TITLE_BBGUI)
+			local head = enemy:FindFirstChild("Head")
+			if head then
+				local bb = head:FindFirstChild("TITLE_BBGUI")
+				if bb then
+					for _, label in ipairs(bb:GetDescendants()) do
+						if label:IsA("TextLabel") and label.Text == modifierString then
+							return true
+						end
+					end
+				end
+			end
+
+			-- 2. Check Attributes & Tags
+			if enemy:GetAttribute("Modifier") == modifierString or enemy:FindFirstChild(modifierString) then
+				return true
+			end
+
+			-- 3. High HP Check (Substitutes for Powerful/Boss)
+			local hum = enemy:FindFirstChildOfClass("Humanoid")
+			if hum and hum.MaxHealth > 100000 then -- ตัวอย่างค่า HP สำหรับบอส
+				return true
+			end
+
+			-- 4. Name Pattern
+			if enemy.Name:find(modifierString) then
+				return true
+			end
+			
+			return false
+		end)
+
+		if ok and found then
+			ELog("Threat detected:", modifierString, "| Enemy =", enemy.Name)
+			return true, enemy
+		end
+	end
+
+	return false, nil
+end
+
+local function HasUpgradedDefenders(enemyInstance)
+	-- [FIX-EMG-1] อย่าจบ Emergency เร็วเกินไปแค่เพราะมีตัว level >= 2 อยู่ใกล้ศัตรู
+	-- ต้องเช็คต่อว่า "ยังมีเงินพอให้อัปเกรดต่อ" หรือไม่ ถ้ายังอัปเกรดได้ให้คืน false เพื่อบังคับ Emergency ทำงานต่อ
+	if not enemyInstance then return false end
+	local enemyHrp = enemyInstance:FindFirstChild("HumanoidRootPart")
+	if not enemyHrp then return false end
+	
+	local enemyPos = enemyHrp.Position
+	local threatRadius = 40
+	local moneyObj = LocalPlayer:FindFirstChild("Money")
+	local money = moneyObj and tonumber(moneyObj.Value) or 0
+	local TARGET_LEVEL = 2
+
+	for _, unit in ipairs(GetOwnedUnits()) do
+		local ok, handled = pcall(function()
+			local hrp = unit:FindFirstChild("HumanoidRootPart")
+			local upgradeTag = unit:FindFirstChild("UpgradeTag")
+			if not hrp or not upgradeTag then return false end
+
+			local distToEnemy = (hrp.Position - enemyPos).Magnitude
+			local level = tonumber(upgradeTag.Value) or 0
+			local nextCost = FindFirstUpgradeCost(unit)
+
+			if distToEnemy > threatRadius then
+				return false
+			end
+
+			if nextCost and money >= nextCost then
+				ELog("[FIX-EMG-1] Defender near threat can still be upgraded:", unit.Name, "| level =", level, "| money =", money, "| nextCost =", nextCost)
+				return false
+			end
+
+			if level >= TARGET_LEVEL then
+				ELog("[FIX-EMG-1] Board ready with sufficiently upgraded defender near threat:", unit.Name, "| level =", level)
+				return true
+			end
+
+			return false
+		end)
+
+		if ok and handled then
+			return true
+		end
+	end
+
+	return false
+end
+
+-- ==========================================================
+-- 📇 ดึงข้อมูล Deck ปัจจุบันพร้อมระดับดาวที่แท้จริง (ดึงจาก Server)
+-- ==========================================================
+local function GetDeckWithStars()
+    local deck = {}
+    local hud = LocalPlayer.PlayerGui:FindFirstChild("HUD")
+    if not hud then return deck end
+    
+    local bottomFrame = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
+    if not bottomFrame then return deck end
+    
+    local unitFrame = bottomFrame:FindFirstChild("Unit")
+    if not unitFrame then return deck end
+
+    -- อ้างอิงไปที่โฟลเดอร์เก็บข้อมูลดาวของเกม
+    local unitStarsFolder = game:GetService("ReplicatedStorage"):FindFirstChild("UnitStars")
+
+    for _, slotName in ipairs({"One","Two","Three","Four","Five","Six"}) do
+        local slot = unitFrame:FindFirstChild(slotName)
+        if slot and slot:FindFirstChild("Unit") and slot.Unit.Value ~= "" then
+            local unitName = slot.Unit.Value
+            local cost = 9999
+            
+            -- 1. หาค่า Cost จาก UI (เพราะราคาในเกมตอนเล่นอาจจะเปลี่ยนได้)
+            for _, obj in ipairs(slot:GetDescendants()) do
+                if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Text then
+                    local n = tonumber(obj.Text:match("%d+"))
+                    if n and n > 0 and n < cost then cost = n end
+                end
+            end
+            
+            -- 2. หาค่า Stars จาก ReplicatedStorage โดยตรง (แม่นยำ 100%)
+            local stars = 6 -- ค่าเริ่มต้นถ้าเกิดหาไม่เจอจริงๆ
+            if unitStarsFolder then
+                local starData = unitStarsFolder:FindFirstChild(unitName)
+                if starData and starData:IsA("IntValue") then
+                    stars = starData.Value
+                end
+            end
+
+            table.insert(deck, {
+                Name     = unitName,
+                Cost     = cost,
+                Stars    = stars,
+                SlotName = slotName,
+            })
+        end
+    end
+    
+    return deck
+end
+
+local function FindOptimalEmergencyCard(maxStars)
+	local deck = GetDeckWithStars()
+	if #deck == 0 then
+		EWarn("No cards found in deck")
+		return nil
+	end
+
+	local filtered = {}
+	for _, card in ipairs(deck) do
+		if (tonumber(card.Stars) or 6) <= maxStars then
+			table.insert(filtered, card)
+		end
+	end
+
+	local pool = (#filtered > 0) and filtered or deck
+	table.sort(pool, function(a, b)
+		local aCost = tonumber(a.Cost) or math.huge
+		local bCost = tonumber(b.Cost) or math.huge
+		if aCost == bCost then
+			return (tonumber(a.Stars) or 99) < (tonumber(b.Stars) or 99)
+		end
+		return aCost < bCost
+	end)
+
+	local picked = pool[1]
+	if picked then
+		ELog("Emergency card selected:", picked.Name, "| Cost =", picked.Cost, "| Stars =", picked.Stars)
+	end
+
+	return picked
+end
+
+
+local function FindOwnedUnitByName(name)
+	local unitFolder = workspace:FindFirstChild("Unit")
+	if not unitFolder then
+		return nil
+	end
+
+	for _, u in ipairs(unitFolder:GetChildren()) do
+		local ok = pcall(function()
+			return u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer and u.Name == name
+		end)
+
+		if ok then
+			local pass = false
+			pcall(function()
+				pass = u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer and u.Name == name
+			end)
+			if pass then
+				return u
+			end
+		end
+	end
+
+	return nil
+end
+
+local function FindSpotForEmergency(enemyInstance)
+	if not enemyInstance then return nil, "NoEnemyProvided" end
+	local enemyHrp = enemyInstance:FindFirstChild("HumanoidRootPart")
+	if not enemyHrp then return nil, "NoHrp" end
+
+	local enemyPos = enemyHrp.Position
+	local travelDir = Vector3.new(0, 0, 0)
+
+	-- คำนวณทิศทาง (Toward Base/Nearest Path)
+	local pathPoints = placementState.PathPoints
+	if #pathPoints > 0 then
+		local nearestPt = 1
+		local minDist = math.huge
+		for i, pt in ipairs(pathPoints) do
+			local d = (pt.Position - enemyPos).Magnitude
+			if d < minDist then
+				minDist = d
+				nearestPt = i
+			end
+		end
+		
+		-- ทิศทางไปจุดถัดไป
+		local nextPt = pathPoints[nearestPt + 1] or pathPoints[nearestPt]
+		travelDir = (nextPt.Position - enemyPos).Unit
+	end
+
+	local placeableRoot = workspace:FindFirstChild("Placeable")
+	if not placeableRoot then return nil, "NoPlaceableRoot" end
+
+	-- ✅ Intercept Logic: ดักหน้าศัตรู 20/35/50 studs
+	local interceptDistances = {20, 35, 50}
+
+	for _, dist in ipairs(interceptDistances) do
+		local interceptPoint = enemyPos + (travelDir * dist)
+
+		for _, placeType in ipairs({"Base", "Hill"}) do
+			local placeableFolder = placeableRoot:FindFirstChild(placeType)
+			if placeableFolder then
+				local rayParams = RaycastParams.new()
+				rayParams.FilterType = Enum.RaycastFilterType.Include
+				rayParams.FilterDescendantsInstances = {placeableFolder}
+
+				local ray = workspace:Raycast(interceptPoint + Vector3.new(0, 50, 0), Vector3.new(0, -100, 0), rayParams)
+				if ray then
+					local cf = CFrame.new(ray.Position)
+					local overlap = OverlapParams.new()
+					overlap.FilterType = Enum.RaycastFilterType.Include
+					if workspace:FindFirstChild("Unit") then overlap.FilterDescendantsInstances = {workspace.Unit} end
+
+					local blocked = false
+					pcall(function() blocked = #workspace:GetPartBoundsInBox(cf, Vector3.new(6,6,6), overlap) > 0 end)
+
+					if not blocked then
+						ELog("Intercept spot found at distance:", dist)
+						return cf, placeType
+					end
+				end
+			end
+		end
+	end
+
+	return nil, "NoInterceptSpot"
+end
+
+local function RetryPendingEmergencyUpgrade()
+	for i = #EmergencyState.PendingUpgradeInstances, 1, -1 do
+		local unit = EmergencyState.PendingUpgradeInstances[i]
+
+		if not unit or unit.Parent == nil then
+			table.remove(EmergencyState.PendingUpgradeInstances, i)
+			continue
+		end
+
+		local threatStillActive = ScanForModifier("Powerful")
+		if not threatStillActive then
+			ELog("Threat disappeared during pending upgrade retry")
+			EmergencyState.ProtocolEngaged = false
+			EmergencyState.IsThreatActive = false
+			EmergencyState.TargetEmergencyUnit = nil
+			table.clear(EmergencyState.PendingUpgradeInstances)
+			return true
+		end
+
+		local currentTier = nil
+		pcall(function()
+			local upgradeTag = unit:FindFirstChild("UpgradeTag")
+			if upgradeTag then
+				currentTier = tonumber(upgradeTag.Value)
+			end
+		end)
+
+		if currentTier and currentTier >= 1 then
+			ELog("Pending emergency unit already upgraded:", unit.Name)
+			table.remove(EmergencyState.PendingUpgradeInstances, i)
+			EmergencyState.ProtocolEngaged = false
+			EmergencyState.TargetEmergencyUnit = nil
+			return true
+		end
+
+		local moneyObj = LocalPlayer:FindFirstChild("Money")
+		local money = moneyObj and tonumber(moneyObj.Value) or 0
+		local upgradeCost = FindFirstUpgradeCost(unit) or 150
+
+		if money >= upgradeCost then
+			local ok, err = pcall(function()
+				serverRemote:InvokeServer("Upgrade", unit)
+			end)
+
+			if ok then
+				ELog("Retried emergency upgrade:", unit.Name, "| Cost =", upgradeCost)
+			else
+				EWarn("Retry emergency upgrade failed:", tostring(err))
+			end
+		end
+	end
+
+	return false
+end
+
+local function ExecuteEmergencyDeployment(cardData, enemyInstance)
+	if not cardData then
+		EWarn("[FIX-EMG-2] ExecuteEmergencyDeployment: cardData missing")
+		return false, "NoCardData"
+	end
+
+	local threatStillActive, currentThreat = ScanForModifier("Powerful")
+	if not threatStillActive then
+		ELog("[FIX-EMG-2] Threat already gone before deployment")
+		return false, "ThreatGone"
+	end
+
+	local targetEnemy = enemyInstance or currentThreat
+	local enemyHrp = targetEnemy and targetEnemy:FindFirstChild("HumanoidRootPart")
+	local existing = nil
+	local moneyObj = LocalPlayer:FindFirstChild("Money")
+
+	-- [FIX-EMG-2] ห้ามใช้ FindOwnedUnitByName แบบ global search เดี่ยว ๆ
+	-- ให้คัดเฉพาะยูนิตชื่อเดียวกันที่ "อยู่ใกล้ Powerful จริง" ภายใน 40 studs
+	if enemyHrp then
+		local enemyPos = enemyHrp.Position
+		local nearestDist = math.huge
+		for _, unit in ipairs(GetOwnedUnits()) do
+			local ok = pcall(function()
+				return unit.Name == cardData.Name and unit:FindFirstChild("HumanoidRootPart") ~= nil
+			end)
+			if ok and unit.Name == cardData.Name then
+				local unitHrp = unit:FindFirstChild("HumanoidRootPart")
+				if unitHrp then
+					local dist = (unitHrp.Position - enemyPos).Magnitude
+					if dist <= 40 and dist < nearestDist then
+						existing = unit
+						nearestDist = dist
+					end
+				end
+			end
+		end
+		if existing then
+			ELog("[FIX-EMG-2] Found nearby existing defender:", existing.Name, "| distToThreat =", math.floor(nearestDist * 100) / 100)
+		else
+			ELog("[FIX-EMG-2] No nearby existing defender within 40 studs; allowing new intercept summon for", cardData.Name)
+		end
+	else
+		EWarn("[FIX-EMG-2] Target enemy has no HRP; fallback to fresh summon path")
+	end
+
+	local placedUnit = nil
+
+	if existing then
+		local upgradeTagValue = nil
+		pcall(function()
+			local upgradeTag = existing:FindFirstChild("UpgradeTag")
+			if upgradeTag then
+				upgradeTagValue = tonumber(upgradeTag.Value)
+			end
+		end)
+
+		if not table.find(EmergencyState.PendingUpgradeInstances, existing) then
+			table.insert(EmergencyState.PendingUpgradeInstances, existing)
+		end
+
+		ELog("[FIX-EMG-2] Reusing nearby existing defender:", cardData.Name, "| currentUpgrade =", tostring(upgradeTagValue))
+		placedUnit = existing
+	else
+		local spot, placeType = FindSpotForEmergency(targetEnemy)
+		if not spot then
+			EWarn("[FIX-EMG-2] No emergency intercept spot:", tostring(placeType or "NoSpot"))
+			return false, tostring(placeType or "NoSpot")
+		end
+
+		local firstUpgradeCost = 150
+		local moneyValue = moneyObj and tonumber(moneyObj.Value) or 0
+		local totalRequired = (tonumber(cardData.Cost) or math.huge) + firstUpgradeCost
+
+		if moneyValue < totalRequired then
+			ELog("[FIX-EMG-2] Waiting for emergency budget:", moneyValue, "/", totalRequired)
+			return false, "InsufficientBudget"
+		end
+
+		local preCount = 0
+		for _, u in ipairs(GetOwnedUnits()) do
+			if u.Name == cardData.Name then
+				preCount += 1
+			end
+		end
+
+		local summonOk, summonErr = pcall(function()
+			inputRemote:FireServer("Summon", {
+				Rotation = 0,
+				cframe = spot,
+				Unit = cardData.Name
+			})
+		end)
+
+		if not summonOk then
+			EWarn("[FIX-EMG-2] Emergency summon failed:", tostring(summonErr))
+			return false, "SummonFailed"
+		end
+
+		ELog("[FIX-EMG-2] Emergency summon fired:", cardData.Name, "| Type =", tostring(placeType))
+
+		for _ = 1, 12 do
+			task.wait(0.25)
+			local threatCheck = ScanForModifier("Powerful")
+			if not threatCheck then
+				ELog("[FIX-EMG-2] Threat disappeared after summon")
+				return false, "ThreatGoneAfterSummon"
+			end
+
+			local matches = {}
+			for _, u in ipairs(GetOwnedUnits()) do
+				if u.Name == cardData.Name then
+					table.insert(matches, u)
+				end
+			end
+
+			if #matches > preCount then
+				placedUnit = matches[#matches]
+				break
+			end
+		end
+
+		if not placedUnit then
+			EWarn("[FIX-EMG-2] Emergency summon not confirmed")
+			return false, "SummonNotConfirmed"
+		end
+
+		if not table.find(EmergencyState.PendingUpgradeInstances, placedUnit) then
+			table.insert(EmergencyState.PendingUpgradeInstances, placedUnit)
+		end
+	end
+
+	if not placedUnit or placedUnit.Parent == nil then
+		EWarn("[FIX-EMG-3] No valid placedUnit for emergency upgrade loop")
+		return false, "NoPlacedUnit"
+	end
+
+	-- [FIX-EMG-3] Continuous Emergency Upgrading
+	local upgradedAtLeastOnce = false
+	while true do
+		local stillPowerful = ScanForModifier("Powerful")
+		if not stillPowerful then
+			ELog("[FIX-EMG-3] Threat gone during continuous upgrade loop")
+			break
+		end
+
+		if not placedUnit or placedUnit.Parent == nil then
+			EWarn("[FIX-EMG-3] placedUnit destroyed during emergency loop")
+			break
+		end
+
+		local upgradeCost = FindFirstUpgradeCost(placedUnit)
+		if not upgradeCost or upgradeCost <= 0 then
+			ELog("[FIX-EMG-3] No further upgrade cost available; unit may be maxed:", placedUnit.Name)
+			break
+		end
+
+		local currentMoney = moneyObj and tonumber(moneyObj.Value) or 0
+		if currentMoney < upgradeCost then
+			ELog("[FIX-EMG-3] Waiting for more money to continue emergency upgrades:", currentMoney, "/", upgradeCost)
+			break
+		end
+
+		local upgradeOk, upgradeErr = pcall(function()
+			serverRemote:InvokeServer("Upgrade", placedUnit)
+		end)
+
+		if not upgradeOk then
+			EWarn("[FIX-EMG-3] Emergency upgrade invoke failed:", tostring(upgradeErr))
+			break
+		end
+
+		upgradedAtLeastOnce = true
+		local currentTier = nil
+		pcall(function()
+			local upgradeTag = placedUnit:FindFirstChild("UpgradeTag")
+			if upgradeTag then
+				currentTier = tonumber(upgradeTag.Value)
+			end
+		end)
+		ELog("[FIX-EMG-3] Emergency upgraded:", placedUnit.Name, "| nextTier =", tostring(currentTier), "| nextCheckIn = 0.5s")
+		task.wait(0.5)
+	end
+
+	for i = #EmergencyState.PendingUpgradeInstances, 1, -1 do
+		if EmergencyState.PendingUpgradeInstances[i] == placedUnit then
+			table.remove(EmergencyState.PendingUpgradeInstances, i)
+		end
+	end
+
+	if upgradedAtLeastOnce then
+		ELog("[FIX-EMG-3] Emergency deployment complete:", cardData.Name)
+		return true, "Success"
+	end
+
+	return false, "UpgradePendingSync"
+end
+
+function EmergencyCoordinator.LockStandardRoutine()
+	if not EmergencyState.ProtocolEngaged then
+		ELog("Locking standard routine")
+	end
+	EmergencyState.ProtocolEngaged = true
+end
+
+function EmergencyCoordinator.ReleaseStandardRoutine()
+	if EmergencyState.ProtocolEngaged then
+		ELog("Releasing standard routine")
+	end
+	EmergencyState.ProtocolEngaged = false
+	EmergencyState.TargetEmergencyUnit = nil
+end
+
+function EmergencyCoordinator.EvaluateThreatLevel()
+	local active, enemy = ScanForModifier("Powerful")
+	EmergencyState.IsThreatActive = active
+	EmergencyState.IsBoardReady = HasUpgradedDefenders(enemy)
+
+	if (not EmergencyState.IsThreatActive) or EmergencyState.IsBoardReady then
+		EmergencyCoordinator.ReleaseStandardRoutine()
+		return false, nil
+	end
+
+	EmergencyCoordinator.LockStandardRoutine()
+	return true, enemy
+end
+
+function EmergencyCoordinator.Tick()
+	if not _G.AutoPlayActive then
+		return false
+	end
+
+	-- [FIX-EMG-4] Deadlock watchdog: ถ้าไม่มี Powerful แล้วให้ปลด lock ทันทีทุกกรณี
+	local powerfulActive, powerfulEnemy = ScanForModifier("Powerful")
+	if not powerfulActive then
+		if EmergencyState.ProtocolEngaged or EmergencyState.TargetEmergencyUnit then
+			ELog("[FIX-EMG-4] No Powerful found – force releasing emergency lock")
+		end
+		EmergencyState.ProtocolEngaged = false
+		EmergencyState.IsThreatActive = false
+		EmergencyState.IsBoardReady = false
+		EmergencyState.TargetEmergencyUnit = nil
+		table.clear(EmergencyState.PendingUpgradeInstances)
+		return false
+	end
+
+	if tick() - (EmergencyState.LastScan or 0) < 0.5 then
+		return EmergencyState.ProtocolEngaged
+	end
+	EmergencyState.LastScan = tick()
+
+	if RetryPendingEmergencyUpgrade() then
+		return true
+	end
+
+	local emergencyNeeded, threatEnemy = EmergencyCoordinator.EvaluateThreatLevel()
+	threatEnemy = threatEnemy or powerfulEnemy
+	if not emergencyNeeded then
+		return false
+	end
+
+	local cardData = FindOptimalEmergencyCard(4)
+	if not cardData then
+		EWarn("Emergency failed: no usable card found")
+		return true
+	end
+
+	EmergencyState.TargetEmergencyUnit = cardData.Name
+
+	if tick() - (EmergencyState.LastAction or 0) < 0.5 then
+		return true
+	end
+	EmergencyState.LastAction = tick()
+
+	local success, reason = ExecuteEmergencyDeployment(cardData, threatEnemy)
+	ELog("Emergency Tick Result:", tostring(success), "|", tostring(reason))
+
+	if success then
+		EmergencyCoordinator.ReleaseStandardRoutine()
+	end
+
+	return true
+end
+
+function EmergencyCoordinator.Start()
+	task.spawn(function()
+		while task.wait(0.5) do
+			pcall(function()
+				EmergencyCoordinator.Tick()
+			end)
+		end
+	end)
+end
+
+-- ========================================================================= --
+-- 🔴 [MODULE 2]: Auto Play
+-- ========================================================================= --
+-- เพิ่มฟังก์ชันนี้ก่อน StartAutoPlay
+local function GetCurrentStoryLevel()
+    local success, level = pcall(function()
+        return serverRemote:InvokeServer("Data", "StoryLevel")
+    end)
+    if success and type(level) == "number" then
+        return level
+    end
+    return nil
+end
+
+local function StartAutoPlay()
+    pcall(function()
+        EmergencyCoordinator.Start()
+    end)
+
+    -- Reset Leak Response State ทุกครั้งที่เริ่มเกมใหม่
+    leakResponseState.LastLeakPlacementAt = 0
+    leakResponseState.TotalLeakPlacements = 0
+    mxLog("Leak Response State reset for new game")
+
+    -- ⚡ [SUB-MODULE]: Auto Game State (ควบคุมความเร็วด่าน & ข้ามเวฟ & เช็ค Speed UI)
+    task.spawn(function()
+        while task.wait(1) do
+            if not _G.AutoPlayActive then continue end
+            pcall(function()
+                local enemiesFolder = workspace:FindFirstChild("Enemies")
+                local hasEnemies = enemiesFolder and #enemiesFolder:GetChildren() > 0
+                
+                -- 1. กด Normal ถ้ายูนิตเวฟแรกยังไม่มา
+                if not hasEnemies then
+                    inputRemote:FireServer("VoteGameMode", "Extreme")
+                end
+                
+                -- 2. เช็ค Speed จาก UI เผื่อเกมรีเซ็ตกลับไปเป็น 1X (อ่านจาก FastForward)
+                local hud = LocalPlayer.PlayerGui:FindFirstChild("HUD")
+                if hud then
+                    local fastForward = hud:FindFirstChild("FastForward")
+                    if fastForward then
+                        -- รองรับทั้ง FastForward.TextLabel และ FastForward.SpeedText.TextLabel
+                        local speedTextObj = (fastForward:FindFirstChild("SpeedText") and fastForward.SpeedText:FindFirstChild("TextLabel")) or fastForward:FindFirstChild("TextLabel")
+                        
+                        if speedTextObj and speedTextObj:IsA("TextLabel") then
+                            local txt = speedTextObj.Text:upper()
+                            if txt == "1X" then
+                                print("⏩ [Auto Play] ความเร็วเป็น 1X กำลังปรับเป็น 2X/3X...")
+                                inputRemote:FireServer("SpeedChange", true)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end)
+
+    task.spawn(function()
+        while task.wait(0.5) do
+            if not _G.AutoPlayActive then continue end
+            pcall(function() inputRemote:FireServer("VoteWaveConfirm") end)
+        end
+    end)
+
+    -- Unified Combat Director ถูกเริ่มผ่าน ModuleX.StartCoordinator()
+    pcall(function()
+        Module3.ScanPathTrajectory()
+        Module3.TrackEnemies()
+        ModuleX.StartCoordinator()
+    end)
+
+    -- ⏭️ [SUB-MODULE]: Auto Play Next / Replay (ตาม Stage)
+    task.spawn(function()
+        local VIM = game:GetService("VirtualInputManager")
+        local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+        local guiService = game:GetService("GuiService")
+        
+        -- ฟังก์ชันหาปุ่มใน GUI (ยืดหยุ่น)
+        local function findButtonByKeyword(keywords)
+            for _, gui in pairs(playerGui:GetDescendants()) do
+                if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
+                    local text = gui:IsA("TextButton") and gui.Text or ""
+                    for _, child in pairs(gui:GetChildren()) do
+                        if child:IsA("TextLabel") then
+                            text = text .. " " .. child.Text
+                        end
+                    end
+                    text = text:lower()
+                    local name = gui.Name:lower()
+                    for _, kw in ipairs(keywords) do
+                        if text:find(kw) or name:find(kw) then
+                            -- ตรวจสอบ visibility จริง
+                            local isReallyVisible = true
+                            local curr = gui
+                            while curr and curr ~= playerGui do
+                                if curr:IsA("GuiObject") and not curr.Visible then
+                                    isReallyVisible = false
+                                    break
+                                end
+                                curr = curr.Parent
+                            end
+                            if isReallyVisible then
+                                return gui
+                            end
+                        end
+                    end
+                end
+            end
+            return nil
+        end
+        
+        while task.wait(2) do
+            if not _G.AutoPlayActive then continue end
+            pcall(function()
+                -- 1. อ่าน Stage ปัจจุบัน
+                local currentStage = GetCurrentStoryLevel()
+                if not currentStage then
+                    -- ถ้าอ่านไม่ได้ ให้ใช้วิธีเดิม (หา Play Next อย่างเดียว)
+                    local nextBtn = findButtonByKeyword({"play next", "playnext"})
+                    if nextBtn then
+                        _G.MoMoStatus("จบเกม! กด Play Next (ไม่รู้ Stage)")
+                        local aP, aS = nextBtn.AbsolutePosition, nextBtn.AbsoluteSize
+                        local inset = guiService:GetGuiInset()
+                        local targetX = aP.X + (aS.X / 2)
+                        local targetY = aP.Y + (aS.Y / 2) + inset.Y
+                        for i = 1, 2 do
+                            VIM:SendMouseButtonEvent(targetX, targetY, 0, true, game, 1)
+                            task.wait(0.1)
+                            VIM:SendMouseButtonEvent(targetX, targetY, 0, false, game, 1)
+                            task.wait(0.2)
+                        end
+                        task.wait(8)
+                    end
+                    return
+                end
+                
+                -- 2. ตัดสินใจเลือกปุ่มตาม Stage
+                local targetButton = nil
+                local actionName = ""
+                
+                if currentStage <= 0 then
+                    -- Stage 1-5: กด Next (ไปด่านถัดไป)
+                    targetButton = findButtonByKeyword({"replay", "replay", "next stage", "next"})
+                    actionName = "Replay"
+                else
+                    -- Stage 6+: กด Replay (เล่นด่านเดิมซ้ำ)
+                    targetButton = findButtonByKeyword({"replay", "play again", "again", "retry"})
+                    actionName = "Replay"
+                end
+                
+                if targetButton then
+                    print(string.format("⏭️ [Auto Play] Stage %d -> กด %s", currentStage, actionName))
+                    _G.MoMoStatus(string.format("จบเกม Stage %d! กด %s", currentStage, actionName))
+                    local aP, aS = targetButton.AbsolutePosition, targetButton.AbsoluteSize
+                    local inset = guiService:GetGuiInset()
+                    local targetX = aP.X + (aS.X / 2)
+                    local targetY = aP.Y + (aS.Y / 2) + inset.Y
+                    for i = 1, 2 do
+                        VIM:SendMouseButtonEvent(targetX, targetY, 0, true, game, 1)
+                        task.wait(0.1)
+                        VIM:SendMouseButtonEvent(targetX, targetY, 0, false, game, 1)
+                        task.wait(0.2)
+                    end
+                    task.wait(8)  -- รอให้โหลดด่านใหม่
+                else
+                    -- fallback: ถ้าหาไม่เจอ ให้ลองหา Play Next ธรรมดา
+                    local fallback = findButtonByKeyword({"play next", "playnext"})
+                    if fallback then
+                        print("⚠️ ไม่พบปุ่มที่ต้องการ (Replay/Next) แต่เจอ Play Next -> กดแทน")
+                        _G.MoMoStatus("จบเกม! กด Play Next (fallback)")
+                        local aP, aS = fallback.AbsolutePosition, fallback.AbsoluteSize
+                        local inset = guiService:GetGuiInset()
+                        local targetX = aP.X + (aS.X / 2)
+                        local targetY = aP.Y + (aS.Y / 2) + inset.Y
+                        for i = 1, 2 do
+                            VIM:SendMouseButtonEvent(targetX, targetY, 0, true, game, 1)
+                            task.wait(0.1)
+                            VIM:SendMouseButtonEvent(targetX, targetY, 0, false, game, 1)
+                            task.wait(0.2)
+                        end
+                        task.wait(8)
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+-- ========================================================================= --
+-- 🧠 ตัวจัดการสมองหลัก (Dynamic State Director) V6.3
+-- ========================================================================= --
+local function UpdateBotState()
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    local rootPart = char.HumanoidRootPart
+
+    local isInLobby = false
+    pcall(function()
+        local queueFolder = workspace:FindFirstChild("Queue") and workspace.Queue:FindFirstChild("Folder")
+        if queueFolder then
+            local items = queueFolder:GetChildren()
+            if #items >= 42 then
+                local targetObj = items[42]
+                local targetPos = nil
+                if targetObj:IsA("BasePart") then targetPos = targetObj.Position
+                elseif targetObj:IsA("Model") then targetPos = targetObj.PrimaryPart and targetObj.PrimaryPart.Position or (targetObj:FindFirstChildWhichIsA("BasePart", true) and targetObj:FindFirstChildWhichIsA("BasePart", true).Position) end
+
+                if targetPos and (rootPart.Position - targetPos).Magnitude <= 1000 then
+                    isInLobby = true
+                end
+            end
+        end
+    end)
+
+    if isInLobby and not _G.LobbyActive then
+        print("🌍 [System] ระยะห่าง < 500 Studs (อยู่ใน Lobby) -> เปิดระบบ Lobby Master!")
+        _G.MoMoStatus("อยู่ใน Lobby -> เริ่มระบบจัดทีม/ลงด่าน")
+        _G.LobbyActive, _G.AutoPlayActive = true, false
+    elseif not isInLobby and not _G.AutoPlayActive then
+        print("⚔️ [System] ระยะห่าง > 500 Studs (อยู่ในด่าน) -> เปิดระบบ Auto Play!")
+        _G.MoMoStatus("อยู่ในด่าน -> เริ่มระบบ Auto Play")
+        _G.LobbyActive, _G.AutoPlayActive = false, true
+    end
+end
+
+task.spawn(function()
+    while task.wait(1) do UpdateBotState() end
+end)
+
+-- ========================================================================= --
+-- ⚙️ [MODULE 3]: Auto Settings (Background Task)
+-- ========================================================================= --
+task.spawn(function()
+    print("⚙️ [System] เปิดระบบ Auto Settings ทำงานเบื้องหลังทุก 1 วินาที...")
+    while task.wait(1) do
+        pcall(function()
+            local hud = LocalPlayer.PlayerGui:FindFirstChild("HUD")
+            if not hud then return end
+            
+            local scroll = hud:FindFirstChild("Setting") 
+                and hud.Setting:FindFirstChild("Page") 
+                and hud.Setting.Page:FindFirstChild("Main") 
+                and hud.Setting.Page.Main:FindFirstChild("Scroll")
+                
+            if not scroll then return end
+            
+            local settingV2 = scroll:FindFirstChild("SettingV2")
+            
+            -- ⏩ 1. เช็ค Auto Skip (ถ้าเป็น Off ให้ยิง Remote เปิด)
+            if settingV2 and settingV2:FindFirstChild("AutoSkip") then
+                local autoSkipLbl = settingV2.AutoSkip:FindFirstChild("Options") 
+                    and settingV2.AutoSkip.Options:FindFirstChild("Toggle") 
+                    and settingV2.AutoSkip.Options.Toggle:FindFirstChild("CategoryName")
+                    
+                if autoSkipLbl and (autoSkipLbl:IsA("TextLabel") or autoSkipLbl:IsA("TextButton")) then
+                    if autoSkipLbl.Text == "Off" then
+                        inputRemote:FireServer("AutoSkipWaves_CHANGE")
+                    end
+                end
+            end
+            
+            -- 🥔 2. เช็ค Low Graphics (ถ้าเป็น Off ให้ยิง Remote เปิด)
+            if settingV2 and settingV2:FindFirstChild("LowGraphics") then
+                local lowGfxLbl = settingV2.LowGraphics:FindFirstChild("Options") 
+                    and settingV2.LowGraphics.Options:FindFirstChild("Toggle") 
+                    and settingV2.LowGraphics.Options.Toggle:FindFirstChild("CategoryName")
+                    
+                if lowGfxLbl and (lowGfxLbl:IsA("TextLabel") or lowGfxLbl:IsA("TextButton")) then
+                    if lowGfxLbl.Text == "Off" then
+                        inputRemote:FireServer("LowGfxChange")
+                    end
+                end
+            end
+            
+            -- 🚫 3. เช็ค VFX (ถ้าไม่เป็น Off ให้ยิง Remote ปิด)
+            local vfxBase = (settingV2 and settingV2:FindFirstChild("VFX")) or scroll:FindFirstChild("VFX")
+            if vfxBase then
+                local vfxLbl = vfxBase:FindFirstChild("Options") 
+                    and vfxBase.Options:FindFirstChild("Toggle") 
+                    and vfxBase.Options.Toggle:FindFirstChild("CategoryName")
+                    
+                if vfxLbl and (vfxLbl:IsA("TextLabel") or vfxLbl:IsA("TextButton")) then
+                    if vfxLbl.Text ~= "OFF" then
+                        inputRemote:FireServer("FX_CHANGE")
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- แยกการทำงานไม่ให้ฟังก์ชันดึงกันตอนโหลดเข้าเกม
+task.spawn(StartLobbyMaster)
+task.spawn(StartAutoPlay)
