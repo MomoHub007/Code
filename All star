@@ -2088,8 +2088,6 @@ function ModuleX.StartCoordinator()
 				local enemiesFolder = workspace:FindFirstChild("Enemies")
 				local hasEnemies = enemiesFolder and #enemiesFolder:GetChildren() > 0
 				local totalOwned = #GetOwnedUnits()
-			end)
-				local totalOwned = #GetOwnedUnits()
 
 				-- ✅ [FIRST UNIT FIXED PLACEMENT]
 				-- วางตัวแรกที่ workspace.Placeable.Base:GetChildren()[33].Base_Part เสมอ
@@ -2388,7 +2386,12 @@ function ModuleX.StartCoordinator()
 				coordinatorRuntime.LastPlacementReason = "HandledMode"
 			end)
 
-
+			if not ok then
+				mxWarn("UnifiedCombatLoop:", tostring(err))
+			end
+		end
+	end)
+end
 
 -- ========================================================================= --
 -- 🚨 [MODULE X]: EMERGENCY COORDINATOR
