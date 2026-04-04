@@ -125,7 +125,8 @@ local inputRemote = Remotes:WaitForChild("Input")
 local serverRemote = Remotes:WaitForChild("Server")
 
 -- ==========================================
--- 🎁 [GiftboxHelper] คลิกรับ Giftbox ผ่าน UI จริง
+-- 🎁 [GiftboxHelper] คลิกรับ Giftbox ผ่าน UI จริง (FIXED v2)
+-- Bug Fix: รองรับชื่อปุ่ม "Gifts" / "GiftBox" / ทุกชื่อที่มีคำว่า "gift"
 -- ==========================================
 local function ClaimAllLobbyGiftboxes()
     if not _G.LobbyActive then return end
@@ -136,7 +137,7 @@ local function ClaimAllLobbyGiftboxes()
         local VIM = game:GetService("VirtualInputManager")
         local hud = LocalPlayer.PlayerGui:WaitForChild("HUD")
 
-        -- ✅ เช็ค visible ทุก ancestor ไม่ใช่แค่ตัวเอง
+        -- ✅ clickGui: ตรวจ visibility ทุก ancestor ก่อนคลิก
         local function clickGui(obj, clicks)
             if not obj or not obj.Parent then return false end
             local cur = obj
@@ -165,46 +166,137 @@ local function ClaimAllLobbyGiftboxes()
             return true
         end
 
+        -- =====================================================================
+        -- ✅ FIX: getGiftButton() — ค้นหาแบบ fuzzy แทนการ hardcode "GiftBox"
+        --    1. ค้นใน RightButton ด้วยชื่อหรือ Text ที่มีคำว่า "gift"
+        --    2. Fallback ค้นใน hud โดยตรง
+        --    3. Safety check: ถ้าชื่อมีคำว่า "storage" → ข้ามทันที
+        -- =====================================================================
         local function getGiftButton()
             local right = hud:FindFirstChild("RightButton")
-            return right and right:FindFirstChild("GiftBox")
+
+            -- Priority 1: ค้นหาใน RightButton
+            if right then
+                for _, child in ipairs(right:GetChildren()) do
+                    if child:IsA("GuiObject") then
+                        local nameLower = child.Name:lower()
+
+                        -- ❌ Safety: ข้ามปุ่ม Storage เสมอ
+                        if not nameLower:find("storage") then
+                            -- ✅ ตรงชื่อ: "gift" ใน Name
+                            if nameLower:find("gift") then
+                                print(string.format(
+                                    "🎁 [Giftbox] Found gift button: %s | Path: %s",
+                                    child.Name, child:GetFullName()
+                                ))
+                                return child
+                            end
+
+                            -- ✅ ตรงข้อความ: "gift" ใน Text (TextButton/TextLabel)
+                            local textOk, textVal = pcall(function()
+                                return tostring((child :: any).Text or ""):lower()
+                            end)
+                            if textOk and textVal:find("gift") then
+                                print(string.format(
+                                    "🎁 [Giftbox] Found gift button by Text: %s | Path: %s",
+                                    child.Name, child:GetFullName()
+                                ))
+                                return child
+                            end
+                        end
+                    end
+                end
+
+                -- ตรวจสอบ list ทั้งหมดที่มีใน RightButton เพื่อ debug
+                local childNames = {}
+                for _, c in ipairs(right:GetChildren()) do
+                    table.insert(childNames, c.Name)
+                end
+                warn(string.format(
+                    "⚠️ [Giftbox] ไม่พบปุ่ม gift ใน RightButton | Children: [%s]",
+                    table.concat(childNames, ", ")
+                ))
+            else
+                warn("⚠️ [Giftbox] หา HUD.RightButton ไม่เจอ")
+            end
+
+            -- Priority 2: Fallback ค้นหาใน hud โดยตรง (กว้างกว่า)
+            for _, child in ipairs(hud:GetDescendants()) do
+                if child:IsA("GuiObject") then
+                    local nameLower = child.Name:lower()
+                    if not nameLower:find("storage") and nameLower:find("gift") then
+                        warn(string.format(
+                            "🎁 [Giftbox] Fallback found: %s | Path: %s",
+                            child.Name, child:GetFullName()
+                        ))
+                        return child
+                    end
+                end
+            end
+
+            warn("❌ [Giftbox] หาปุ่ม Gift ไม่เจอแม้ Fallback แล้ว — ตรวจสอบชื่อ UI ใน HUD ด้วย Explorer")
+            return nil
         end
 
-        -- ✅ Bug 2 แก้แล้ว: เช็ค Visible อย่างเดียว
-        local function hasGiftNotif()
-            local giftBtn = getGiftButton()
+        -- =====================================================================
+        -- ✅ FIX: hasGiftNotif() — ใช้ giftBtn ที่หาได้แล้ว ไม่เรียก getGiftButton() ซ้ำ
+        -- =====================================================================
+        local function hasGiftNotif(giftBtn)
             if not giftBtn then return false end
             local notif = giftBtn:FindFirstChild("Notif")
-            return notif ~= nil and notif.Visible
+            if not notif then
+                -- Fallback: หา child ใดๆ ที่ Visible และดูเหมือน notification dot
+                for _, c in ipairs(giftBtn:GetChildren()) do
+                    if c:IsA("GuiObject") and c.Visible and
+                       (c.Name:lower():find("notif") or c.Name:lower():find("badge") or c.Name:lower():find("dot")) then
+                        return true
+                    end
+                end
+                return false
+            end
+            return notif.Visible
         end
 
-        -- ✅ Bug 3 แก้แล้ว: ไม่ใช้ continue
-        local function findAllAcceptButtons()
+        -- =====================================================================
+        -- ✅ findAllAcceptButtons() — เฉพาะใน subtree ของ gift panel
+        --    ถ้าหา gift panel ไม่เจอ ค่อย fallback ค้นใน hud ทั้งหมด
+        --    แต่ต้องแน่ใจว่าไม่ใช่ปุ่มของ Storage
+        -- =====================================================================
+        local function findAllAcceptButtons(giftPanelRoot)
             local results = {}
-            for _, v in ipairs(hud:GetDescendants()) do
-                if v:IsA("TextButton") or v:IsA("ImageButton") then
-                    local visible = true
-                    local cur = v
-                    while cur and cur ~= hud.Parent do
-                        if cur:IsA("GuiObject") and not cur.Visible then
-                            visible = false
-                            break
-                        end
-                        cur = cur.Parent
-                    end
+            local searchRoot = giftPanelRoot or hud
 
-                    -- ✅ ใช้ if แทน continue
-                    if visible and v.AbsoluteSize.X >= 1 and v.AbsoluteSize.Y >= 1 then
-                        local name = tostring(v.Name or ""):upper()
-                        local txt = ""
-                        pcall(function() txt = tostring(v.Text or ""):upper() end)
-                        if name == "ACCEPT" or txt == "ACCEPT"
-                           or name:find("ACCEPT") or txt:find("ACCEPT") then
-                            table.insert(results, v)
-                            print(string.format(
-                                "🔍 [Giftbox] พบปุ่ม ACCEPT: Name=%s Text=%s Pos=(%.0f,%.0f)",
-                                v.Name, txt, v.AbsolutePosition.X, v.AbsolutePosition.Y
-                            ))
+            for _, v in ipairs(searchRoot:GetDescendants()) do
+                if v:IsA("TextButton") or v:IsA("ImageButton") then
+
+                    -- ❌ Safety: ข้ามถ้าอยู่ใน Storage subtree
+                    local fullPath = v:GetFullName():lower()
+                    if not fullPath:find("storage") then
+                        -- ตรวจ visibility ทุก ancestor
+                        local visible = true
+                        local cur = v
+                        while cur and cur ~= hud.Parent do
+                            if cur:IsA("GuiObject") and not cur.Visible then
+                                visible = false
+                                break
+                            end
+                            cur = cur.Parent
+                        end
+
+                        if visible and v.AbsoluteSize.X >= 1 and v.AbsoluteSize.Y >= 1 then
+                            local name = tostring(v.Name or ""):upper()
+                            local txt = ""
+                            pcall(function() txt = tostring((v :: any).Text or ""):upper() end)
+
+                            if name == "ACCEPT" or txt == "ACCEPT"
+                               or name:find("ACCEPT") or txt:find("ACCEPT") then
+                                table.insert(results, v)
+                                print(string.format(
+                                    "🔍 [Giftbox] พบปุ่ม ACCEPT: Name=%s Text=%s Path=%s Pos=(%.0f,%.0f)",
+                                    v.Name, txt, v:GetFullName(),
+                                    v.AbsolutePosition.X, v.AbsolutePosition.Y
+                                ))
+                            end
                         end
                     end
                 end
@@ -212,14 +304,27 @@ local function ClaimAllLobbyGiftboxes()
             return results
         end
 
+        -- =====================================================================
+        -- ✅ Main Flow
+        -- =====================================================================
+
+        -- Step 0: หา gift button ครั้งแรก
         local giftBtn = getGiftButton()
+
         if not giftBtn then
-            warn("❌ [Giftbox] หา HUD.RightButton.GiftBox ไม่เจอ")
+            warn("❌ [Giftbox] หาปุ่ม Gift ไม่เจอ → ข้ามการรับ Giftbox รอบนี้")
             return
         end
 
-        if not hasGiftNotif() then
-            print("ℹ️ [Giftbox] ไม่มี Notif -> ข้าม")
+        -- ❌ Safety check สุดท้าย: ถ้าปุ่มที่หาได้เป็น Storage → abort
+        if giftBtn.Name:lower():find("storage") then
+            warn("❌ [Giftbox] Wrong button! ปุ่มที่พบคือ Storage ไม่ใช่ Gift → abort")
+            return
+        end
+
+        -- ตรวจว่ามี Notif ไหม
+        if not hasGiftNotif(giftBtn) then
+            print("ℹ️ [Giftbox] ไม่มี Notif บนปุ่ม Gift -> ข้าม")
             return
         end
 
@@ -229,36 +334,67 @@ local function ClaimAllLobbyGiftboxes()
 
         local maxRounds = 60
         for round = 1, maxRounds do
-            if not hasGiftNotif() then
-                print("✅ [Giftbox] Notif หาย รับเสร็จแล้ว")
+
+            -- Re-scan gift button ทุก round (ในกรณี UI re-render)
+            giftBtn = getGiftButton()
+            if not giftBtn then
+                warn(string.format("⚠️ [Giftbox] Round %d: หา gift button ไม่เจออีก → หยุด", round))
                 break
             end
 
-            -- Step 1: คลิกปุ่ม GiftBox เพื่อเปิด popup
-            giftBtn = getGiftButton()
-            if giftBtn then
-                print(string.format("🎁 [Giftbox] Round %d -> คลิกปุ่ม GiftBox", round))
-                clickGui(giftBtn, 1)
-                task.wait(0.8) -- รอ popup เปิด
+            -- ตรวจ Notif อีกครั้ง
+            if not hasGiftNotif(giftBtn) then
+                print(string.format("✅ [Giftbox] Round %d: Notif หาย → รับเสร็จแล้ว", round))
+                break
             end
 
-            -- Step 2: หาและกดปุ่ม ACCEPT ทุกปุ่ม
-            local acceptBtns = findAllAcceptButtons()
+            -- Step 1: คลิกปุ่ม Gift เพื่อเปิด popup
+            print(string.format("🎁 [Giftbox] Round %d → คลิกปุ่ม: %s", round, giftBtn.Name))
+            clickGui(giftBtn, 1)
+            task.wait(0.9) -- รอ popup เปิด (เพิ่มจาก 0.8 → 0.9 เพื่อความเสถียร)
+
+            -- Step 2: พยายามหา gift panel container ก่อน แล้วค่อยค้นหา ACCEPT ใน subtree นั้น
+            local giftPanel = nil
+            for _, v in ipairs(hud:GetDescendants()) do
+                if v:IsA("GuiObject") and v.Visible then
+                    local n = v.Name:lower()
+                    if (n:find("gift") or n:find("giftbox") or n:find("reward"))
+                       and not n:find("storage")
+                       and not n:find("button") then
+                        -- เลือก container ที่มีขนาดใหญ่พอ (น่าจะเป็น popup)
+                        if v.AbsoluteSize.X > 100 and v.AbsoluteSize.Y > 100 then
+                            giftPanel = v
+                            print(string.format("📦 [Giftbox] พบ gift panel: %s | Path: %s", v.Name, v:GetFullName()))
+                            break
+                        end
+                    end
+                end
+            end
+
+            -- Step 3: ค้นหาและกด ACCEPT
+            local acceptBtns = findAllAcceptButtons(giftPanel)
+
             if #acceptBtns > 0 then
                 print(string.format("✅ [Giftbox] Round %d พบ ACCEPT %d ปุ่ม", round, #acceptBtns))
                 for i, btn in ipairs(acceptBtns) do
-                    print(string.format("   🖱️ กด ACCEPT #%d: %s", i, btn.Name))
-                    clickGui(btn, 1)
-                    task.wait(0.6)
+                    -- ❌ Safety check ปุ่ม ACCEPT แต่ละปุ่มด้วย
+                    if not btn:GetFullName():lower():find("storage") then
+                        print(string.format("   🖱️ กด ACCEPT #%d: %s | Path: %s", i, btn.Name, btn:GetFullName()))
+                        clickGui(btn, 1)
+                        task.wait(0.6)
+                    else
+                        warn(string.format("⚠️ [Giftbox] Skip ACCEPT #%d เพราะอยู่ใน Storage subtree: %s", i, btn:GetFullName()))
+                    end
                 end
                 task.wait(0.5)
             else
-                warn(string.format("⚠️ [Giftbox] Round %d หาปุ่ม ACCEPT ไม่เจอ -> รอ", round))
+                warn(string.format("⚠️ [Giftbox] Round %d หาปุ่ม ACCEPT ไม่เจอ → รอ", round))
                 task.wait(1.0)
             end
 
-            if not hasGiftNotif() then
-                print("✅ [Giftbox] ! หายหลังกดรับ")
+            -- ตรวจ Notif หลังกด
+            if not hasGiftNotif(giftBtn) then
+                print(string.format("✅ [Giftbox] Round %d: Notif หายหลังกดรับ → เสร็จ!", round))
                 break
             end
         end
@@ -267,7 +403,9 @@ local function ClaimAllLobbyGiftboxes()
     end)
 
     _G.GiftboxClaiming = false
-    if not okMain then warn("❌ [Giftbox] Runtime Error:", tostring(errMain)) end
+    if not okMain then
+        warn("❌ [Giftbox] Runtime Error: " .. tostring(errMain))
+    end
 end
 
 local LOBBY_TASK_CLAIMS = {
@@ -440,9 +578,8 @@ local function StartLobbyMaster()
 
     local function HasTargetUnitInInventory()
         local targetNames = {
-            "Android17",
-            "KidLuffy",
-			"Blackbeard"
+            " ",
+            " ",
         }
 
         Tutorial.ForceLoadInventoryUI()
@@ -1032,7 +1169,7 @@ end
 
         -- กำหนดยูนิตที่ต้องการใส่ในแต่ละสล็อต (slot 1,2,3)
         local slotTargets = {
-            { slot = 1, names = {"Android17", "KidLuffy", "Ikki (HalfMask)", "Jotaro Kujo"} }
+            { slot = 1, names = {"Android17", "KidLuffy", "Ikki (HalfMask)", "Jotaro Kujo" , "Bakugo (Blazing)" , "Toichiro" , "Blackbeard"} }
         }
 
         local currentTeam = {}
