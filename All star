@@ -163,12 +163,38 @@ local LOBBY_GIFTBOXES = {
     }
 }
 
+local LOBBY_TASK_CLAIMS = {
+    "levelinggoal",
+    "ClaimAllDamage",
+    "maxwave"
+}
+
 local lobbyGiftState = {
     LastClaimAttempt = 0,
     ClaimCooldown = 20
 }
 
-local function ClaimAllLobbyGiftboxes()
+local function ClaimAllLobbyTasks()
+    if not _G.LobbyActive then
+        return
+    end
+
+    for _, taskName in ipairs(LOBBY_TASK_CLAIMS) do
+        local ok, err = pcall(function()
+            inputRemote:FireServer("ClaimTask", taskName)
+        end)
+
+        if ok then
+            print(string.format("✅ [LobbyTask] Claim sent | %s", tostring(taskName)))
+        else
+            warn(string.format("❌ [LobbyTask] Claim failed | %s | %s", tostring(taskName), tostring(err)))
+        end
+
+        task.wait(0.2)
+    end
+end
+
+local function ClaimAllLobbyRewards()
     local now = os.clock()
     if (now - lobbyGiftState.LastClaimAttempt) < lobbyGiftState.ClaimCooldown then
         return
@@ -180,28 +206,12 @@ local function ClaimAllLobbyGiftboxes()
     end
 
     if _G.MoMoStatus then
-        _G.MoMoStatus("อยู่ใน Lobby -> กำลังรับ Giftbox...")
+        _G.MoMoStatus("อยู่ใน Lobby -> กำลังรับ Giftbox / Task...")
     end
 
-    for _, giftData in ipairs(LOBBY_GIFTBOXES) do
-        local ok, err = pcall(function()
-            inputRemote:FireServer("ClaimGiftbox", giftData)
-        end)
-
-        if ok then
-            print(string.format(
-                "🎁 [LobbyGift] Claim sent | %s | %s x%d | Date=%s",
-                tostring(giftData.Desc),
-                tostring(giftData.Currency),
-                tonumber(giftData.Amount) or 0,
-                tostring(giftData.Date)
-            ))
-        else
-            warn("❌ [LobbyGift] Claim failed:", tostring(err))
-        end
-
-        task.wait(0.25)
-    end
+    ClaimAllLobbyGiftboxes()
+    task.wait(0.4)
+    ClaimAllLobbyTasks()
 end
 
 _G.AutoPlayEnabled = true 
@@ -760,7 +770,7 @@ local function StartLobbyMaster()
             end
 
             pcall(function()
-                ClaimAllLobbyGiftboxes()
+                ClaimAllLobbyRewards()
             end)
         end
     end)
