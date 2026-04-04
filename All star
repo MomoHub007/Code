@@ -402,49 +402,361 @@ local function StartLobbyMaster()
         return false
     end
 
-    function Tutorial.AutoSummonUntilFound()
-        if HasTargetUnitInInventory() then
-            print("✅ [AutoSummon] มียูนิตเป้าหมายอยู่แล้ว ไม่ต้อง summon")
+    -- ==========================================
+-- 🎒 [BagHelper] ดึงสถานะกระเป๋าปัจจุบัน
+-- ==========================================
+local function GetBagStatus()
+    Tutorial.ForceLoadInventoryUI()
+    task.wait(1.5)
+
+    local hud = LocalPlayer.PlayerGui:WaitForChild("HUD")
+    local invV2 = hud:FindFirstChild("InventoryV2")
+    if not invV2 then
+        return nil, nil, "NoInventoryUI"
+    end
+
+    local unitAmountLbl = invV2:FindFirstChild("Page")
+        and invV2.Page:FindFirstChild("Main")
+        and invV2.Page.Main:FindFirstChild("Top")
+        and invV2.Page.Main.Top:FindFirstChild("List")
+        and invV2.Page.Main.Top.List:FindFirstChild("UnitsBox")
+        and invV2.Page.Main.Top.List.UnitsBox:FindFirstChild("UnitAmount")
+
+    if not unitAmountLbl or not unitAmountLbl:IsA("TextLabel") then
+        return nil, nil, "NoUnitAmountLabel"
+    end
+
+    local current, max = unitAmountLbl.Text:match("(%d+)%s*/%s*(%d+)")
+    if not current or not max then
+        return nil, nil, "ParseFailed:" .. tostring(unitAmountLbl.Text)
+    end
+
+    return tonumber(current), tonumber(max), "OK"
+end
+
+-- ==========================================
+-- 📬 [BagHelper] กดรับของทั้งหมดจาก Storage
+-- ==========================================
+local function ClaimAllStorageRewards()
+    if _G.MoMoStatus then
+        _G.MoMoStatus("กำลังกดรับของทั้งหมดจาก Storage...")
+    end
+
+    -- ลอง Remote หลักที่เกมใช้รับของจาก Storage/Mailbox
+    local claimCmds = {
+        "ClaimAllStorage",
+        "ClaimStorage",
+        "CollectAll",
+        "ClaimAll",
+        "MailboxClaimAll",
+    }
+
+    for _, cmd in ipairs(claimCmds) do
+        local ok, err = pcall(function()
+            serverRemote:InvokeServer(cmd)
+        end)
+        if ok then
+            print(string.format("📬 [ClaimStorage] ส่ง %s สำเร็จ", cmd))
+        else
+            -- FireServer แบบ inputRemote ด้วย
+            pcall(function() inputRemote:FireServer(cmd) end)
+        end
+        task.wait(0.3)
+    end
+
+    task.wait(1.5)
+    print("📬 [ClaimStorage] ส่ง ClaimAll เสร็จแล้ว")
+end
+
+-- ==========================================
+-- 🔓 [BagHelper] ขยายกระเป๋าถ้าเต็ม (พร้อม Fallback รับของก่อน)
+-- ==========================================
+local function EnsureBagHasSpace()
+    local maxRetries = 3
+
+    for attempt = 1, maxRetries do
+        local current, max, reason = GetBagStatus()
+
+        if reason ~= "OK" or not current or not max then
+            warn(string.format("⚠️ [EnsureBag] ดึงสถานะกระเป๋าไม่ได้ (attempt %d) reason: %s", attempt, tostring(reason)))
+            task.wait(1)
+            continue
+        end
+
+        print(string.format("🎒 [EnsureBag] กระเป๋า: %d/%d (attempt %d)", current, max, attempt))
+
+        -- ✅ กระเป๋าว่าง → ไม่ต้องทำอะไร
+        if current < max then
+            if _G.MoMoStatus then
+                _G.MoMoStatus(string.format("กระเป๋าว่าง (%d/%d) พร้อมสุ่ม!", current, max))
+            end
             return true
         end
 
-        local summonAttempts = 0
-        local maxAttempts = 50
-
-        while summonAttempts < maxAttempts do
-            summonAttempts += 1
-            if _G.MoMoStatus then
-                _G.MoMoStatus("ยังไม่มี Android17/KidLuffy -> กำลังสุ่ม Banner...")
-            end
-
-            local ok, err = pcall(function()
-                local args = {
-                    "BannerSummon",
-                    10,
-                    "Rerun101"
-                }
-                serverRemote:InvokeServer(unpack(args))
-            end)
-
-            if ok then
-                print("🎰 [AutoSummon] สุ่มครั้งที่", summonAttempts, "สำเร็จ")
-            else
-                warn("❌ [AutoSummon] summon ล้มเหลว:", tostring(err))
-            end
-
-            task.wait(2.5)
-
-            if HasTargetUnitInInventory() then
-                print("🏁 [AutoSummon] พบยูนิตเป้าหมายหลังจาก summon ครั้งที่", summonAttempts)
-                return true
-            end
-
-            task.wait(0.75)
+        -- 🔴 กระเป๋าเต็ม → ลองขยายก่อน
+        if _G.MoMoStatus then
+            _G.MoMoStatus(string.format("กระเป๋าเต็ม (%d/%d)! กำลังขยาย...", current, max))
         end
 
-        warn("⚠️ [AutoSummon] เกินจำนวนครั้งที่กำหนด แต่ยังไม่พบยูนิตเป้าหมาย")
-        return false
+        print(string.format("🎒 [EnsureBag] กระเป๋าเต็ม! ส่ง UpgradeInventory (attempt %d)...", attempt))
+        pcall(function()
+            serverRemote:InvokeServer("UpgradeInventory")
+        end)
+        task.wait(1.5)
+
+        -- เช็คว่า max เพิ่มขึ้นไหม
+        local newCurrent, newMax, newReason = GetBagStatus()
+        if newReason == "OK" and newMax and newMax > max then
+            -- ✅ ขยายสำเร็จ
+            print(string.format("✅ [EnsureBag] ขยายกระเป๋าสำเร็จ! %d/%d -> %d/%d", current, max, newCurrent, newMax))
+            if _G.MoMoStatus then
+                _G.MoMoStatus(string.format("ขยายกระเป๋าสำเร็จ! %d/%d พร้อมสุ่ม!", newCurrent, newMax))
+            end
+            return true
+        end
+
+        -- ❌ ขยายไม่ได้ (ไม่มีเงิน หรือ max ถูก cap) → กดรับของก่อน แล้วลองขยายอีกรอบ
+        print(string.format("⚠️ [EnsureBag] ขยายไม่ได้ (max ไม่เพิ่ม: %s) -> กดรับของก่อน...", tostring(newMax)))
+        if _G.MoMoStatus then
+            _G.MoMoStatus("ขยายกระเป๋าไม่ได้! กำลังรับของค้างก่อน...")
+        end
+
+        ClaimAllStorageRewards()
+        task.wait(1)
+
+        -- ลองขยายอีกครั้งหลังรับของแล้ว
+        print("[EnsureBag]ลองขยายกระเป๋าอีกรอบหลังรับของ...")
+        pcall(function()
+            serverRemote:InvokeServer("UpgradeInventory")
+        end)
+        task.wait(1.5)
+
+        -- เช็ครอบสุดท้าย
+        local finalCurrent, finalMax, finalReason = GetBagStatus()
+        if finalReason == "OK" and finalMax and finalMax > max then
+            print(string.format("✅ [EnsureBag] ขยายกระเป๋าสำเร็จหลังรับของ! %d/%d", finalCurrent, finalMax))
+            if _G.MoMoStatus then
+                _G.MoMoStatus(string.format("ขยายกระเป๋าสำเร็จ! (%d/%d)", finalCurrent, finalMax))
+            end
+            return true
+        end
+
+        -- ยังไม่ได้อีก → วนลูปลอง attempt ถัดไป
+        warn(string.format("❌ [EnsureBag] ยังขยายไม่ได้หลังรับของ (attempt %d/%d)", attempt, maxRetries))
+        task.wait(1)
     end
+
+    -- ถ้าผ่าน maxRetries แล้วยังไม่ได้ → return false ให้ caller จัดการเอง
+    warn("❌ [EnsureBag] ขยายกระเป๋าไม่สำเร็จหลังพยายาม " .. maxRetries .. " ครั้ง")
+    return false
+end
+
+-- ==========================================
+-- 🎒 [BagHelper] ดึงสถานะกระเป๋าปัจจุบัน
+-- ==========================================
+local function GetBagStatus()
+    Tutorial.ForceLoadInventoryUI()
+    task.wait(1.5)
+
+    local hud = LocalPlayer.PlayerGui:WaitForChild("HUD")
+    local invV2 = hud:FindFirstChild("InventoryV2")
+    if not invV2 then
+        return nil, nil, "NoInventoryUI"
+    end
+
+    local unitAmountLbl = invV2:FindFirstChild("Page")
+        and invV2.Page:FindFirstChild("Main")
+        and invV2.Page.Main:FindFirstChild("Top")
+        and invV2.Page.Main.Top:FindFirstChild("List")
+        and invV2.Page.Main.Top.List:FindFirstChild("UnitsBox")
+        and invV2.Page.Main.Top.List.UnitsBox:FindFirstChild("UnitAmount")
+
+    if not unitAmountLbl or not unitAmountLbl:IsA("TextLabel") then
+        return nil, nil, "NoUnitAmountLabel"
+    end
+
+    local current, max = unitAmountLbl.Text:match("(%d+)%s*/%s*(%d+)")
+    if not current or not max then
+        return nil, nil, "ParseFailed:" .. tostring(unitAmountLbl.Text)
+    end
+
+    return tonumber(current), tonumber(max), "OK"
+end
+
+-- ==========================================
+-- 📬 [BagHelper] กดรับของทั้งหมดจาก Storage
+-- ==========================================
+local function ClaimAllStorageRewards()
+    if _G.MoMoStatus then
+        _G.MoMoStatus("กำลังกดรับของทั้งหมดจาก Storage...")
+    end
+
+    -- ลอง Remote หลักที่เกมใช้รับของจาก Storage/Mailbox
+    local claimCmds = {
+        "ClaimAllStorage",
+        "ClaimStorage",
+        "CollectAll",
+        "ClaimAll",
+        "MailboxClaimAll",
+    }
+
+    for _, cmd in ipairs(claimCmds) do
+        local ok, err = pcall(function()
+            serverRemote:InvokeServer(cmd)
+        end)
+        if ok then
+            print(string.format("📬 [ClaimStorage] ส่ง %s สำเร็จ", cmd))
+        else
+            -- FireServer แบบ inputRemote ด้วย
+            pcall(function() inputRemote:FireServer(cmd) end)
+        end
+        task.wait(0.3)
+    end
+
+    task.wait(1.5)
+    print("📬 [ClaimStorage] ส่ง ClaimAll เสร็จแล้ว")
+end
+
+-- ==========================================
+-- 🔓 [BagHelper] ขยายกระเป๋าถ้าเต็ม (พร้อม Fallback รับของก่อน)
+-- ==========================================
+local function EnsureBagHasSpace()
+    local maxRetries = 3
+
+    for attempt = 1, maxRetries do
+        local current, max, reason = GetBagStatus()
+
+        if reason ~= "OK" or not current or not max then
+            warn(string.format("⚠️ [EnsureBag] ดึงสถานะกระเป๋าไม่ได้ (attempt %d) reason: %s", attempt, tostring(reason)))
+            task.wait(1)
+            continue
+        end
+
+        print(string.format("🎒 [EnsureBag] กระเป๋า: %d/%d (attempt %d)", current, max, attempt))
+
+        -- ✅ กระเป๋าว่าง → ไม่ต้องทำอะไร
+        if current < max then
+            if _G.MoMoStatus then
+                _G.MoMoStatus(string.format("กระเป๋าว่าง (%d/%d) พร้อมสุ่ม!", current, max))
+            end
+            return true
+        end
+
+        -- 🔴 กระเป๋าเต็ม → ลองขยายก่อน
+        if _G.MoMoStatus then
+            _G.MoMoStatus(string.format("กระเป๋าเต็ม (%d/%d)! กำลังขยาย...", current, max))
+        end
+
+        print(string.format("🎒 [EnsureBag] กระเป๋าเต็ม! ส่ง UpgradeInventory (attempt %d)...", attempt))
+        pcall(function()
+            serverRemote:InvokeServer("UpgradeInventory")
+        end)
+        task.wait(1.5)
+
+        -- เช็คว่า max เพิ่มขึ้นไหม
+        local newCurrent, newMax, newReason = GetBagStatus()
+        if newReason == "OK" and newMax and newMax > max then
+            -- ✅ ขยายสำเร็จ
+            print(string.format("✅ [EnsureBag] ขยายกระเป๋าสำเร็จ! %d/%d -> %d/%d", current, max, newCurrent, newMax))
+            if _G.MoMoStatus then
+                _G.MoMoStatus(string.format("ขยายกระเป๋าสำเร็จ! %d/%d พร้อมสุ่ม!", newCurrent, newMax))
+            end
+            return true
+        end
+
+        -- ❌ ขยายไม่ได้ (ไม่มีเงิน หรือ max ถูก cap) → กดรับของก่อน แล้วลองขยายอีกรอบ
+        print(string.format("⚠️ [EnsureBag] ขยายไม่ได้ (max ไม่เพิ่ม: %s) -> กดรับของก่อน...", tostring(newMax)))
+        if _G.MoMoStatus then
+            _G.MoMoStatus("ขยายกระเป๋าไม่ได้! กำลังรับของค้างก่อน...")
+        end
+
+        ClaimAllStorageRewards()
+        task.wait(1)
+
+        -- ลองขยายอีกครั้งหลังรับของแล้ว
+        print("[EnsureBag]ลองขยายกระเป๋าอีกรอบหลังรับของ...")
+        pcall(function()
+            serverRemote:InvokeServer("UpgradeInventory")
+        end)
+        task.wait(1.5)
+
+        -- เช็ครอบสุดท้าย
+        local finalCurrent, finalMax, finalReason = GetBagStatus()
+        if finalReason == "OK" and finalMax and finalMax > max then
+            print(string.format("✅ [EnsureBag] ขยายกระเป๋าสำเร็จหลังรับของ! %d/%d", finalCurrent, finalMax))
+            if _G.MoMoStatus then
+                _G.MoMoStatus(string.format("ขยายกระเป๋าสำเร็จ! (%d/%d)", finalCurrent, finalMax))
+            end
+            return true
+        end
+
+        -- ยังไม่ได้อีก → วนลูปลอง attempt ถัดไป
+        warn(string.format("❌ [EnsureBag] ยังขยายไม่ได้หลังรับของ (attempt %d/%d)", attempt, maxRetries))
+        task.wait(1)
+    end
+
+    -- ถ้าผ่าน maxRetries แล้วยังไม่ได้ → return false ให้ caller จัดการเอง
+    warn("❌ [EnsureBag] ขยายกระเป๋าไม่สำเร็จหลังพยายาม " .. maxRetries .. " ครั้ง")
+    return false
+end
+
+function Tutorial.AutoSummonUntilFound()
+    if HasTargetUnitInInventory() then
+        print("✅ [AutoSummon] มียูนิตเป้าหมายอยู่แล้ว ไม่ต้อง summon")
+        return true
+    end
+
+    local summonAttempts = 0
+    local maxAttempts = 50
+
+    while summonAttempts < maxAttempts do
+
+        -- 🔑 ตรวจกระเป๋าก่อนสุ่มทุกครั้ง
+        local bagReady = EnsureBagHasSpace()
+        if not bagReady then
+            -- กระเป๋ายังเต็มและขยายไม่ได้ -> รอรอบถัดไป
+            warn("⚠️ [AutoSummon] กระเป๋ายังเต็ม/ขยายไม่ได้ -> รอ 5s แล้วลองใหม่")
+            if _G.MoMoStatus then
+                _G.MoMoStatus("กระเป๋าเต็ม/ขยายไม่ได้ รอ 5s...")
+            end
+            task.wait(5)
+            continue
+        end
+
+        -- ✅ กระเป๋าว่างแล้ว → สุ่มได้
+        summonAttempts += 1
+        if _G.MoMoStatus then
+            _G.MoMoStatus(string.format("กระเป๋าว่าง -> กำลังสุ่ม Banner... (ครั้งที่ %d)", summonAttempts))
+        end
+
+        local ok, err = pcall(function()
+            local args = {
+                "BannerSummon",
+                10,
+                "Rerun101"
+            }
+            serverRemote:InvokeServer(unpack(args))
+        end)
+
+        if ok then
+            print("🎰 [AutoSummon] สุ่มครั้งที่", summonAttempts, "สำเร็จ")
+        else
+            warn("❌ [AutoSummon] summon ล้มเหลว:", tostring(err))
+        end
+
+        task.wait(2.5)
+
+        if HasTargetUnitInInventory() then
+            print("🏁 [AutoSummon] พบยูนิตเป้าหมายหลังจาก summon ครั้งที่", summonAttempts)
+            return true
+        end
+
+        task.wait(0.75)
+    end
+
+    warn("⚠️ [AutoSummon] เกินจำนวนครั้งที่กำหนด แต่ยังไม่พบยูนิตเป้าหมาย")
+    return false
+end
 
     function Tutorial.SmartEquip()
         _G.MoMoStatus("กำลังตรวจสอบยูนิตเป้าหมายในกระเป๋า...")
@@ -468,7 +780,7 @@ local function StartLobbyMaster()
 
         -- กำหนดยูนิตที่ต้องการใส่ในแต่ละสล็อต (slot 1,2,3)
         local slotTargets = {
-            { slot = 1, names = {"Android17", "KidLuffy", "Kid Luffy", "Kid Luffy (Super)"} }
+            { slot = 1, names = {"Android17", "KidLuffy", "Ikki (HalfMask)", "Jotaro Kujo} }
         }
 
         local currentTeam = {}
