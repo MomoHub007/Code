@@ -268,8 +268,105 @@ local function StartLobbyMaster()
         end
     end
 
+    local function NormalizeName(text)
+        return tostring(text or ""):lower():gsub("%s+", "")
+    end
+
+    local function HasTargetUnitInInventory()
+        local targetNames = {
+            "Android17",
+            "KidLuffy",
+            "Kid Luffy",
+            "Kid Luffy (Super)",
+			"Blackbeard"
+        }
+
+        Tutorial.ForceLoadInventoryUI()
+        task.wait(1.5)
+
+        local invV2 = hud:FindFirstChild("InventoryV2")
+        local scroll = invV2 and invV2:FindFirstChildWhichIsA("ScrollingFrame", true)
+        if not scroll then
+            warn("❌ [HasTargetUnitInInventory] หา Inventory Scroll ไม่เจอ")
+            return false
+        end
+
+        for _, uiObj in pairs(scroll:GetChildren()) do
+            if uiObj:IsA("GuiObject") then
+                local unitName = uiObj.Name
+                local nameLabel = uiObj:FindFirstChild("UnitName", true) or uiObj:FindFirstChild("MainName", true)
+                if nameLabel and nameLabel:IsA("TextLabel") and nameLabel.Text ~= "" then
+                    unitName = nameLabel.Text
+                end
+
+                local normalizedUnit = NormalizeName(unitName)
+                for _, target in ipairs(targetNames) do
+                    local normalizedTarget = NormalizeName(target)
+                    if normalizedUnit == normalizedTarget or normalizedUnit:find(normalizedTarget) then
+                        print("✅ [SummonCheck] พบยูนิตเป้าหมายแล้ว:", unitName)
+                        return true
+                    end
+                end
+            end
+        end
+
+        return false
+    end
+
+    function Tutorial.AutoSummonUntilFound()
+        if HasTargetUnitInInventory() then
+            print("✅ [AutoSummon] มียูนิตเป้าหมายอยู่แล้ว ไม่ต้อง summon")
+            return true
+        end
+
+        local summonAttempts = 0
+        local maxAttempts = 50
+
+        while summonAttempts < maxAttempts do
+            summonAttempts += 1
+            if _G.MoMoStatus then
+                _G.MoMoStatus("ยังไม่มี Android17/KidLuffy -> กำลังสุ่ม Banner...")
+            end
+
+            local ok, err = pcall(function()
+                local args = {
+                    "BannerSummon",
+                    10,
+                    "Rerun101"
+                }
+                serverRemote:InvokeServer(unpack(args))
+            end)
+
+            if ok then
+                print("🎰 [AutoSummon] สุ่มครั้งที่", summonAttempts, "สำเร็จ")
+            else
+                warn("❌ [AutoSummon] summon ล้มเหลว:", tostring(err))
+            end
+
+            task.wait(2.5)
+
+            if HasTargetUnitInInventory() then
+                print("🏁 [AutoSummon] พบยูนิตเป้าหมายหลังจาก summon ครั้งที่", summonAttempts)
+                return true
+            end
+
+            task.wait(0.75)
+        end
+
+        warn("⚠️ [AutoSummon] เกินจำนวนครั้งที่กำหนด แต่ยังไม่พบยูนิตเป้าหมาย")
+        return false
+    end
+
     function Tutorial.SmartEquip()
-        _G.MoMoStatus("กำลังวิเคราะห์และจัดทีมที่ดีที่สุด...")
+        _G.MoMoStatus("กำลังตรวจสอบยูนิตเป้าหมายในกระเป๋า...")
+
+        local hasUnit = Tutorial.AutoSummonUntilFound()
+        if not hasUnit then
+            warn("❌ [SmartEquip] ไม่พบยูนิตเป้าหมายหลังพยายาม summon แล้ว")
+            return false
+        end
+
+        _G.MoMoStatus("พบยูนิตเป้าหมายแล้ว กำลังจัดทีม...")
         Tutorial.ForceLoadInventoryUI()
         task.wait(2)
 
@@ -1294,6 +1391,12 @@ local coordinatorRuntime = {
 	LastPlacementReason = "None",
 }
 
+local placementProgress = {
+    LastPlacedUnit = nil,
+    RequireUpgradeBeforeNextPlace = false,
+    LastPlacedUpgradeCount = 0,
+}
+
 local function mxLog(...)
 	print("[ModuleX]", ...)
 end
@@ -1364,15 +1467,72 @@ local function GetOwnedUnits()
 		return units
 	end
 
-	for _, u in ipairs(unitFolder:GetChildren()) do
+	for _, unit in ipairs(unitFolder:GetChildren()) do
 		local ok = pcall(function()
-			if u:FindFirstChild("Owner") and u.Owner.Value == LocalPlayer then
-				table.insert(units, u)
-			end
+			return unit:FindFirstChild("Owner") and unit.Owner.Value == LocalPlayer
 		end)
+
+		if ok and unit:FindFirstChild("Owner") and unit.Owner.Value == LocalPlayer then
+			table.insert(units, unit)
+		end
 	end
 
 	return units
+end
+
+local function FindNewestOwnedUnitByName(unitName)
+    local unitFolder = workspace:FindFirstChild("Unit")
+    if not unitFolder then return nil end
+
+    local newest = nil
+    for _, unit in ipairs(unitFolder:GetChildren()) do
+        local ok = pcall(function()
+            return unit:FindFirstChild("Owner") and unit.Owner.Value == LocalPlayer and unit.Name == unitName
+        end)
+
+        if ok and unit:FindFirstChild("Owner") and unit.Owner.Value == LocalPlayer and unit.Name == unitName then
+            newest = unit
+        end
+    end
+
+    return newest
+end
+
+local function GetUnitUpgradeLevel(unit)
+    if not unit then return 0 end
+    local upgradeTag = unit:FindFirstChild("UpgradeTag")
+    return (upgradeTag and tonumber(upgradeTag.Value)) or 0
+end
+
+local function TryUpgradeSpecificUnit(unit)
+    if not unit or unit.Parent == nil then
+        return false, "NoUnit"
+    end
+
+    local cost = FindFirstUpgradeCost(unit)
+    local moneyObj = LocalPlayer:FindFirstChild("Money")
+    local money = moneyObj and tonumber(moneyObj.Value) or 0
+    if not cost or money < cost then
+        return false, "NotEnoughMoney"
+    end
+
+    local beforeLevel = GetUnitUpgradeLevel(unit)
+
+    local ok, err = pcall(function()
+        serverRemote:InvokeServer("Upgrade", unit)
+    end)
+    if not ok then
+        return false, tostring(err)
+    end
+
+    task.wait(0.25)
+
+    local afterLevel = GetUnitUpgradeLevel(unit)
+    if afterLevel > beforeLevel then
+        return true, "OK"
+    end
+
+    return false, "UpgradeNotConfirmed"
 end
 
 function ModuleX.StartCoordinator()
@@ -1512,24 +1672,77 @@ function ModuleX.StartCoordinator()
 				end
 
 				-- 2. Standard State (Handled)
-				-- A. Upgrade Priority
 				local _, upgraded = safeCall("doUpgradeAll", doUpgradeAll)
 
-				-- B. Placement Logic (RE-ENABLED)
-				-- วางหอคอยเพิ่มเมื่อมีศัตรู และจำนวนหอคอยยังน้อยกว่า 4 (หรือปรับเอง)
 				local totalOwned = #GetOwnedUnits()
 				local enemiesCount = enemiesFolder and #enemiesFolder:GetChildren() or 0
 
-				if enemiesCount > 0 and totalOwned < 4 then  -- วางเพิ่มจนครบ 4 ตัว
+				-- ถ้ามีตัวที่เพิ่งวาง และยังต้องอัปเกรดก่อนวางตัวถัดไป
+				if placementProgress.RequireUpgradeBeforeNextPlace and placementProgress.LastPlacedUnit then
+					local upgradedOk, reason = TryUpgradeSpecificUnit(placementProgress.LastPlacedUnit)
+					if upgradedOk then
+						placementProgress.LastPlacedUpgradeCount += 1
+						placementProgress.RequireUpgradeBeforeNextPlace = false
+						mxLog("Last placed unit upgraded at least once, next placement unlocked")
+					else
+						coordinatorRuntime.LastPlacementReason = "WaitingUpgrade:" .. tostring(reason)
+						return
+					end
+				end
+
+				-- วางตัวเพิ่มได้ ก็ต่อเมื่อไม่มีภารกิจบังคับอัปเกรดค้างอยู่
+				if enemiesCount > 0 and totalOwned < 4 and not placementProgress.RequireUpgradeBeforeNextPlace then
 					local _, affordable = safeCall("getAffordableTower", getAffordableTower)
 					if affordable and affordable.Success and affordable.Card then
 						local card = affordable.Card
 						local learnedType = learnedPlacements[card.Name] or "Base"
-						local _, calculation = safeCall("Module3.CalculatePlacementPosition", Module3.CalculatePlacementPosition, card.Name, learnedType, 25)
+
+						local _, calculation = safeCall(
+							"Module3.CalculatePlacementPosition",
+							Module3.CalculatePlacementPosition,
+							card.Name,
+							learnedType,
+							25
+						)
+
 						if calculation and calculation.Success then
-							local _, placement = safeCall("Module4.RetryPlacementWithFallback", Module4.RetryPlacementWithFallback, card.Index, calculation.BestCFrame, buildFallbackPositions(calculation.BestPosition), learnedType)
+							local _, placement = safeCall(
+								"Module4.RetryPlacementWithFallback",
+								Module4.RetryPlacementWithFallback,
+								card.Index,
+								calculation.BestCFrame,
+								buildFallbackPositions(calculation.BestPosition),
+								learnedType
+							)
+
 							if placement and placement.Success then
 								mxLog("Normal placement successful")
+
+								task.wait(0.3)
+								local placedUnit = FindNewestOwnedUnitByName(card.Name)
+								if placedUnit then
+									placementProgress.LastPlacedUnit = placedUnit
+									placementProgress.LastPlacedUpgradeCount = 0
+									placementProgress.RequireUpgradeBeforeNextPlace = true
+
+									-- หลังวาง ถ้ามีเงินเหลือให้ลองอัปเกรดทันที
+									local instantUpgradeOk = false
+									for _ = 1, 3 do
+										local okUpgrade = TryUpgradeSpecificUnit(placedUnit)
+										if okUpgrade then
+											placementProgress.LastPlacedUpgradeCount += 1
+											instantUpgradeOk = true
+											placementProgress.RequireUpgradeBeforeNextPlace = false
+										else
+											break
+										end
+										task.wait(0.2)
+									end
+
+									if instantUpgradeOk then
+										mxLog("Freshly placed unit upgraded immediately after placement")
+									end
+								end
 							end
 						end
 					end
