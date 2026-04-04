@@ -240,86 +240,44 @@ local function StartLobbyMaster()
     local hud = LocalPlayer.PlayerGui:WaitForChild("HUD")
     local Tutorial = {}
 
-    local PORTAL_DATABASE = {
-        {Index = 37, Prefix = "Script395"},
-        {Index = 52, Prefix = "Script523"},
-        {Index = 53, Prefix = "Script600"},
-        {Index = 33, Prefix = "Script573"},
-        {Index = 32, Prefix = "Script958"},
-        {Index = 28, Prefix = "Script170"}
-    }
-
-    local function GetPortalCFrame(obj)
-        if obj:IsA("BasePart") then
-            return obj.CFrame
-        elseif obj:IsA("Model") then
-            local part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart", true)
-            return part and part.CFrame or nil
-        end
-        return nil
-    end
-
-    local function ScanStageFromGui(playerGui)
-        local highestStage = 1
-        local yellowFound = false
-        for _, v in pairs(playerGui:GetDescendants()) do
-            if v:IsA("TextLabel") or v:IsA("TextButton") then
-                local txt = tonumber(v.Text)
-                if txt then
-                    local r = math.floor(v.TextColor3.R * 255 + 0.5)
-                    local g = math.floor(v.TextColor3.G * 255 + 0.5)
-                    local b = math.floor(v.TextColor3.B * 255 + 0.5)
-                    if r >= 250 and g >= 250 and b <= 10 then
-                        highestStage = txt
-                        yellowFound = true
-                    elseif r >= 250 and g >= 250 and b >= 250 and not yellowFound then
-                        if txt > highestStage then highestStage = txt end
-                    end
-                end
-            end
-        end
-        return highestStage
-    end
-
     local function AttemptJoinPortals()
         local char = LocalPlayer.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        local storyQ = workspace:FindFirstChild("Queue") and workspace.Queue:FindFirstChild("Story")
-        local playerGui = LocalPlayer:WaitForChild("PlayerGui")
-        if not (char and hrp and storyQ) then return false end
-        
-        local queueChildren = storyQ:GetChildren()
-        for _, portalData in ipairs(PORTAL_DATABASE) do
-            if #queueChildren >= portalData.Index then
-                local targetPortal = queueChildren[portalData.Index]
-                local targetCFrame = GetPortalCFrame(targetPortal)
-                if targetCFrame then
-                    hrp.CFrame = targetCFrame + Vector3.new(0, 3, 0)
-                    task.wait(2.5)
-                    local selectFound = false
-                    for _, v in pairs(playerGui:GetDescendants()) do
-                        if v:IsA("TextLabel") or v:IsA("TextButton") then
-                            local t = (v.Text or ""):lower()
-                            if t:find("select stage") or t:find("start") then
-                                selectFound = true; break
-                            end
-                        end
-                    end
-                    if selectFound then
-                        local hs = ScanStageFromGui(playerGui)
-                        local levelRemoteCmd = portalData.Prefix .. "Level"
-                        local startRemoteCmd = portalData.Prefix .. "Start"
-                        pcall(function()
-                            inputRemote:FireServer(levelRemoteCmd, tostring(hs), false)
-                            task.wait(1.5)
-                            inputRemote:FireServer(startRemoteCmd)
-                        end)
-                        return true
-                    end
-                end
-            end
+        if not (char and hrp) then return false end
+
+        _G.MoMoStatus("กำลังวาร์ปเข้าด่าน...")
+        print("🚀 [AttemptJoinPortals] วาร์ปไปพิกัด 2647, -115, -1651")
+
+        -- ✅ Step 1: วาร์ป HRP ไปพิกัดที่กำหนด
+        hrp.CFrame = CFrame.new(Vector3.new(2647, -115, -1651))
+        task.wait(2)  -- รอให้ตัวละครลงพื้นและโหลด
+
+        -- ✅ Step 2: เลือก Stage ด้วย Remote
+        print("📡 [AttemptJoinPortals] ส่ง Script448Level เลือกด่าน -1")
+        local ok1, err1 = pcall(function()
+            inputRemote:FireServer("Script448Level", "-1", false)
+        end)
+        if ok1 then
+            print("✅ [AttemptJoinPortals] Script448Level ส่งสำเร็จ")
+        else
+            warn("❌ [AttemptJoinPortals] Script448Level ล้มเหลว:", tostring(err1))
         end
-        return false
+
+        task.wait(1.5)  -- รอให้ Server รับและประมวลผลการเลือกด่าน
+
+        -- ✅ Step 3: กด Start ด้วย Remote
+        print("📡 [AttemptJoinPortals] ส่ง Script448Start เริ่มเกม")
+        local ok2, err2 = pcall(function()
+            inputRemote:FireServer("Script448Start")
+        end)
+        if ok2 then
+            print("✅ [AttemptJoinPortals] Script448Start ส่งสำเร็จ")
+            _G.MoMoStatus("ส่ง Start สำเร็จ! รอโหลดด่าน...")
+            return true
+        else
+            warn("❌ [AttemptJoinPortals] Script448Start ล้มเหลว:", tostring(err2))
+            return false
+        end
     end
 
     function Tutorial.SkipDialogueAndSummon()
@@ -780,7 +738,7 @@ end
 
         -- กำหนดยูนิตที่ต้องการใส่ในแต่ละสล็อต (slot 1,2,3)
         local slotTargets = {
-            { slot = 1, names = {"Android17", "KidLuffy", "Ikki (HalfMask)", "Jotaro Kujo} }
+            { slot = 1, names = {"Android17", "KidLuffy", "Ikki (HalfMask)", "Jotaro Kujo"} }
         }
 
         local currentTeam = {}
@@ -2127,6 +2085,78 @@ function ModuleX.StartCoordinator()
 				local hasEnemies = enemiesFolder and #enemiesFolder:GetChildren() > 0
 				local totalOwned = #GetOwnedUnits()
 
+				-- ✅ [FIRST UNIT FIXED PLACEMENT]
+				-- วางตัวแรกที่ workspace.Placeable.Base:GetChildren()[33].Base_Part เสมอ
+				if totalOwned == 0 then
+					local _, affordable = safeCall("getAffordableTower", getAffordableTower)
+					if affordable and affordable.Success and affordable.Card then
+						local card = affordable.Card
+
+						local fixedCF = nil
+						pcall(function()
+							local placeableBase = workspace:FindFirstChild("Placeable")
+								and workspace.Placeable:FindFirstChild("Base")
+							if placeableBase then
+								local children = placeableBase:GetChildren()
+								local slot = children[33]
+								if slot then
+									local basePart = slot:FindFirstChild("Base_Part")
+											   or (slot:IsA("BasePart") and slot)
+									if basePart then
+										fixedCF = basePart.CFrame
+									end
+								end
+							end
+						end)
+
+						if fixedCF then
+							mxLog("First unit: using fixed slot[33].Base_Part position")
+							safeStatus("🎯 วางตัวแรกที่จุดกำหนด (Slot 33)...")
+
+							local learnedType = learnedPlacements[card.Name] or "Base"
+							local _, placement = safeCall(
+								"Module4.RetryPlacementWithFallback",
+								Module4.RetryPlacementWithFallback,
+								card.Index,
+								fixedCF,
+								{
+									fixedCF * CFrame.new(2,0,0),
+									fixedCF * CFrame.new(-2,0,0),
+									fixedCF * CFrame.new(0,0,2),
+								},
+								learnedType
+							)
+
+							if placement and placement.Success then
+								mxLog("✅ First unit placed at fixed slot[33]")
+								safeStatus("✅ วางตัวแรกสำเร็จ! (" .. card.Name .. ")")
+								task.wait(0.3)
+								local placedUnit = FindNewestOwnedUnitByName(card.Name)
+								if placedUnit then
+									placementProgress.LastPlacedUnit = placedUnit
+									placementProgress.LastPlacedUpgradeCount = 0
+									placementProgress.RequireUpgradeBeforeNextPlace = true
+									-- อัปเกรดตัวแรกทันทีถ้ามีเงิน
+									for _ = 1, 3 do
+										local okUp = TryUpgradeSpecificUnit(placedUnit)
+										if okUp then
+											placementProgress.LastPlacedUpgradeCount += 1
+											placementProgress.RequireUpgradeBeforeNextPlace = false
+										else
+											break
+										end
+										task.wait(0.2)
+									end
+								end
+							end
+						else
+							mxLog("First unit: slot[33].Base_Part not found, falling back to standard placement")
+							safeStatus("⚠️ หา Slot 33 ไม่เจอ → ใช้การวางปกติ")
+						end
+					end
+					return  -- ✅ return อยู่ใน if totalOwned == 0 เท่านั้น
+				end
+
 				-- ✅ Protection: วางตัวละครได้แค่ 1 ตัวก่อนศัตรูมา (ป้องกัน Spawn Spam)
 				if not hasEnemies and totalOwned >= 1 then
 					coordinatorRuntime.LastPlacementReason = "NoEnemyYet"
@@ -3141,10 +3171,10 @@ local function StartAutoPlay()
                 local targetButton = nil
                 local actionName = ""
                 
-                if currentStage <= 5 then
+                if currentStage <= 0 then
                     -- Stage 1-5: กด Next (ไปด่านถัดไป)
-                    targetButton = findButtonByKeyword({"play next", "playnext", "next stage", "next"})
-                    actionName = "Play Next"
+                    targetButton = findButtonByKeyword({"replay", "replay", "next stage", "next"})
+                    actionName = "Replay"
                 else
                     -- Stage 6+: กด Replay (เล่นด่านเดิมซ้ำ)
                     targetButton = findButtonByKeyword({"replay", "play again", "again", "retry"})
