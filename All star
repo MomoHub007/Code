@@ -170,45 +170,42 @@ local function ClaimAllLobbyGiftboxes()
             return right and right:FindFirstChild("GiftBox")
         end
 
-        -- ✅ รับทั้ง "!" และตัวเลข
+        -- ✅ Bug 2 แก้แล้ว: เช็ค Visible อย่างเดียว
         local function hasGiftNotif()
             local giftBtn = getGiftButton()
             if not giftBtn then return false end
             local notif = giftBtn:FindFirstChild("Notif")
-            if not notif or not notif.Visible then return false end
-            local txt = ""
-            pcall(function() txt = tostring(notif.Text or "") end)
-            return txt ~= "" and txt ~= "0"
+            return notif ~= nil and notif.Visible
         end
 
-        -- ✅ หาปุ่ม ACCEPT ทุกปุ่มที่เห็นอยู่ พร้อมกัน
+        -- ✅ Bug 3 แก้แล้ว: ไม่ใช้ continue
         local function findAllAcceptButtons()
             local results = {}
             for _, v in ipairs(hud:GetDescendants()) do
                 if v:IsA("TextButton") or v:IsA("ImageButton") then
-                    -- เช็ค visible chain
                     local visible = true
                     local cur = v
                     while cur and cur ~= hud.Parent do
                         if cur:IsA("GuiObject") and not cur.Visible then
-                            visible = false; break
+                            visible = false
+                            break
                         end
                         cur = cur.Parent
                     end
-                    if not visible then continue end
-                    if v.AbsoluteSize.X < 1 or v.AbsoluteSize.Y < 1 then continue end
 
-                    local name = tostring(v.Name or ""):upper()
-                    local txt = ""
-                    pcall(function() txt = tostring(v.Text or ""):upper() end)
-
-                    if name == "ACCEPT" or txt == "ACCEPT"
-                       or name:find("ACCEPT") or txt:find("ACCEPT") then
-                        table.insert(results, v)
-                        print(string.format(
-                            "🔍 [Giftbox] พบปุ่ม ACCEPT: Name=%s Text=%s Pos=(%.0f,%.0f)",
-                            v.Name, txt, v.AbsolutePosition.X, v.AbsolutePosition.Y
-                        ))
+                    -- ✅ ใช้ if แทน continue
+                    if visible and v.AbsoluteSize.X >= 1 and v.AbsoluteSize.Y >= 1 then
+                        local name = tostring(v.Name or ""):upper()
+                        local txt = ""
+                        pcall(function() txt = tostring(v.Text or ""):upper() end)
+                        if name == "ACCEPT" or txt == "ACCEPT"
+                           or name:find("ACCEPT") or txt:find("ACCEPT") then
+                            table.insert(results, v)
+                            print(string.format(
+                                "🔍 [Giftbox] พบปุ่ม ACCEPT: Name=%s Text=%s Pos=(%.0f,%.0f)",
+                                v.Name, txt, v.AbsolutePosition.X, v.AbsolutePosition.Y
+                            ))
+                        end
                     end
                 end
             end
