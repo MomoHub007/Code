@@ -1,1 +1,5 @@
-placeholder
+-- =====================================================================
+-- ⏳ [ANTI-CRASH]: รอให้เกมและตัวละครโหลดเสร็จก่อนรันสคริปต์
+-- =====================================================================
+if not game:IsLoaded() then game.Loaded:Wait() end
+repeat task.wait(7) until game:GetService("Players").LocalPlayer and game:GetService("Players").LocalPlayer.Character and game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
