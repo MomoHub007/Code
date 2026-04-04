@@ -818,7 +818,7 @@ end
 
         -- กำหนดยูนิตที่ต้องการใส่ในแต่ละสล็อต (slot 1,2,3)
         local slotTargets = {
-            { slot = 1, names = {"Android17", "KidLuffy", "Ikki (HalfMask)", "Jotaro Kujo" , "Bakugo (Blazing)"} }
+            { slot = 1, names = {"Android17", "KidLuffy", "Ikki (HalfMask)", "Jotaro Kujo" , "Bakugo (Blazing)" , "Toichiro"} }
         }
 
         local currentTeam = {}
@@ -1987,8 +1987,7 @@ local function TryUpgradeSpecificUnit(unit)
 
     -- ✅ แก้ Bug #1: ไม่ใช้ UpgradeTag เป็น confirmation แล้ว
     -- ให้ใช้การเปลี่ยนแปลงของ Money เป็น indicator แทน (เร็วกว่า Replicate)
-    local moneyObj = LocalPlayer:FindFirstChild("Money")
-    local moneyBefore = moneyObj and tonumber(moneyObj.Value) or 0
+    local moneyBefore = getCurrentMoney()
 
     -- ✅ แก้ Bug #2: ดึง cost หลายทาง + fallback ที่สมเหตุสมผล
     local cost = nil
@@ -2025,7 +2024,7 @@ local function TryUpgradeSpecificUnit(unit)
 
     -- ✅ แก้ Bug #1: รอให้ Money replicate (ซึ่งเร็วกว่า UpgradeTag มาก)
     task.wait(0.4)
-    local moneyAfter = moneyObj and tonumber(moneyObj.Value) or moneyBefore
+    local moneyAfter = getCurrentMoney()
 
     -- เงินลดลง = upgrade สำเร็จ
     if moneyAfter < moneyBefore then
@@ -2034,7 +2033,7 @@ local function TryUpgradeSpecificUnit(unit)
 
     -- รอนานขึ้นอีกหน่อยแล้วเช็คซ้ำ (กรณี server lag)
     task.wait(0.4)
-    moneyAfter = moneyObj and tonumber(moneyObj.Value) or moneyBefore
+    moneyAfter = getCurrentMoney()
     if moneyAfter < moneyBefore then
         return true, "OK"
     end
@@ -2104,11 +2103,67 @@ function ModuleX.StartCoordinator()
 		return true, result
 	end
 
+	-- ==========================================
+	-- 💰 [MoneyParser] รองรับรูปแบบ 1.5k, 2m, 3b
+	-- ==========================================
+	local function parseDisplayedMoney(value)
+		if value == nil then return 0 end
+		if type(value) == "number" then return value end
+
+		local s = tostring(value):lower():gsub(",", ""):gsub("%s+", "")
+		local num = tonumber(s)
+		if num then return num end
+
+		local base = tonumber(s:match("([%d%.]+)k"))
+		if base then return base * 1000 end
+
+		base = tonumber(s:match("([%d%.]+)m"))
+		if base then return base * 1000000 end
+
+		base = tonumber(s:match("([%d%.]+)b"))
+		if base then return base * 1000000000 end
+
+		return 0
+	end
+
+	local function getCurrentMoney()
+		local moneyObj = LocalPlayer:FindFirstChild("Money")
+		if moneyObj then
+			local parsed = parseDisplayedMoney(moneyObj.Value)
+			if parsed > 0 then return parsed end
+		end
+
+		local stats = LocalPlayer:FindFirstChild("Stats")
+		if stats then
+			for _, name in ipairs({"Money", "Cash", "Gold", "Yen"}) do
+				local obj = stats:FindFirstChild(name)
+				if obj then
+					local parsed = parseDisplayedMoney(obj.Value)
+					if parsed > 0 then return parsed end
+				end
+			end
+		end
+
+		local gui = LocalPlayer:FindFirstChild("PlayerGui")
+		if gui then
+			for _, v in ipairs(gui:GetDescendants()) do
+				if v:IsA("TextLabel") and v.Visible then
+					local n = v.Name:lower()
+					if n:find("money") or n:find("cash") or n:find("gold") or n:find("yen") then
+						local parsed = parseDisplayedMoney(v.Text)
+						if parsed > 0 then return parsed end
+					end
+				end
+			end
+		end
+
+		return 0
+	end
+
 	local function doUpgradeAll()
 		local status = { Success = false, Count = 0 }
 		local uF = workspace:FindFirstChild("Unit")
-		local moneyObj = LocalPlayer:FindFirstChild("Money")
-		local currentMoney = moneyObj and tonumber(moneyObj.Value) or 0
+		local currentMoney = getCurrentMoney()
 		if not uF then return status end
 
 		for _, u in pairs(uF:GetChildren()) do
@@ -2133,11 +2188,11 @@ function ModuleX.StartCoordinator()
 				-- ถ้าหา cost ไม่ได้เลย ให้ยิงไปเลย (ให้ server ตัดสิน)
 				local canAfford = (not cost) or (currentMoney >= cost)
 				if canAfford then
-					local moneyBefore = moneyObj and tonumber(moneyObj.Value) or currentMoney
+					local moneyBefore = getCurrentMoney()
 					local ok = pcall(function() serverRemote:InvokeServer("Upgrade", u) end)
 					if ok then
 						task.wait(0.15)
-						local moneyNow = moneyObj and tonumber(moneyObj.Value) or moneyBefore
+						local moneyNow = getCurrentMoney()
 						if moneyNow < moneyBefore then
 							currentMoney = moneyNow
 							status.Count += 1
@@ -2380,12 +2435,22 @@ function ModuleX.StartCoordinator()
 				local totalOwned = #GetOwnedUnits()
 				local enemiesCount = enemiesFolder and #enemiesFolder:GetChildren() or 0
 
-				-- ✅ ตรวจสอบว่าตัวแรกอัปเกรดครบถึง 1 ครั้งแล้ว
+				--  หลังวางครบ 3 ตัว ถ้าเงินมากกว่า 1500 (เช่น 1.5k) ให้รีบอัปตัวไหนก็ได้ก่อน
+				local currentMoney = getCurrentMoney()
+				if totalOwned >= 3 and currentMoney >= 1500 then
+					local _, forcedUpgrade = safeCall("doUpgradeAll", doUpgradeAll)
+					if forcedUpgrade and forcedUpgrade.Success then
+						coordinatorRuntime.LastPlacementReason = "ForcedUpgradeAfter3Units"
+						return
+					end
+				end
+
+				--  ต้องอัปตัวแรกที่วางก่อนเท่านั้น จะวางตัวเพิ่มได้ครบถึง 1 ครั้งแล้ว
 				if placementProgress.FirstPlacedUpgradeCount >= 1 then
 					placementProgress.RequireFirstPlacementUpgrade = false
 				end
 
-				-- 🔒 ต้องอัปตัวแรกที่วางก่อนเท่านั้น จะวางตัวเพิ่มได้
+				--  ต้องอัปตัวแรกที่วางก่อนเท่านั้น จะวางตัวเพิ่มได้
 				if placementProgress.RequireFirstPlacementUpgrade and placementProgress.FirstPlacedUnit then
 					local firstUnit = placementProgress.FirstPlacedUnit
 
