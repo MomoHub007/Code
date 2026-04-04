@@ -166,7 +166,8 @@ local LOBBY_GIFTBOXES = {
 local LOBBY_TASK_CLAIMS = {
     "levelinggoal",
     "ClaimAllDamage",
-    "maxwave"
+    "maxwave",
+	"unitgoal"
 }
 
 local lobbyGiftState = {
