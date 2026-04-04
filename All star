@@ -202,6 +202,22 @@ local function ClaimAllLobbyGiftboxes()
 
         local function findBestAcceptButton()
             local best, bestScore = nil, 0
+
+            -- 1) หา TextButton/ImageButton ที่ข้อความเป็น ACCEPT ก่อน
+            for _, v in ipairs(hud:GetDescendants()) do
+                if (v:IsA("TextButton") or v:IsA("ImageButton")) and isGuiClickable(v) then
+                    local txt = ""
+                    pcall(function()
+                        txt = tostring(v.Text or ""):lower()
+                    end)
+
+                    if txt:find("accept", 1, true) then
+                        return v, 100
+                    end
+                end
+            end
+
+            -- 2) fallback ใช้ระบบ score เดิม
             for _, v in ipairs(hud:GetDescendants()) do
                 if (v:IsA("TextButton") or v:IsA("ImageButton")) and isGuiClickable(v) then
                     local score = scoreButton(v)
@@ -211,6 +227,7 @@ local function ClaimAllLobbyGiftboxes()
                     end
                 end
             end
+
             return best, bestScore
         end
 
@@ -549,6 +566,73 @@ local function ClaimAllStorageRewards()
 end
 
 -- ==========================================
+-- 💰 [CurrencyHelper] อ่านค่าเงินจาก HUD
+-- ==========================================
+local function ParseCurrencyAmount(rawText)
+    rawText = tostring(rawText or ""):gsub(",", ""):gsub("%s+", "")
+    local num = tonumber(rawText:match("%d+"))
+    return num or 0
+end
+
+local function GetHudCurrencyAmount(currencyName)
+    local ok, amount = pcall(function()
+        local hud = LocalPlayer.PlayerGui:WaitForChild("HUD")
+        local currencyList = hud:WaitForChild("BottomFrame"):WaitForChild("CurrencyList")
+        local currencyFrame = currencyList:FindFirstChild(currencyName)
+        local amountLabel = currencyFrame and currencyFrame:FindFirstChild("Amount")
+        if not amountLabel then
+            return 0
+        end
+        return ParseCurrencyAmount(amountLabel.Text)
+    end)
+
+    if ok then
+        return tonumber(amount) or 0
+    end
+    return 0
+end
+
+local function EnsureStardustBeforeSummon()
+    local stardust = GetHudCurrencyAmount("Stardust")
+    if stardust >= 50 then
+        return true
+    end
+
+    print(string.format("🎁 [SummonCheck] Stardust น้อยกว่า 50 (%d) -> กำลังกดรับ GiftBox", stardust))
+    if _G.MoMoStatus then
+        _G.MoMoStatus(string.format("Stardust %d < 50 -> กำลังกดรับ GiftBox...", stardust))
+    end
+
+    ClaimAllLobbyGiftboxes()
+    task.wait(1)
+
+    local afterStardust = GetHudCurrencyAmount("Stardust")
+    print(string.format("🎁 [SummonCheck] Stardust หลังรับ GiftBox = %d", afterStardust))
+
+    return afterStardust >= 50
+end
+
+local function EnsureGemBeforeUpgradeBag()
+    local gems = GetHudCurrencyAmount("Gem")
+    if gems >= 150 then
+        return true
+    end
+
+    print(string.format("💎 [BagCheck] Gem น้อยกว่า 150 (%d) -> กำลังกดรับ Task ทั้งหมด", gems))
+    if _G.MoMoStatus then
+        _G.MoMoStatus(string.format("Gem %d < 150 -> กำลังกดรับ Task ทั้งหมด...", gems))
+    end
+
+    ClaimAllLobbyTasks()
+    task.wait(1)
+
+    local afterGems = GetHudCurrencyAmount("Gem")
+    print(string.format("💎 [BagCheck] Gem หลังรับ Task = %d", afterGems))
+
+    return afterGems >= 150
+end
+
+-- ==========================================
 -- 🔓 [BagHelper] ขยายกระเป๋าถ้าเต็ม (พร้อม Fallback รับของก่อน)
 -- ==========================================
 local function EnsureBagHasSpace()
@@ -576,6 +660,16 @@ local function EnsureBagHasSpace()
         -- 🔴 กระเป๋าเต็ม → ลองขยายก่อน
         if _G.MoMoStatus then
             _G.MoMoStatus(string.format("กระเป๋าเต็ม (%d/%d)! กำลังขยาย...", current, max))
+        end
+
+        -- 💎 ก่อนอัปกระเป๋า เช็ค Gem ก่อน
+        local gemReady = EnsureGemBeforeUpgradeBag()
+        if not gemReady then
+            warn("⚠️ [EnsureBag] Gem ยังน้อยกว่า 150 หลังรับ Task -> รอแล้วลองใหม่")
+            if _G.MoMoStatus then
+                _G.MoMoStatus("Gem ยังไม่พออัปกระเป๋า รอ 2s...")
+            end
+            task.wait(2)
         end
 
         print(string.format("🎒 [EnsureBag] กระเป๋าเต็ม! ส่ง UpgradeInventory (attempt %d)...", attempt))
@@ -606,6 +700,7 @@ local function EnsureBagHasSpace()
 
         -- ลองขยายอีกครั้งหลังรับของแล้ว
         print("[EnsureBag]ลองขยายกระเป๋าอีกรอบหลังรับของ...")
+        EnsureGemBeforeUpgradeBag()
         pcall(function()
             serverRemote:InvokeServer("UpgradeInventory")
         end)
@@ -698,6 +793,73 @@ local function ClaimAllStorageRewards()
 end
 
 -- ==========================================
+-- 💰 [CurrencyHelper] อ่านค่าเงินจาก HUD
+-- ==========================================
+local function ParseCurrencyAmount(rawText)
+    rawText = tostring(rawText or ""):gsub(",", ""):gsub("%s+", "")
+    local num = tonumber(rawText:match("%d+"))
+    return num or 0
+end
+
+local function GetHudCurrencyAmount(currencyName)
+    local ok, amount = pcall(function()
+        local hud = LocalPlayer.PlayerGui:WaitForChild("HUD")
+        local currencyList = hud:WaitForChild("BottomFrame"):WaitForChild("CurrencyList")
+        local currencyFrame = currencyList:FindFirstChild(currencyName)
+        local amountLabel = currencyFrame and currencyFrame:FindFirstChild("Amount")
+        if not amountLabel then
+            return 0
+        end
+        return ParseCurrencyAmount(amountLabel.Text)
+    end)
+
+    if ok then
+        return tonumber(amount) or 0
+    end
+    return 0
+end
+
+local function EnsureStardustBeforeSummon()
+    local stardust = GetHudCurrencyAmount("Stardust")
+    if stardust >= 50 then
+        return true
+    end
+
+    print(string.format("🎁 [SummonCheck] Stardust น้อยกว่า 50 (%d) -> กำลังกดรับ GiftBox", stardust))
+    if _G.MoMoStatus then
+        _G.MoMoStatus(string.format("Stardust %d < 50 -> กำลังกดรับ GiftBox...", stardust))
+    end
+
+    ClaimAllLobbyGiftboxes()
+    task.wait(1)
+
+    local afterStardust = GetHudCurrencyAmount("Stardust")
+    print(string.format("🎁 [SummonCheck] Stardust หลังรับ GiftBox = %d", afterStardust))
+
+    return afterStardust >= 50
+end
+
+local function EnsureGemBeforeUpgradeBag()
+    local gems = GetHudCurrencyAmount("Gem")
+    if gems >= 150 then
+        return true
+    end
+
+    print(string.format("💎 [BagCheck] Gem น้อยกว่า 150 (%d) -> กำลังกดรับ Task ทั้งหมด", gems))
+    if _G.MoMoStatus then
+        _G.MoMoStatus(string.format("Gem %d < 150 -> กำลังกดรับ Task ทั้งหมด...", gems))
+    end
+
+    ClaimAllLobbyTasks()
+    task.wait(1)
+
+    local afterGems = GetHudCurrencyAmount("Gem")
+    print(string.format("💎 [BagCheck] Gem หลังรับ Task = %d", afterGems))
+
+    return afterGems >= 150
+end
+
+-- ==========================================
 -- 🔓 [BagHelper] ขยายกระเป๋าถ้าเต็ม (พร้อม Fallback รับของก่อน)
 -- ==========================================
 local function EnsureBagHasSpace()
@@ -725,6 +887,16 @@ local function EnsureBagHasSpace()
         -- 🔴 กระเป๋าเต็ม → ลองขยายก่อน
         if _G.MoMoStatus then
             _G.MoMoStatus(string.format("กระเป๋าเต็ม (%d/%d)! กำลังขยาย...", current, max))
+        end
+
+        -- 💎 ก่อนอัปกระเป๋า เช็ค Gem ก่อน
+        local gemReady = EnsureGemBeforeUpgradeBag()
+        if not gemReady then
+            warn("⚠️ [EnsureBag] Gem ยังน้อยกว่า 150 หลังรับ Task -> รอแล้วลองใหม่")
+            if _G.MoMoStatus then
+                _G.MoMoStatus("Gem ยังไม่พออัปกระเป๋า รอ 2s...")
+            end
+            task.wait(2)
         end
 
         print(string.format("🎒 [EnsureBag] กระเป๋าเต็ม! ส่ง UpgradeInventory (attempt %d)...", attempt))
@@ -755,6 +927,7 @@ local function EnsureBagHasSpace()
 
         -- ลองขยายอีกครั้งหลังรับของแล้ว
         print("[EnsureBag]ลองขยายกระเป๋าอีกรอบหลังรับของ...")
+        EnsureGemBeforeUpgradeBag()
         pcall(function()
             serverRemote:InvokeServer("UpgradeInventory")
         end)
@@ -791,10 +964,20 @@ function Tutorial.AutoSummonUntilFound()
 
     while summonAttempts < maxAttempts do
 
+        -- 🎁 เช็ค Stardust ก่อนสุ่ม
+        local stardustReady = EnsureStardustBeforeSummon()
+        if not stardustReady then
+            warn("⚠️ [AutoSummon] Stardust ยังน้อยกว่า 50 หลังรับ GiftBox -> รอ 3s แล้วลองใหม่")
+            if _G.MoMoStatus then
+                _G.MoMoStatus("Stardust ยังไม่พอสุ่ม รอ 3s...")
+            end
+            task.wait(3)
+            continue
+        end
+
         -- 🔑 ตรวจกระเป๋าก่อนสุ่มทุกครั้ง
         local bagReady = EnsureBagHasSpace()
         if not bagReady then
-            -- กระเป๋ายังเต็มและขยายไม่ได้ -> รอรอบถัดไป
             warn("⚠️ [AutoSummon] กระเป๋ายังเต็ม/ขยายไม่ได้ -> รอ 5s แล้วลองใหม่")
             if _G.MoMoStatus then
                 _G.MoMoStatus("กระเป๋าเต็ม/ขยายไม่ได้ รอ 5s...")
