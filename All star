@@ -280,8 +280,12 @@ local function StartLobbyMaster()
             return false
         end
 
+        -- กำหนดยูนิตที่ต้องการใส่ในแต่ละสล็อต (slot 1,2,3)
+        local slotTargets = {
+            { slot = 1, names = {"Android17", "KidLuffy", "Kid Luffy", "Kid Luffy (Super)"} }
+        }
+
         local currentTeam = {}
-        local inventory = {}
 
         -- อ่านทีมปัจจุบัน
         do
@@ -295,219 +299,136 @@ local function StartLobbyMaster()
             end
         end
 
-        -- อ่าน inventory จาก UI
+        -- ค้นหายูนิตที่ตรงกับแต่ละสล็อตจาก Inventory
+        local equipList = {}  -- { slot = 1, unit = {Name, ID, Level} }
+
+        print("========== DEBUG INVENTORY ==========")
+        print("Scroll ชื่อ:", scroll.Name, "จำนวนลูก:", #scroll:GetChildren())
         for _, uiObj in pairs(scroll:GetChildren()) do
-            if not uiObj:IsA("GuiObject") then
-                continue
-            end
-
-            local stars = 0
-            local unitName = uiObj.Name
-            local unitID = nil
-            local unitLevel = 1
-
-            local nameLabel = uiObj:FindFirstChild("UnitName", true) or uiObj:FindFirstChild("MainName", true)
-            if nameLabel and nameLabel:IsA("TextLabel") and nameLabel.Text ~= "" then
-                unitName = nameLabel.Text
-            end
-
-            local starLabel = uiObj:FindFirstChild("StarFrame", true) and uiObj:FindFirstChild("StarFrame", true):FindFirstChildWhichIsA("TextLabel")
-            if not starLabel then
-                for _, desc in pairs(uiObj:GetDescendants()) do
-                    if desc:IsA("TextLabel") and (desc.Name:lower():find("star") or (desc.Parent and desc.Parent.Name:lower():find("star"))) then
-                        starLabel = desc
-                        break
-                    end
-                end
-            end
-            if starLabel and tonumber(starLabel.Text) then
-                stars = tonumber(starLabel.Text)
-            end
-
-            pcall(function()
-                unitID = uiObj:GetAttribute("uid") or uiObj:GetAttribute("uuid") or uiObj:GetAttribute("ID") or uiObj:GetAttribute("UUID")
-                unitLevel = tonumber(uiObj:GetAttribute("level") or uiObj:GetAttribute("Level")) or 1
-            end)
-
-            if not unitID then
-                for _, child in pairs(uiObj:GetDescendants()) do
-                    local cn = child.Name:lower()
-                    if (cn == "uid" or cn == "uuid" or cn == "id") and (child:IsA("StringValue") or child:IsA("IntValue") or child:IsA("NumberValue")) then
-                        unitID = child.Value
-                        break
-                    end
-                end
-            end
-
-            if stars > 0 then
-                table.insert(inventory, {
-                    Name = tostring(unitName),
-                    Stars = tonumber(stars) or 0,
-                    Level = tonumber(unitLevel) or 1,
-                    ID = unitID
-                })
+            if uiObj:IsA("GuiObject") then
+                local nameLabel = uiObj:FindFirstChild("UnitName", true) or uiObj:FindFirstChild("MainName", true)
+                local displayName = nameLabel and nameLabel.Text or uiObj.Name
+                print("  -", displayName, "(uiObj.Name=" .. uiObj.Name .. ")")
             end
         end
+        print("=====================================")
 
-        -- memory fallback สำหรับตัวที่ยังไม่มี ID
-        local memoryData = {}
-        pcall(function()
-            for _, v in pairs(getgc(true)) do
-                if type(v) == "table" then
-                    pcall(function()
-                        local id = rawget(v, "uid") or rawget(v, "uuid") or rawget(v, "ID") or rawget(v, "UUID") or v.uid or v.uuid or v.ID or v.UUID
-                        local name = rawget(v, "unitId") or rawget(v, "Name") or rawget(v, "UnitName") or v.unitId or v.Name or v.UnitName
-                        local level = rawget(v, "level") or rawget(v, "Level") or v.level or v.Level or 1
-                        if id and type(name) == "string" then
-                            memoryData[name] = memoryData[name] or {}
-                            table.insert(memoryData[name], {ID = id, Level = tonumber(level) or 1})
-                            memoryData[name:lower()] = memoryData[name:lower()] or {}
-                            table.insert(memoryData[name:lower()], {ID = id, Level = tonumber(level) or 1})
+        for _, target in ipairs(slotTargets) do
+            local foundUnit = nil
+            local foundID = nil
+            local foundLevel = 1
+
+            for _, uiObj in pairs(scroll:GetChildren()) do
+                if uiObj:IsA("GuiObject") then
+                    local unitName = uiObj.Name
+                    local nameLabel = uiObj:FindFirstChild("UnitName", true) or uiObj:FindFirstChild("MainName", true)
+                    if nameLabel and nameLabel:IsA("TextLabel") and nameLabel.Text ~= "" then
+                        unitName = nameLabel.Text
+                    end
+
+                    -- ตรวจสอบชื่อตรงกับ names ใน target หรือไม่ (แบบยืดหยุ่น)
+                    local match = false
+                    local normalizedUnit = unitName:lower():gsub("%s+", "")  -- ลบช่องว่าง, พิมพ์เล็ก
+                    for _, n in ipairs(target.names) do
+                        local normalizedTarget = n:lower():gsub("%s+", "")
+                        if normalizedUnit == normalizedTarget or normalizedUnit:find(normalizedTarget) then
+                            match = true
+                            break
                         end
+                    end
+                    if not match then continue end
+
+                    -- ดึง ID และ Level
+                    local unitID = nil
+                    local unitLevel = 1
+                    pcall(function()
+                        unitID = uiObj:GetAttribute("uid") or uiObj:GetAttribute("uuid") or uiObj:GetAttribute("ID")
+                        unitLevel = tonumber(uiObj:GetAttribute("level") or uiObj:GetAttribute("Level")) or 1
                     end)
+
+                    -- Fallback 1: หา child ที่ชื่อมี id/uid/uuid
+                    if not unitID then
+                        for _, child in pairs(uiObj:GetDescendants()) do
+                            if child:IsA("StringValue") or child:IsA("IntValue") or child:IsA("NumberValue") then
+                                local cn = child.Name:lower()
+                                if cn:find("id") or cn:find("uid") or cn == "uuid" then
+                                    unitID = child.Value
+                                    break
+                                end
+                            end
+                        end
+                    end
+
+                    -- Fallback 2: ใช้ memory scan (getgc)
+                    if not unitID then
+                        pcall(function()
+                            for _, v in pairs(getgc(true)) do
+                                if type(v) == "table" then
+                                    local id = rawget(v, "uid") or rawget(v, "uuid") or rawget(v, "ID")
+                                    local name = rawget(v, "unitId") or rawget(v, "Name") or rawget(v, "UnitName")
+                                    if id and name then
+                                        local nameStr = tostring(name)
+                                        if nameStr == unitName or nameStr:lower() == unitName:lower() then
+                                            unitID = id
+                                            unitLevel = rawget(v, "level") or rawget(v, "Level") or 1
+                                            break
+                                        end
+                                    end
+                                end
+                            end
+                        end)
+                    end
+                    if unitID then
+                        foundUnit = unitName
+                        foundID = unitID
+                        foundLevel = unitLevel
+                        break
+                    end
                 end
             end
-        end)
 
-        for _, unit in ipairs(inventory) do
-            if not unit.ID then
-                local pool = memoryData[unit.Name] or memoryData[unit.Name:lower()]
-                if pool and #pool > 0 then
-                    local picked = table.remove(pool, 1)
-                    unit.ID = picked.ID
-                    unit.Level = picked.Level or unit.Level
-                end
+            if foundUnit and foundID then
+                table.insert(equipList, {
+                    slot = target.slot,
+                    name = foundUnit,
+                    id = foundID,
+                    level = foundLevel
+                })
+                print(string.format("✅ พบ %s สำหรับสล็อต %d", foundUnit, target.slot))
+            else
+                warn(string.format("⚠️ ไม่พบยูนิตสำหรับสล็อต %d (ชื่อ: %s)", target.slot, table.concat(target.names, ", ")))
             end
         end
 
-        -- ตัดตัวที่ไม่มี ID จริงทิ้ง เพราะ equip ไม่ได้
-        local validInventory = {}
-        for _, unit in ipairs(inventory) do
-            if unit.ID ~= nil and tostring(unit.ID) ~= "" then
-                table.insert(validInventory, unit)
-            end
-        end
-        inventory = validInventory
-
-        if #inventory == 0 then
-            warn("❌ [SmartEquip] ไม่มี unit ที่มี ID ใช้งานได้")
-            return false
-        end
-
-        table.sort(inventory, function(a, b)
-            if a.Stars == b.Stars then
-                return a.Level > b.Level
-            end
-            return a.Stars > b.Stars
-        end)
-
-        -- คำนวณทีมเป้าหมาย
-        local idealTeam = {}
-        local used = {}
-
-        local function markUsed(id)
-            used[tostring(id)] = true
-        end
-
-        local function isUsed(id)
-            return used[tostring(id)] == true
-        end
-
-        local function pickFirst(fn)
-            for _, unit in ipairs(inventory) do
-                if not isUsed(unit.ID) and fn(unit) then
-                    markUsed(unit.ID)
-                    return unit
-                end
-            end
-            return nil
-        end
-
-        local slot1 = pickFirst(function(u) return true end)
-        local slot2 = pickFirst(function(u) return true end)
-        local slot3 = pickFirst(function(u) return u.Stars <= 4 end)
-
-        if slot1 then table.insert(idealTeam, slot1) end
-        if slot2 then table.insert(idealTeam, slot2) end
-        if slot3 then table.insert(idealTeam, slot3) end
-
-        if #idealTeam < 3 then
-            warn("❌ [SmartEquip] จัดทีม 3 ช่องไม่สำเร็จ | ได้แค่", #idealTeam, "ตัว")
-            return false
-        end
-
-        -- ถ้าทีมตรงเงื่อนไขอยู่แล้ว ไม่ต้องถอดใส่ใหม่
-        local currentMap = {}
-        for _, id in ipairs(currentTeam) do
-            currentMap[tostring(id)] = (currentMap[tostring(id)] or 0) + 1
-        end
-
-        local idealMap = {}
-        for _, unit in ipairs(idealTeam) do
-            idealMap[tostring(unit.ID)] = (idealMap[tostring(unit.ID)] or 0) + 1
-        end
-
-        local same = true
-        local currentCount = 0
-        local idealCount = 0
-        for _ in pairs(currentMap) do currentCount += 1 end
-        for _ in pairs(idealMap) do idealCount += 1 end
-
-        if currentCount ~= idealCount then
-            same = false
-        else
-            for id, amount in pairs(idealMap) do
-                if currentMap[id] ~= amount then
-                    same = false
-                    break
-                end
-            end
-        end
-
-        if same then
-            print("✅ [SmartEquip] ทีมตรงเงื่อนไขแล้ว ไม่ต้องจัดใหม่")
-            return true
-        end
-
-        _G.MoMoStatus("กำลังเปลี่ยนทีม...")
-
-        -- ถอดทีมเก่า
+        -- ถอดทีมเก่าทั้งหมด
         for _, currentID in ipairs(currentTeam) do
-            pcall(function()
-                inputRemote:FireServer("Unequip", {Stats = currentID})
-            end)
+            pcall(function() inputRemote:FireServer("Unequip", {Stats = currentID}) end)
             task.wait(0.3)
         end
-
         task.wait(1)
 
-        -- ใส่ทีมใหม่
-        for i, unit in ipairs(idealTeam) do
+        -- ใส่ทีมใหม่ตาม equipList
+        -- เรียง equipList ตาม slot
+        table.sort(equipList, function(a,b) return a.slot < b.slot end)
+
+        for _, item in ipairs(equipList) do
+            local idStr
+            if type(item.id) == "string" and not tonumber(item.id) then
+                idStr = '"' .. tostring(item.id) .. '"'
+            else
+                idStr = tostring(item.id)
+            end
+            local safeName = tostring(item.name):gsub('"', '\\"')
+            local statsJson = string.format('{"ID":%s,"Level":%d,"Name":"%s"}', idStr, item.level, safeName)
+
             local success, err = pcall(function()
-                local idStr
-                if type(unit.ID) == "string" and not tonumber(unit.ID) then
-                    idStr = '"' .. tostring(unit.ID) .. '"'
-                else
-                    idStr = tostring(unit.ID)
-                end
-
-                local safeName = tostring(unit.Name):gsub('"', '\\"')
-                local statsJson = string.format(
-                    '{"ID":%s,"Level":%d,"Name":"%s"}',
-                    idStr,
-                    tonumber(unit.Level) or 1,
-                    safeName
-                )
-
                 serverRemote:InvokeServer("Equip", {Stats = statsJson})
             end)
-
             if success then
-                print(string.format("✅ [Equip Slot %d] %s ⭐%d", i, unit.Name, unit.Stars))
+                print(string.format("✅ ใส่ %s ในสล็อต %d สำเร็จ", item.name, item.slot))
             else
-                warn(string.format("❌ [Equip Slot %d Failed] %s", i, tostring(err)))
+                warn(string.format("❌ ใส่ %s ในสล็อต %d ล้มเหลว: %s", item.name, item.slot, tostring(err)))
             end
-
             task.wait(0.6)
         end
 
@@ -526,7 +447,7 @@ local function StartLobbyMaster()
             end
         end
 
-        if #equippedNow >= 3 then
+        if #equippedNow >= #equipList then
             print("🏁 [SmartEquip] ใส่ทีมสำเร็จ")
             return true
         end
@@ -880,7 +801,7 @@ function Module3.ValidatePlacementCell(candidatePosition, towerType, coverageRad
 		end
 	end
 
-	if result.NearestPathDistance < 4 then
+	if result.NearestPathDistance < 1.5 then
 		result.Reason = "TooCloseToPath"
 		dlog("Reject:", result.Reason, "| dist =", math.floor(result.NearestPathDistance * 100) / 100)
 		return result
@@ -898,7 +819,7 @@ function Module3.ValidatePlacementCell(candidatePosition, towerType, coverageRad
 
 	local collisionCount = 0
 	local overlapOk, overlapErr = pcall(function()
-		collisionCount = #workspace:GetPartBoundsInBox(result.CFrame, Vector3.new(6, 6, 6), overlapParams)
+		collisionCount = #workspace:GetPartBoundsInBox(result.CFrame, Vector3.new(4, 4, 4), overlapParams)
 	end)
 
 	if not overlapOk then
@@ -937,8 +858,8 @@ function Module3.ValidatePlacementCell(candidatePosition, towerType, coverageRad
 
 	result.NearestEnemyDistance = hits[1] and hits[1].Distance or result.CoverageRadius
 
-	-- ให้ score ชอบจุดที่ไม่ชิด path เกินไป และมี coverage ดี
-	result.Score = (#hits * 100) - result.NearestEnemyDistance + math.min(result.NearestPathDistance, 15)
+	-- ให้ score ชอบจุดที่ชิด path (Hug the Path) และมี coverage ดี
+	result.Score = (#hits * 100) - result.NearestEnemyDistance - (result.NearestPathDistance * 2)
 
 	result.Success = true
 	result.Reason = "OK"
@@ -1080,26 +1001,37 @@ function Module3.DetectLeak()
 	local leaderHrp = leader:FindFirstChild("HumanoidRootPart")
 	local leaderPos = leaderHrp.Position
 
-	-- 2. เช็คว่ามี Unit ของเราคลุมถึงหรือไม่
+	-- 2. เช็คว่ามี Unit ของเราคลุมถึงหรือไม่ (ลำดับ Node)
 	local unitFolder = workspace:FindFirstChild("Unit")
-	local isHandled = false
+	local coveredByUnit = false
+	local LEAK_AHEAD_BUFFER = 5
 
 	if unitFolder then
 		for _, unit in ipairs(unitFolder:GetChildren()) do
 			local owner = unit:FindFirstChild("Owner")
 			local hrp = unit:FindFirstChild("HumanoidRootPart")
 			if owner and owner.Value == LocalPlayer and hrp then
-				-- ประเมิน Range (คร่าวๆ 25-50 studs)
-				local range = 35 -- ค่าเฉลี่ย
-				if (hrp.Position - leaderPos).Magnitude <= range then
-					isHandled = true
+				-- หา Node ที่ยูนิตตั้งอยู่
+				local unitPathIndex = 0
+				local uMinDist = math.huge
+				for i, pt in ipairs(pathPoints) do
+					local d = (pt.Position - hrp.Position).Magnitude
+					if d < uMinDist then
+						uMinDist = d
+						unitPathIndex = i
+					end
+				end
+
+				-- เปรียบเทียบลำดับการเดิน (Node Index)
+				if leaderIndex <= (unitPathIndex + LEAK_AHEAD_BUFFER) then
+					coveredByUnit = true
 					break
 				end
 			end
 		end
 	end
 
-	if isHandled then
+	if coveredByUnit then
 		return { State = "Handled", LeadingEnemy = leader }
 	else
 		return {
@@ -1583,34 +1515,27 @@ function ModuleX.StartCoordinator()
 				-- A. Upgrade Priority
 				local _, upgraded = safeCall("doUpgradeAll", doUpgradeAll)
 
-				-- B. Placement Logic (Conditional)
-				-- วางต่อเฉพาะถ้ามีเงินเหลือใบที่ 2 (Surplus Money)
-				local _, affordable = safeCall("getAffordableTower", getAffordableTower)
-				if affordable and affordable.Success and affordable.Card then
-					local moneyObj = LocalPlayer:FindFirstChild("Money")
-					local currentMoney = moneyObj and tonumber(moneyObj.Value) or 0
-					local cheapestCost = affordable.Card.Cost or 500
+				-- B. Placement Logic (RE-ENABLED)
+				-- วางหอคอยเพิ่มเมื่อมีศัตรู และจำนวนหอคอยยังน้อยกว่า 4 (หรือปรับเอง)
+				local totalOwned = #GetOwnedUnits()
+				local enemiesCount = enemiesFolder and #enemiesFolder:GetChildren() or 0
 
-					if currentMoney >= (cheapestCost * 2) then
+				if enemiesCount > 0 and totalOwned < 4 then  -- วางเพิ่มจนครบ 4 ตัว
+					local _, affordable = safeCall("getAffordableTower", getAffordableTower)
+					if affordable and affordable.Success and affordable.Card then
 						local card = affordable.Card
 						local learnedType = learnedPlacements[card.Name] or "Base"
-						
-						local _, calculation = safeCall("Module3.CalculatePlacementPosition", Module3 and Module3.CalculatePlacementPosition, card.Name, learnedType, 25)
+						local _, calculation = safeCall("Module3.CalculatePlacementPosition", Module3.CalculatePlacementPosition, card.Name, learnedType, 25)
 						if calculation and calculation.Success then
-							local _, placement = safeCall("Module4.RetryPlacementWithFallback", Module4 and Module4.RetryPlacementWithFallback, card.Index, calculation.BestCFrame, buildFallbackPositions(calculation.BestPosition), learnedType)
-							
+							local _, placement = safeCall("Module4.RetryPlacementWithFallback", Module4.RetryPlacementWithFallback, card.Index, calculation.BestCFrame, buildFallbackPositions(calculation.BestPosition), learnedType)
 							if placement and placement.Success then
-								learnedPlacements[card.Name] = calculation.TowerType or learnedType
-								coordinatorRuntime.LastPlacementReason = "Placed"
-							else
-								local count = countOwnedUnitsByName(card.Name)
-								if count > 0 then
-									knownLimits[card.Name] = count
-								end
+								mxLog("Normal placement successful")
 							end
 						end
 					end
 				end
+
+				coordinatorRuntime.LastPlacementReason = "HandledMode"
 			end)
 
 			if not ok then
@@ -1693,12 +1618,17 @@ local function ScanForModifier(modifierString)
 end
 
 local function HasUpgradedDefenders(enemyInstance)
+	-- [FIX-EMG-1] อย่าจบ Emergency เร็วเกินไปแค่เพราะมีตัว level >= 2 อยู่ใกล้ศัตรู
+	-- ต้องเช็คต่อว่า "ยังมีเงินพอให้อัปเกรดต่อ" หรือไม่ ถ้ายังอัปเกรดได้ให้คืน false เพื่อบังคับ Emergency ทำงานต่อ
 	if not enemyInstance then return false end
 	local enemyHrp = enemyInstance:FindFirstChild("HumanoidRootPart")
 	if not enemyHrp then return false end
 	
 	local enemyPos = enemyHrp.Position
-	local threatRadius = 40 -- รัศมีรอบศัตรูที่ต้องการเช็ค
+	local threatRadius = 40
+	local moneyObj = LocalPlayer:FindFirstChild("Money")
+	local money = moneyObj and tonumber(moneyObj.Value) or 0
+	local TARGET_LEVEL = 2
 
 	for _, unit in ipairs(GetOwnedUnits()) do
 		local ok, handled = pcall(function()
@@ -1708,16 +1638,26 @@ local function HasUpgradedDefenders(enemyInstance)
 
 			local distToEnemy = (hrp.Position - enemyPos).Magnitude
 			local level = tonumber(upgradeTag.Value) or 0
+			local nextCost = FindFirstUpgradeCost(unit)
 
-			-- ✅ Scope เฉพาะยูนิตที่อยู่ภายรัศมี 40 studs จาก enemy + Level >= 2
-			if distToEnemy <= threatRadius and level >= 2 then
+			if distToEnemy > threatRadius then
+				return false
+			end
+
+			if nextCost and money >= nextCost then
+				ELog("[FIX-EMG-1] Defender near threat can still be upgraded:", unit.Name, "| level =", level, "| money =", money, "| nextCost =", nextCost)
+				return false
+			end
+
+			if level >= TARGET_LEVEL then
+				ELog("[FIX-EMG-1] Board ready with sufficiently upgraded defender near threat:", unit.Name, "| level =", level)
 				return true
 			end
+
 			return false
 		end)
 
 		if ok and handled then
-			ELog("Board ready with upgraded defender near threat:", unit.Name)
 			return true
 		end
 	end
@@ -1726,77 +1666,54 @@ local function HasUpgradedDefenders(enemyInstance)
 end
 
 -- ==========================================================
--- 🔍 ฟังก์ชันอ่านดาวจากสี UIGradient (ดักจับ 4 ดาว vs 5 ดาว)
--- ==========================================================
-local function DetermineStarsFromSlot(slotObj)
-    local estimatedStars = 6 -- ค่าเริ่มต้น (ถ้าหาไม่เจอให้ตีเป็นตัวแพงไว้ก่อน)
-
-    for _, desc in pairs(slotObj:GetDescendants()) do
-        if (desc.Name == "Rayburst" or desc.Name == "UIStroke") and desc:IsA("UIGradient") then
-            pcall(function()
-                local color = desc.Color.Keypoints[1].Value
-                local r = math.floor(color.R * 255 + 0.5)
-                local g = math.floor(color.G * 255 + 0.5)
-                local b = math.floor(color.B * 255 + 0.5)
-
-                -- 🟩 เช็คสีเขียว 4 ดาว (G สูง, B ต่ำ)
-                if g > 200 and b < 150 then
-                    estimatedStars = 4
-                -- 🟦 เช็คสีฟ้า 5 ดาว (B สูง, G ต่ำ)
-                elseif b > 200 and g < 150 then
-                    estimatedStars = 5
-                end
-            end)
-            if estimatedStars ~= 6 then break end -- ถ้าเจอแล้วให้หยุดหาประหยัดทรัพยากร
-        end
-    end
-
-    return estimatedStars
-end
-
--- ==========================================================
--- 📇 ดึงข้อมูล Deck ปัจจุบันพร้อมระดับดาวที่แท้จริง
+-- 📇 ดึงข้อมูล Deck ปัจจุบันพร้อมระดับดาวที่แท้จริง (ดึงจาก Server)
 -- ==========================================================
 local function GetDeckWithStars()
     local deck = {}
     local hud = LocalPlayer.PlayerGui:FindFirstChild("HUD")
     if not hud then return deck end
-
-    local bottomFrame = hud:FindFirstChild("BottomFrame")
+    
+    local bottomFrame = hud:FindFirstChild("BottomFrame") or hud:FindFirstChild("Main")
     if not bottomFrame then return deck end
-
+    
     local unitFrame = bottomFrame:FindFirstChild("Unit")
     if not unitFrame then return deck end
+
+    -- อ้างอิงไปที่โฟลเดอร์เก็บข้อมูลดาวของเกม
+    local unitStarsFolder = game:GetService("ReplicatedStorage"):FindFirstChild("UnitStars")
 
     for _, slotName in ipairs({"One","Two","Three","Four","Five","Six"}) do
         local slot = unitFrame:FindFirstChild(slotName)
         if slot and slot:FindFirstChild("Unit") and slot.Unit.Value ~= "" then
+            local unitName = slot.Unit.Value
             local cost = 9999
-
-            -- 1. หาค่า Cost จาก TextLabel
+            
+            -- 1. หาค่า Cost จาก UI (เพราะราคาในเกมตอนเล่นอาจจะเปลี่ยนได้)
             for _, obj in ipairs(slot:GetDescendants()) do
                 if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Text then
-                    if obj.Text:match("%d+") then
-                        local n = tonumber(obj.Text:match("%d+"))
-                        if n and n < cost then
-                            cost = n
-                        end
-                    end
+                    local n = tonumber(obj.Text:match("%d+"))
+                    if n and n > 0 and n < cost then cost = n end
+                end
+            end
+            
+            -- 2. หาค่า Stars จาก ReplicatedStorage โดยตรง (แม่นยำ 100%)
+            local stars = 6 -- ค่าเริ่มต้นถ้าเกิดหาไม่เจอจริงๆ
+            if unitStarsFolder then
+                local starData = unitStarsFolder:FindFirstChild(unitName)
+                if starData and starData:IsA("IntValue") then
+                    stars = starData.Value
                 end
             end
 
-            -- 2. หาค่า Stars จากสีของ UIGradient! (ใช้ฟังก์ชันใหม่)
-            local stars = DetermineStarsFromSlot(slot)
-
             table.insert(deck, {
-                Name = slot.Unit.Value,
-                Cost = cost,
-                Stars = stars,
+                Name     = unitName,
+                Cost     = cost,
+                Stars    = stars,
                 SlotName = slotName,
             })
         end
     end
-
+    
     return deck
 end
 
@@ -1994,15 +1911,52 @@ end
 
 local function ExecuteEmergencyDeployment(cardData, enemyInstance)
 	if not cardData then
+		EWarn("[FIX-EMG-2] ExecuteEmergencyDeployment: cardData missing")
 		return false, "NoCardData"
 	end
 
 	local threatStillActive, currentThreat = ScanForModifier("Powerful")
 	if not threatStillActive then
+		ELog("[FIX-EMG-2] Threat already gone before deployment")
 		return false, "ThreatGone"
 	end
 
-	local existing = FindOwnedUnitByName(cardData.Name)
+	local targetEnemy = enemyInstance or currentThreat
+	local enemyHrp = targetEnemy and targetEnemy:FindFirstChild("HumanoidRootPart")
+	local existing = nil
+	local moneyObj = LocalPlayer:FindFirstChild("Money")
+
+	-- [FIX-EMG-2] ห้ามใช้ FindOwnedUnitByName แบบ global search เดี่ยว ๆ
+	-- ให้คัดเฉพาะยูนิตชื่อเดียวกันที่ "อยู่ใกล้ Powerful จริง" ภายใน 40 studs
+	if enemyHrp then
+		local enemyPos = enemyHrp.Position
+		local nearestDist = math.huge
+		for _, unit in ipairs(GetOwnedUnits()) do
+			local ok = pcall(function()
+				return unit.Name == cardData.Name and unit:FindFirstChild("HumanoidRootPart") ~= nil
+			end)
+			if ok and unit.Name == cardData.Name then
+				local unitHrp = unit:FindFirstChild("HumanoidRootPart")
+				if unitHrp then
+					local dist = (unitHrp.Position - enemyPos).Magnitude
+					if dist <= 40 and dist < nearestDist then
+						existing = unit
+						nearestDist = dist
+					end
+				end
+			end
+		end
+		if existing then
+			ELog("[FIX-EMG-2] Found nearby existing defender:", existing.Name, "| distToThreat =", math.floor(nearestDist * 100) / 100)
+		else
+			ELog("[FIX-EMG-2] No nearby existing defender within 40 studs; allowing new intercept summon for", cardData.Name)
+		end
+	else
+		EWarn("[FIX-EMG-2] Target enemy has no HRP; fallback to fresh summon path")
+	end
+
+	local placedUnit = nil
+
 	if existing then
 		local upgradeTagValue = nil
 		pcall(function()
@@ -2012,119 +1966,141 @@ local function ExecuteEmergencyDeployment(cardData, enemyInstance)
 			end
 		end)
 
-		if upgradeTagValue and upgradeTagValue >= 1 then
-			ELog("Emergency target already exists and upgraded:", cardData.Name)
-			return true, "AlreadyHandled"
+		if not table.find(EmergencyState.PendingUpgradeInstances, existing) then
+			table.insert(EmergencyState.PendingUpgradeInstances, existing)
 		end
 
-		table.insert(EmergencyState.PendingUpgradeInstances, existing)
-		return false, "ExistingUnitPendingUpgrade"
-	end
-
-	local spot, placeType = FindSpotForEmergency(enemyInstance or currentThreat)
-	if not spot then
-		return false, tostring(placeType or "NoSpot")
-	end
-
-	local firstUpgradeCost = 150
-	local moneyObj = LocalPlayer:FindFirstChild("Money")
-	local money = moneyObj and tonumber(moneyObj.Value) or 0
-	local totalRequired = (tonumber(cardData.Cost) or math.huge) + firstUpgradeCost
-
-	if money < totalRequired then
-		ELog("Waiting for emergency budget:", money, "/", totalRequired)
-		return false, "InsufficientBudget"
-	end
-
-	local preCount = 0
-	for _, u in ipairs(GetOwnedUnits()) do
-		if u.Name == cardData.Name then
-			preCount += 1
-		end
-	end
-
-	local summonOk, summonErr = pcall(function()
-		inputRemote:FireServer("Summon", {
-			Rotation = 0,
-			cframe = spot,
-			Unit = cardData.Name
-		})
-	end)
-
-	if not summonOk then
-		EWarn("Emergency summon failed:", tostring(summonErr))
-		return false, "SummonFailed"
-	end
-
-	ELog("Emergency summon fired:", cardData.Name, "| Type =", tostring(placeType))
-
-	local placedUnit = nil
-	for _ = 1, 12 do
-		task.wait(0.25)
-
-		local threatCheck = ScanForModifier("Powerful")
-		if not threatCheck then
-			return false, "ThreatGoneAfterSummon"
+		ELog("[FIX-EMG-2] Reusing nearby existing defender:", cardData.Name, "| currentUpgrade =", tostring(upgradeTagValue))
+		placedUnit = existing
+	else
+		local spot, placeType = FindSpotForEmergency(targetEnemy)
+		if not spot then
+			EWarn("[FIX-EMG-2] No emergency intercept spot:", tostring(placeType or "NoSpot"))
+			return false, tostring(placeType or "NoSpot")
 		end
 
-		local matches = {}
+		local firstUpgradeCost = 150
+		local moneyValue = moneyObj and tonumber(moneyObj.Value) or 0
+		local totalRequired = (tonumber(cardData.Cost) or math.huge) + firstUpgradeCost
+
+		if moneyValue < totalRequired then
+			ELog("[FIX-EMG-2] Waiting for emergency budget:", moneyValue, "/", totalRequired)
+			return false, "InsufficientBudget"
+		end
+
+		local preCount = 0
 		for _, u in ipairs(GetOwnedUnits()) do
 			if u.Name == cardData.Name then
-				table.insert(matches, u)
+				preCount += 1
 			end
 		end
 
-		if #matches > preCount then
-			placedUnit = matches[#matches]
+		local summonOk, summonErr = pcall(function()
+			inputRemote:FireServer("Summon", {
+				Rotation = 0,
+				cframe = spot,
+				Unit = cardData.Name
+			})
+		end)
+
+		if not summonOk then
+			EWarn("[FIX-EMG-2] Emergency summon failed:", tostring(summonErr))
+			return false, "SummonFailed"
+		end
+
+		ELog("[FIX-EMG-2] Emergency summon fired:", cardData.Name, "| Type =", tostring(placeType))
+
+		for _ = 1, 12 do
+			task.wait(0.25)
+			local threatCheck = ScanForModifier("Powerful")
+			if not threatCheck then
+				ELog("[FIX-EMG-2] Threat disappeared after summon")
+				return false, "ThreatGoneAfterSummon"
+			end
+
+			local matches = {}
+			for _, u in ipairs(GetOwnedUnits()) do
+				if u.Name == cardData.Name then
+					table.insert(matches, u)
+				end
+			end
+
+			if #matches > preCount then
+				placedUnit = matches[#matches]
+				break
+			end
+		end
+
+		if not placedUnit then
+			EWarn("[FIX-EMG-2] Emergency summon not confirmed")
+			return false, "SummonNotConfirmed"
+		end
+
+		if not table.find(EmergencyState.PendingUpgradeInstances, placedUnit) then
+			table.insert(EmergencyState.PendingUpgradeInstances, placedUnit)
+		end
+	end
+
+	if not placedUnit or placedUnit.Parent == nil then
+		EWarn("[FIX-EMG-3] No valid placedUnit for emergency upgrade loop")
+		return false, "NoPlacedUnit"
+	end
+
+	-- [FIX-EMG-3] Continuous Emergency Upgrading
+	local upgradedAtLeastOnce = false
+	while true do
+		local stillPowerful = ScanForModifier("Powerful")
+		if not stillPowerful then
+			ELog("[FIX-EMG-3] Threat gone during continuous upgrade loop")
 			break
 		end
-	end
 
-	if not placedUnit then
-		return false, "SummonNotConfirmed"
-	end
-
-	table.insert(EmergencyState.PendingUpgradeInstances, placedUnit)
-
-	local upgradeCost = FindFirstUpgradeCost(placedUnit) or firstUpgradeCost
-	local currentMoney = moneyObj and tonumber(moneyObj.Value) or 0
-	if currentMoney < upgradeCost then
-		ELog("Placed emergency unit, waiting for upgrade budget:", currentMoney, "/", upgradeCost)
-		return false, "PlacedPendingUpgradeBudget"
-	end
-
-	local threatCheck = ScanForModifier("Powerful")
-	if not threatCheck then
-		return false, "ThreatGoneBeforeUpgrade"
-	end
-
-	local upgradeOk, upgradeErr = pcall(function()
-		serverRemote:InvokeServer("Upgrade", placedUnit)
-	end)
-
-	if not upgradeOk then
-		EWarn("Emergency immediate upgrade failed:", tostring(upgradeErr))
-		return false, "UpgradeInvokeFailed"
-	end
-
-	task.wait(0.5)
-
-	local upgraded = false
-	pcall(function()
-		local upgradeTag = placedUnit:FindFirstChild("UpgradeTag")
-		if upgradeTag and tonumber(upgradeTag.Value) and tonumber(upgradeTag.Value) >= 1 then
-			upgraded = true
+		if not placedUnit or placedUnit.Parent == nil then
+			EWarn("[FIX-EMG-3] placedUnit destroyed during emergency loop")
+			break
 		end
-	end)
 
-	if upgraded then
-		for i = #EmergencyState.PendingUpgradeInstances, 1, -1 do
-			if EmergencyState.PendingUpgradeInstances[i] == placedUnit then
-				table.remove(EmergencyState.PendingUpgradeInstances, i)
+		local upgradeCost = FindFirstUpgradeCost(placedUnit)
+		if not upgradeCost or upgradeCost <= 0 then
+			ELog("[FIX-EMG-3] No further upgrade cost available; unit may be maxed:", placedUnit.Name)
+			break
+		end
+
+		local currentMoney = moneyObj and tonumber(moneyObj.Value) or 0
+		if currentMoney < upgradeCost then
+			ELog("[FIX-EMG-3] Waiting for more money to continue emergency upgrades:", currentMoney, "/", upgradeCost)
+			break
+		end
+
+		local upgradeOk, upgradeErr = pcall(function()
+			serverRemote:InvokeServer("Upgrade", placedUnit)
+		end)
+
+		if not upgradeOk then
+			EWarn("[FIX-EMG-3] Emergency upgrade invoke failed:", tostring(upgradeErr))
+			break
+		end
+
+		upgradedAtLeastOnce = true
+		local currentTier = nil
+		pcall(function()
+			local upgradeTag = placedUnit:FindFirstChild("UpgradeTag")
+			if upgradeTag then
+				currentTier = tonumber(upgradeTag.Value)
 			end
-		end
+		end)
+		ELog("[FIX-EMG-3] Emergency upgraded:", placedUnit.Name, "| nextTier =", tostring(currentTier), "| nextCheckIn = 0.5s")
+		task.wait(0.5)
+	end
 
-		ELog("Emergency deployment complete:", cardData.Name)
+	for i = #EmergencyState.PendingUpgradeInstances, 1, -1 do
+		if EmergencyState.PendingUpgradeInstances[i] == placedUnit then
+			table.remove(EmergencyState.PendingUpgradeInstances, i)
+		end
+	end
+
+	if upgradedAtLeastOnce then
+		ELog("[FIX-EMG-3] Emergency deployment complete:", cardData.Name)
 		return true, "Success"
 	end
 
@@ -2165,6 +2141,20 @@ function EmergencyCoordinator.Tick()
 		return false
 	end
 
+	-- [FIX-EMG-4] Deadlock watchdog: ถ้าไม่มี Powerful แล้วให้ปลด lock ทันทีทุกกรณี
+	local powerfulActive, powerfulEnemy = ScanForModifier("Powerful")
+	if not powerfulActive then
+		if EmergencyState.ProtocolEngaged or EmergencyState.TargetEmergencyUnit then
+			ELog("[FIX-EMG-4] No Powerful found – force releasing emergency lock")
+		end
+		EmergencyState.ProtocolEngaged = false
+		EmergencyState.IsThreatActive = false
+		EmergencyState.IsBoardReady = false
+		EmergencyState.TargetEmergencyUnit = nil
+		table.clear(EmergencyState.PendingUpgradeInstances)
+		return false
+	end
+
 	if tick() - (EmergencyState.LastScan or 0) < 0.5 then
 		return EmergencyState.ProtocolEngaged
 	end
@@ -2175,6 +2165,7 @@ function EmergencyCoordinator.Tick()
 	end
 
 	local emergencyNeeded, threatEnemy = EmergencyCoordinator.EvaluateThreatLevel()
+	threatEnemy = threatEnemy or powerfulEnemy
 	if not emergencyNeeded then
 		return false
 	end
@@ -2215,6 +2206,17 @@ end
 -- ========================================================================= --
 -- 🔴 [MODULE 2]: Auto Play
 -- ========================================================================= --
+-- เพิ่มฟังก์ชันนี้ก่อน StartAutoPlay
+local function GetCurrentStoryLevel()
+    local success, level = pcall(function()
+        return serverRemote:InvokeServer("Data", "StoryLevel")
+    end)
+    if success and type(level) == "number" then
+        return level
+    end
+    return nil
+end
+
 local function StartAutoPlay()
     pcall(function()
         EmergencyCoordinator.Start()
@@ -2230,7 +2232,7 @@ local function StartAutoPlay()
                 
                 -- 1. กด Normal ถ้ายูนิตเวฟแรกยังไม่มา
                 if not hasEnemies then
-                    inputRemote:FireServer("VoteGameMode", "Normal")
+                    inputRemote:FireServer("VoteGameMode", "Extreme")
                 end
                 
                 -- 2. เช็ค Speed จาก UI เผื่อเกมรีเซ็ตกลับไปเป็น 1X (อ่านจาก FastForward)
@@ -2268,29 +2270,27 @@ local function StartAutoPlay()
         ModuleX.StartCoordinator()
     end)
 
-    -- ⏭️ [SUB-MODULE]: Auto Play Next (ข้ามด่านต่อไปเมื่อจบเกม V9.5)
+    -- ⏭️ [SUB-MODULE]: Auto Play Next / Replay (ตาม Stage)
     task.spawn(function()
         local VIM = game:GetService("VirtualInputManager")
         local playerGui = LocalPlayer:WaitForChild("PlayerGui")
         local guiService = game:GetService("GuiService")
         
-        while task.wait(2) do
-            if not _G.AutoPlayActive then continue end
-            pcall(function()
-                local playNextBtn = nil
-                
-                -- 🔍 สแกนหาปุ่มแบบเจาะลึก
-                for _, gui in pairs(playerGui:GetDescendants()) do
-                    if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
-                        local text = gui:IsA("TextButton") and gui.Text or ""
-                        for _, child in pairs(gui:GetChildren()) do
-                            if child:IsA("TextLabel") then
-                                text = text .. " " .. child.Text
-                            end
+        -- ฟังก์ชันหาปุ่มใน GUI (ยืดหยุ่น)
+        local function findButtonByKeyword(keywords)
+            for _, gui in pairs(playerGui:GetDescendants()) do
+                if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and gui.Visible and gui.AbsolutePosition.X > 0 then
+                    local text = gui:IsA("TextButton") and gui.Text or ""
+                    for _, child in pairs(gui:GetChildren()) do
+                        if child:IsA("TextLabel") then
+                            text = text .. " " .. child.Text
                         end
-                        text = text:lower()
-                        local name = gui.Name:lower()
-                        if text:find("play next") or name:find("playnext") then
+                    end
+                    text = text:lower()
+                    local name = gui.Name:lower()
+                    for _, kw in ipairs(keywords) do
+                        if text:find(kw) or name:find(kw) then
+                            -- ตรวจสอบ visibility จริง
                             local isReallyVisible = true
                             local curr = gui
                             while curr and curr ~= playerGui do
@@ -2301,29 +2301,86 @@ local function StartAutoPlay()
                                 curr = curr.Parent
                             end
                             if isReallyVisible then
-                                playNextBtn = gui
-                                break
+                                return gui
                             end
                         end
                     end
                 end
+            end
+            return nil
+        end
+        
+        while task.wait(2) do
+            if not _G.AutoPlayActive then continue end
+            pcall(function()
+                -- 1. อ่าน Stage ปัจจุบัน
+                local currentStage = GetCurrentStoryLevel()
+                if not currentStage then
+                    -- ถ้าอ่านไม่ได้ ให้ใช้วิธีเดิม (หา Play Next อย่างเดียว)
+                    local nextBtn = findButtonByKeyword({"play next", "playnext"})
+                    if nextBtn then
+                        _G.MoMoStatus("จบเกม! กด Play Next (ไม่รู้ Stage)")
+                        local aP, aS = nextBtn.AbsolutePosition, nextBtn.AbsoluteSize
+                        local inset = guiService:GetGuiInset()
+                        local targetX = aP.X + (aS.X / 2)
+                        local targetY = aP.Y + (aS.Y / 2) + inset.Y
+                        for i = 1, 2 do
+                            VIM:SendMouseButtonEvent(targetX, targetY, 0, true, game, 1)
+                            task.wait(0.1)
+                            VIM:SendMouseButtonEvent(targetX, targetY, 0, false, game, 1)
+                            task.wait(0.2)
+                        end
+                        task.wait(8)
+                    end
+                    return
+                end
                 
-                if playNextBtn then
-                    print("⏭️ [Auto Play] เจอหน้าต่างจบเกม! กำลังพุ่งเมาส์ไปกด 'Play Next'...")
-                    _G.MoMoStatus("จบเกม! กำลังกด Play Next เพื่อไปต่อ...")
-                    local aP, aS = playNextBtn.AbsolutePosition, playNextBtn.AbsoluteSize
-                    
+                -- 2. ตัดสินใจเลือกปุ่มตาม Stage
+                local targetButton = nil
+                local actionName = ""
+                
+                if currentStage <= 5 then
+                    -- Stage 1-5: กด Next (ไปด่านถัดไป)
+                    targetButton = findButtonByKeyword({"play next", "playnext", "next stage", "next"})
+                    actionName = "Play Next"
+                else
+                    -- Stage 6+: กด Replay (เล่นด่านเดิมซ้ำ)
+                    targetButton = findButtonByKeyword({"replay", "play again", "again", "retry"})
+                    actionName = "Replay"
+                end
+                
+                if targetButton then
+                    print(string.format("⏭️ [Auto Play] Stage %d -> กด %s", currentStage, actionName))
+                    _G.MoMoStatus(string.format("จบเกม Stage %d! กด %s", currentStage, actionName))
+                    local aP, aS = targetButton.AbsolutePosition, targetButton.AbsoluteSize
                     local inset = guiService:GetGuiInset()
                     local targetX = aP.X + (aS.X / 2)
                     local targetY = aP.Y + (aS.Y / 2) + inset.Y
-                    
                     for i = 1, 2 do
                         VIM:SendMouseButtonEvent(targetX, targetY, 0, true, game, 1)
                         task.wait(0.1)
                         VIM:SendMouseButtonEvent(targetX, targetY, 0, false, game, 1)
                         task.wait(0.2)
                     end
-                    task.wait(8) 
+                    task.wait(8)  -- รอให้โหลดด่านใหม่
+                else
+                    -- fallback: ถ้าหาไม่เจอ ให้ลองหา Play Next ธรรมดา
+                    local fallback = findButtonByKeyword({"play next", "playnext"})
+                    if fallback then
+                        print("⚠️ ไม่พบปุ่มที่ต้องการ (Replay/Next) แต่เจอ Play Next -> กดแทน")
+                        _G.MoMoStatus("จบเกม! กด Play Next (fallback)")
+                        local aP, aS = fallback.AbsolutePosition, fallback.AbsoluteSize
+                        local inset = guiService:GetGuiInset()
+                        local targetX = aP.X + (aS.X / 2)
+                        local targetY = aP.Y + (aS.Y / 2) + inset.Y
+                        for i = 1, 2 do
+                            VIM:SendMouseButtonEvent(targetX, targetY, 0, true, game, 1)
+                            task.wait(0.1)
+                            VIM:SendMouseButtonEvent(targetX, targetY, 0, false, game, 1)
+                            task.wait(0.2)
+                        end
+                        task.wait(8)
+                    end
                 end
             end)
         end
