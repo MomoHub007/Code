@@ -276,8 +276,6 @@ local function StartLobbyMaster()
         local targetNames = {
             "Android17",
             "KidLuffy",
-            "Kid Luffy",
-            "Kid Luffy (Super)",
 			"Blackbeard"
         }
 
@@ -1101,7 +1099,7 @@ function Module3.DetectLeak()
 	-- 2. เช็คว่ามี Unit ของเราคลุมถึงหรือไม่ (ลำดับ Node)
 	local unitFolder = workspace:FindFirstChild("Unit")
 	local coveredByUnit = false
-	local LEAK_AHEAD_BUFFER = 5
+	local LEAK_AHEAD_BUFFER = 2  -- ลดลงเพื่อตอบสนองเร็วขึ้น
 
 	if unitFolder then
 		for _, unit in ipairs(unitFolder:GetChildren()) do
@@ -1397,6 +1395,14 @@ local placementProgress = {
     LastPlacedUpgradeCount = 0,
 }
 
+-- [[ 🚨 Leak Response State ]]
+local leakResponseState = {
+    LastLeakPlacementAt = 0,
+    LeakPlacementCooldown = 8,   -- วางตัวสกัดได้ทุก 8 วินาที ไม่รัว
+    TotalLeakPlacements = 0,
+    MaxLeakPlacements = 3,        -- วางสกัดได้สูงสุด 3 ตัวต่อเกม
+}
+
 local function mxLog(...)
 	print("[ModuleX]", ...)
 end
@@ -1504,6 +1510,18 @@ local function GetUnitUpgradeLevel(unit)
     return (upgradeTag and tonumber(upgradeTag.Value)) or 0
 end
 
+-- ✅ ย้ายมาอยู่ตรงนี้ก่อน TryUpgradeSpecificUnit
+local function FindFirstUpgradeCost(unitInstance)
+    if not unitInstance then return nil end
+    local ok, cost = pcall(function()
+        return tonumber(unitInstance:GetAttribute("UpgradeCost") 
+            or unitInstance:GetAttribute("NextUpgradeCost"))
+    end)
+    if ok and cost and cost > 0 then return cost end
+    return nil
+end
+
+-- ✅ ตอนนี้ FindFirstUpgradeCostมีอยู่แล้วก่อนถูกเรียก
 local function TryUpgradeSpecificUnit(unit)
     if not unit or unit.Parent == nil then
         return false, "NoUnit"
@@ -1650,24 +1668,127 @@ function ModuleX.StartCoordinator()
 				-- 1. Leak Detection (Check State)
 				local _, leakStatus = safeCall("Module3.DetectLeak", Module3 and Module3.DetectLeak)
 				leakStatus = leakStatus or { State = "Handled", Reason = "Fallback" }
-				
-				if leakStatus.State == "Leaking" then
-					mxLog("Leak detected! Intercepting...")
-					safeStatus("⚠️ กำลังสกัดกั้นศัตรูที่หลุด...")
 
+				if leakStatus.State == "Leaking" then
+					mxLog("Leak detected! LeaderPathIndex =", tostring(leakStatus.PathIndex))
+					safeStatus("⚠️ ศัตรูหลุด! กำลังวางตัวสกัด...")
+
+					-- ป้องกันวางซ้ำเร็วเกินไปและวางเกิน limit
+					local now = os.clock()
+					local sinceLastLeak = now - leakResponseState.LastLeakPlacementAt
+					local overLimit = leakResponseState.TotalLeakPlacements >= leakResponseState.MaxLeakPlacements
+					local onCooldown = sinceLastLeak < leakResponseState.LeakPlacementCooldown
+
+					if overLimit then
+						mxLog("Leak: max leak placements reached, skipping")
+						-- ยังมีเงิน? อัปเกรด unit ที่มีอยู่แทน
+						safeCall("doUpgradeAll", doUpgradeAll)
+						return
+					end
+
+					if onCooldown then
+						mxLog("Leak: cooldown active, remaining =", math.floor(leakResponseState.LeakPlacementCooldown - sinceLastLeak) .. "s")
+						-- ระหว่างรอ cooldown ให้อัปเกรด unit ที่มีอยู่ก่อน
+						safeCall("doUpgradeAll", doUpgradeAll)
+						return
+					end
+
+					-- ตรวจสอบเงินและ card ที่วางได้
 					local _, affordable = safeCall("getAffordableTower", getAffordableTower)
-					if affordable and affordable.Success and affordable.Card then
-						local card = affordable.Card
-						local learnedType = learnedPlacements[card.Name] or "Base"
-						
-						local _, calculation = safeCall("Module3.CalculatePlacementPosition", Module3 and Module3.CalculatePlacementPosition, card.Name, learnedType, 25)
-						if calculation and calculation.Success then
-							local _, placement = safeCall("Module4.RetryPlacementWithFallback", Module4 and Module4.RetryPlacementWithFallback, card.Index, calculation.BestCFrame, buildFallbackPositions(calculation.BestPosition), learnedType)
-							if placement and placement.Success then
-								mxLog("Intercept deployment successful")
+					if not (affordable and affordable.Success and affordable.Card) then
+						mxLog("Leak: no affordable card, upgrading instead")
+						safeCall("doUpgradeAll", doUpgradeAll)
+						return
+					end
+
+					local card = affordable.Card
+
+					-- ✅ ใช้ FindSpotForEmergency เพื่อดักหน้าศัตรูโดยตรง
+					local interceptSpot = nil
+					local interceptType = "Base"
+
+					if leakStatus.LeadingEnemy then
+						local spotOk, spotResult = pcall(function()
+							return FindSpotForEmergency(leakStatus.LeadingEnemy)
+						end)
+						if spotOk and spotResult then
+							interceptSpot = spotResult
+							-- FindSpotForEmergency return (cf, placeType) — รับตัวที่ 2 ด้วย
+							local _, pt = pcall(function()
+								return FindSpotForEmergency(leakStatus.LeadingEnemy)
+							end)
+							if pt and type(pt) == "string" then
+								interceptType = pt
 							end
 						end
 					end
+
+					-- Fallback: ถ้าดักหน้าไม่ได้ ให้ใช้ CalculatePlacementPosition ปกติ
+					if not interceptSpot then
+						mxLog("Leak: no intercept spot, falling back to standard placement")
+						local learnedType = learnedPlacements[card.Name] or "Base"
+						local _, calculation = safeCall(
+							"Module3.CalculatePlacementPosition",
+							Module3.CalculatePlacementPosition,
+							card.Name, learnedType, 25
+						)
+						if calculation and calculation.Success then
+							interceptSpot = calculation.BestCFrame
+							interceptType = learnedType
+						end
+					end
+
+					if not interceptSpot then
+						mxLog("Leak: cannot find any valid spot, upgrading instead")
+						safeCall("doUpgradeAll", doUpgradeAll)
+						return
+					end
+
+					-- ยิง Summon
+					local preCount = countOwnedUnitsByName(card.Name)
+					local summonOk, summonErr = pcall(function()
+						inputRemote:FireServer("Summon", {
+							Rotation = 0,
+							cframe = interceptSpot,
+							Unit = card.Name
+						})
+					end)
+
+					if not summonOk then
+						mxWarn("Leak summon failed:", tostring(summonErr))
+						return
+					end
+
+					-- รอยืนยัน
+					task.wait(0.4)
+					local postCount = countOwnedUnitsByName(card.Name)
+					local moneyObj = LocalPlayer:FindFirstChild("Money")
+					local moneyAfter = moneyObj and tonumber(moneyObj.Value) or 0
+
+					if postCount > preCount then
+						learnedPlacements[card.Name] = interceptType
+						leakResponseState.LastLeakPlacementAt = os.clock()
+						leakResponseState.TotalLeakPlacements += 1
+						mxLog("✅ Leak intercept placed:", card.Name, 
+						      "| total leak placements =", leakResponseState.TotalLeakPlacements)
+						safeStatus("✅ วางตัวสกัดสำเร็จ! (" .. card.Name .. ")")
+
+						-- ✅ หลังวางสำเร็จ ถ้ามีเงินเหลือให้อัปเกรดทันที
+						task.wait(0.3)
+						local leakUnit = FindNewestOwnedUnitByName(card.Name)
+						if leakUnit then
+							for _ = 1, 5 do
+								local okUp, _ = TryUpgradeSpecificUnit(leakUnit)
+								if not okUp then break end
+								task.wait(0.2)
+							end
+						end
+					else
+						mxLog("Leak summon not confirmed (money check:", moneyAfter, ")")
+						-- ถ้าวางไม่ได้ เป็นไปได้ว่าติด limit → บันทึก knownLimits
+						knownLimits[card.Name] = preCount
+					end
+
 					return
 				end
 
@@ -1962,21 +2083,6 @@ local function FindOptimalEmergencyCard(maxStars)
 	return picked
 end
 
-local function FindFirstUpgradeCost(unitInstance)
-	if not unitInstance then
-		return nil
-	end
-
-	local ok, cost = pcall(function()
-		return tonumber(unitInstance:GetAttribute("UpgradeCost") or unitInstance:GetAttribute("NextUpgradeCost"))
-	end)
-
-	if ok and cost and cost > 0 then
-		return cost
-	end
-
-	return nil
-end
 
 local function FindOwnedUnitByName(name)
 	local unitFolder = workspace:FindFirstChild("Unit")
@@ -2434,6 +2540,11 @@ local function StartAutoPlay()
     pcall(function()
         EmergencyCoordinator.Start()
     end)
+
+    -- Reset Leak Response State ทุกครั้งที่เริ่มเกมใหม่
+    leakResponseState.LastLeakPlacementAt = 0
+    leakResponseState.TotalLeakPlacements = 0
+    mxLog("Leak Response State reset for new game")
 
     -- ⚡ [SUB-MODULE]: Auto Game State (ควบคุมความเร็วด่าน & ข้ามเวฟ & เช็ค Speed UI)
     task.spawn(function()
