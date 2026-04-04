@@ -129,102 +129,148 @@ local serverRemote = Remotes:WaitForChild("Server")
 -- ==========================================
 local function ClaimAllLobbyGiftboxes()
     if not _G.LobbyActive then return end
-    if _G.GiftboxClaiming then return end   -- ป้องกันรันซ้อน
+    if _G.GiftboxClaiming then return end
 
-    _G.GiftboxClaiming = true   -- 🔒 lock ก่อนทำงาน
-    local VIM = game:GetService("VirtualInputManager")
-    local hud = LocalPlayer.PlayerGui:WaitForChild("HUD")
+    _G.GiftboxClaiming = true
 
-    local giftBtn = hud:FindFirstChild("RightButton")
-        and hud.RightButton:FindFirstChild("GiftBox")
-    if not giftBtn then
-        warn("❌ [Giftbox] หา RightButton.GiftBox ไม่เจอ")
-        return
-    end
+    local okMain, errMain = pcall(function()
+        local VIM = game:GetService("VirtualInputManager")
+        local hud = LocalPlayer.PlayerGui:WaitForChild("HUD")
 
-    -- เช็ค Notif ว่ามี "!" ไหม
-    local notif = giftBtn:FindFirstChild("Notif")
-    local hasNotif = notif and (notif:IsA("TextLabel") or notif:IsA("TextButton"))
-        and notif.Text:find("!")
-
-    if not hasNotif then
-        print("ℹ️ [Giftbox] ไม่มี ! -> ข้ามการ claim")
-        return
-    end
-
-    if _G.MoMoStatus then
-        _G.MoMoStatus("พบ ! ที่ Giftbox -> กำลังกดรับ...")
-    end
-
-    -- helper: คลิกที่ GuiObject ผ่าน VirtualInputManager
-    local function clickGui(obj)
-        local ap = obj.AbsolutePosition
-        local as = obj.AbsoluteSize
-        local cx = ap.X + as.X / 2
-        local cy = ap.Y + as.Y / 2
-        pcall(function()
-            VIM:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
-            task.wait(0.05)
-            VIM:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
-        end)
-    end
-
-    -- Step 1: คลิกปุ่ม GiftBox เพื่อเปิด Panel
-    clickGui(giftBtn)
-    task.wait(0.8)
-
-    -- Step 2: วนกด Accept/Claim จนกว่า ! จะหาย
-    local maxLoop = 30
-    local loopCount = 0
-
-    while loopCount < maxLoop do
-        loopCount += 1
-
-        -- ตรวจ Notif อีกรอบ
-        local notifNow = giftBtn:FindFirstChild("Notif")
-        local stillHas = notifNow and (notifNow:IsA("TextLabel") or notifNow:IsA("TextButton"))
-            and notifNow.Text:find("!")
-
-        if not stillHas then
-            print(string.format("✅ [Giftbox] ! หายแล้ว หลัง %d ครั้ง", loopCount - 1))
-            break
+        local function isGuiClickable(obj)
+            return obj
+                and obj.Parent
+                and obj.Visible
+                and obj.AbsoluteSize.X > 0
+                and obj.AbsoluteSize.Y > 0
+                and obj.Active ~= false
         end
 
-        -- หาปุ่ม Accept / Claim / Collect ใน HUD ทั้งหมด
-        local acceptBtn = nil
-        for _, v in pairs(hud:GetDescendants()) do
-            if (v:IsA("TextButton") or v:IsA("ImageButton")) and v.Visible then
-                local name = v.Name:lower()
-                local txt  = (v:IsA("TextButton") and v.Text:lower()) or ""
-                if name:find("accept") or name:find("claim") or name:find("collect")
-                    or txt:find("accept") or txt:find("claim") or txt:find("collect")
-                    or txt == "ok" then
-                    acceptBtn = v
-                    break
+        local function clickGui(obj, clicks)
+            if not isGuiClickable(obj) then return false end
+            clicks = clicks or 1
+            local ap = obj.AbsolutePosition
+            local as = obj.AbsoluteSize
+            local cx = ap.X + (as.X / 2)
+            local cy = ap.Y + (as.Y / 2)
+
+            for _ = 1, clicks do
+                VIM:SendMouseMoveEvent(cx, cy, game)
+                task.wait(0.03)
+                VIM:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
+                task.wait(0.06)
+                VIM:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
+                task.wait(0.08)
+            end
+            return true
+        end
+
+        local function getGiftButton()
+            local right = hud:FindFirstChild("RightButton")
+            return right and right:FindFirstChild("GiftBox")
+        end
+
+        local function hasGiftNotif()
+            local giftBtn = getGiftButton()
+            if not giftBtn then return false end
+            local notif = giftBtn:FindFirstChild("Notif")
+            if not notif then return false end
+
+            local txt = ""
+            pcall(function()
+                txt = tostring(notif.Text or notif:GetAttribute("Text") or "")
+            end)
+            return notif.Visible ~= false and txt:find("!", 1, true) ~= nil
+        end
+
+        local function scoreButton(v)
+            local score = 0
+            local name = tostring(v.Name or ""):lower()
+            local txt = v:IsA("TextButton") and tostring(v.Text or ""):lower() or ""
+            if name:find("accept") then score += 10 end
+            if name:find("claim") then score += 10 end
+            if name:find("collect") then score += 8 end
+            if txt:find("accept") then score += 10 end
+            if txt:find("claim") then score += 10 end
+            if txt:find("collect") then score += 8 end
+            if txt == "ok" then score += 6 end
+            if txt == "accept" then score += 10 end
+            if txt == "claim" then score += 10 end
+            if txt == "collect" then score += 8 end
+            return score
+        end
+
+        local function findBestAcceptButton()
+            local best, bestScore = nil, 0
+            for _, v in ipairs(hud:GetDescendants()) do
+                if (v:IsA("TextButton") or v:IsA("ImageButton")) and isGuiClickable(v) then
+                    local score = scoreButton(v)
+                    if score > bestScore then
+                        best = v
+                        bestScore = score
+                    end
                 end
+            end
+            return best, bestScore
+        end
+
+        local giftBtn = getGiftButton()
+        if not giftBtn then
+            warn("❌ [Giftbox] หา HUD.RightButton.GiftBox ไม่เจอ")
+            return
+        end
+
+        if not hasGiftNotif() then
+            print("ℹ️ [Giftbox] ไม่มี ! -> ข้าม")
+            return
+        end
+
+        if _G.MoMoStatus then
+            _G.MoMoStatus("พบ ! ที่ GiftBox -> กำลังเปิดและกดรับ...")
+        end
+
+        local maxRounds = 40
+        for round = 1, maxRounds do
+            if not hasGiftNotif() then
+                print("✅ [Giftbox] รับเสร็จแล้ว ไม่มี ! ค้าง")
+                break
+            end
+
+            giftBtn = getGiftButton()
+            if isGuiClickable(giftBtn) then
+                clickGui(giftBtn, 2)
+                task.wait(0.7)
+            end
+
+            local acceptBtn, acceptScore = findBestAcceptButton()
+            if acceptBtn and acceptScore > 0 then
+                print(string.format("🖱️ [Giftbox] Round %d -> click %s (score=%d)", round, acceptBtn.Name, acceptScore))
+                clickGui(acceptBtn, 2)
+                task.wait(0.9)
+            else
+                warn(string.format("⚠️ [Giftbox] Round %d หา Accept/Claim ไม่เจอ -> reopen", round))
+                task.wait(0.5)
+            end
+
+            if not hasGiftNotif() then
+                print("✅ [Giftbox] ! หายหลังการกดรับ")
+                break
             end
         end
 
-        if acceptBtn then
-            print(string.format("🖱️ [Giftbox] คลิก '%s' ครั้งที่ %d", acceptBtn.Name, loopCount))
-            clickGui(acceptBtn)
-            task.wait(0.6)
-        else
-            -- ไม่เจอปุ่ม Accept -> คลิก GiftBox อีกครั้งเพื่อเปิดหน้าถัดไป
-            print(string.format("⚠️ [Giftbox] หา Accept ไม่เจอ (ครั้ง %d) -> คลิก GiftBox ใหม่", loopCount))
-            clickGui(giftBtn)
-            task.wait(0.8)
+        if hasGiftNotif() then
+            warn("⚠️ [Giftbox] ครบ maxRounds แล้วยังมี ! อยู่")
         end
-    end
 
-    if loopCount >= maxLoop then
-        warn("⚠️ [Giftbox] หยุดหลังครบ " .. maxLoop .. " รอบ (! อาจยังติดอยู่)")
-    end
+        if _G.MoMoStatus then
+            _G.MoMoStatus("จบขั้นตอนรับ GiftBox")
+        end
+    end)
 
-    _G.GiftboxClaiming = false   -- 🔓 unlock หลังเสร็จ
+    _G.GiftboxClaiming = false
 
-    if _G.MoMoStatus then
-        _G.MoMoStatus("รับ Giftbox เสร็จแล้ว ✅")
+    if not okMain then
+        warn("❌ [Giftbox] Runtime Error:", tostring(errMain))
     end
 end
 
@@ -262,6 +308,10 @@ local function ClaimAllLobbyTasks()
 end
 
 local function ClaimAllLobbyRewards()
+    if _G.TutorialActive then
+        return
+    end
+
     local now = os.clock()
     if (now - lobbyGiftState.LastClaimAttempt) < lobbyGiftState.ClaimCooldown then
         return
@@ -285,6 +335,8 @@ _G.AutoPlayEnabled = true
 _G.LobbyActive = false
 _G.AutoPlayActive = false
 _G.GiftboxClaiming = false   -- 🔒 lock: ห้าม AutoSummon ขณะรับ Giftbox
+_G.TutorialActive = false
+_G.TutorialSummonDone = false
 
 -- === 🧠 สมองส่วนความจำของบอท ===
 local learnedPlacements = {} 
@@ -786,6 +838,7 @@ function Tutorial.AutoSummonUntilFound()
 
         if HasTargetUnitInInventory() then
             print("🏁 [AutoSummon] พบยูนิตเป้าหมายหลังจาก summon ครั้งที่", summonAttempts)
+            _G.TutorialSummonDone = true
             return true
         end
 
@@ -818,7 +871,7 @@ end
 
         -- กำหนดยูนิตที่ต้องการใส่ในแต่ละสล็อต (slot 1,2,3)
         local slotTargets = {
-            { slot = 1, names = {"Android17", "KidLuffy", "Ikki (HalfMask)", "Jotaro Kujo" , "Bakugo (Blazing)" , "Toichiro"} }
+            { slot = 1, names = {"Android17", "KidLuffy", "Ikki (HalfMask)", "Jotaro Kujo"} }
         }
 
         local currentTeam = {}
@@ -998,17 +1051,30 @@ end
         else TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end
     end
 
-    -- 🚀 Tutorial Master Loop V6.6
+    -- 🚀 Tutorial Master Loop
     task.spawn(function()
-        local hasCompleted = LocalPlayer:GetAttribute("TutorialStage") == "Completed" 
-                           or (LocalPlayer:FindFirstChild("Stats") and LocalPlayer.Stats:FindFirstChild("Level") and LocalPlayer.Stats.Level.Value > 1)
-        if hasCompleted then return end
-        
-        while task.wait(1.5) do 
-            if not _G.LobbyActive then continue end
+        local hasCompleted = LocalPlayer:GetAttribute("TutorialStage") == "Completed"
+            or (LocalPlayer:FindFirstChild("Stats")
+            and LocalPlayer.Stats:FindFirstChild("Level")
+            and LocalPlayer.Stats.Level.Value > 1)
+
+        if hasCompleted then
+            _G.TutorialActive = false
+            return
+        end
+
+        _G.TutorialActive = true
+        _G.TutorialSummonDone = false
+
+        while task.wait(1.5) do
+            if not _G.LobbyActive then
+                continue
+            end
+
             local tutV2 = hud:FindFirstChild("TutorialV2")
             local isTut = tutV2 and tutV2.Visible
-            
+            _G.TutorialActive = isTut or not _G.TutorialSummonDone
+
             Tutorial.SkipDialogueAndSummon()
 
             local invB = hud:FindFirstChild("LeftButton") and hud.LeftButton:FindFirstChild("InventoryButton")
@@ -1017,7 +1083,15 @@ end
                 task.wait(1.5)
 
                 if hud:FindFirstChild("InventoryV2") and hud.InventoryV2.Visible then
-                    Tutorial.SmartEquip()
+                    local equipOk = Tutorial.SmartEquip()
+                    if equipOk and _G.TutorialSummonDone then
+                        _G.TutorialActive = false
+                        if _G.MoMoStatus then
+                            _G.MoMoStatus("Tutorial summon เสร็จแล้ว -> กำลังรีจอย...")
+                        end
+                        Tutorial.Rejoin()
+                        return
+                    end
                 end
             end
 
@@ -1034,15 +1108,19 @@ end
             end
 
             if equippedCount >= 3 and not isTut then
+                _G.TutorialActive = false
                 break
             end
         end
+
+        _G.TutorialActive = false
     end)
 
     -- 🚀 Auto Join Loop (V9.1 - Inventory Check & Smart Progression)
     task.spawn(function()
         while task.wait(3) do
             if not _G.LobbyActive then continue end
+            if _G.TutorialActive then continue end
             
             -- 🛑 1. เช็คความพร้อม: ต้องมีตัวละครใส่อยู่ในทีมถึงจะไปลุยด่านได้
             local eC = 0
@@ -1851,6 +1929,8 @@ local placementProgress = {
     FirstPlacedUnit = nil,
     FirstPlacedUpgradeCount = 0,
     RequireFirstPlacementUpgrade = false,
+
+    LockedUnits = {}, -- [1]=unit1, [2]=unit2, [3]=unit3, [4]=unit4
 }
 
 -- [[ 🚨 Leak Response State ]]
@@ -1985,8 +2065,7 @@ local function TryUpgradeSpecificUnit(unit)
         return false, "NoUnit"
     end
 
-    -- ✅ แก้ Bug #1: ไม่ใช้ UpgradeTag เป็น confirmation แล้ว
-    -- ให้ใช้การเปลี่ยนแปลงของ Money เป็น indicator แทน (เร็วกว่า Replicate)
+    -- ใช้เงินตรงจาก game:GetService("Players").LocalPlayer.Money
     local moneyBefore = getCurrentMoney()
 
     -- ✅ แก้ Bug #2: ดึง cost หลายทาง + fallback ที่สมเหตุสมผล
@@ -2103,72 +2182,48 @@ function ModuleX.StartCoordinator()
 		return true, result
 	end
 
-	-- ==========================================
-	-- 💰 [MoneyParser] รองรับรูปแบบ 1.5k, 2m, 3b
-	-- ==========================================
-	local function parseDisplayedMoney(value)
-		if value == nil then return 0 end
-		if type(value) == "number" then return value end
-
-		local s = tostring(value):lower():gsub(",", ""):gsub("%s+", "")
-		local num = tonumber(s)
-		if num then return num end
-
-		local base = tonumber(s:match("([%d%.]+)k"))
-		if base then return base * 1000 end
-
-		base = tonumber(s:match("([%d%.]+)m"))
-		if base then return base * 1000000 end
-
-		base = tonumber(s:match("([%d%.]+)b"))
-		if base then return base * 1000000000 end
-
-		return 0
-	end
-
 	local function getCurrentMoney()
 		local moneyObj = LocalPlayer:FindFirstChild("Money")
-		if moneyObj then
-			local parsed = parseDisplayedMoney(moneyObj.Value)
-			if parsed > 0 then return parsed end
+		if not moneyObj then
+			return 0
 		end
 
-		local stats = LocalPlayer:FindFirstChild("Stats")
-		if stats then
-			for _, name in ipairs({"Money", "Cash", "Gold", "Yen"}) do
-				local obj = stats:FindFirstChild(name)
-				if obj then
-					local parsed = parseDisplayedMoney(obj.Value)
-					if parsed > 0 then return parsed end
-				end
-			end
-		end
+		return tonumber(moneyObj.Value) or 0
+	end
 
-		local gui = LocalPlayer:FindFirstChild("PlayerGui")
-		if gui then
-			for _, v in ipairs(gui:GetDescendants()) do
-				if v:IsA("TextLabel") and v.Visible then
-					local n = v.Name:lower()
-					if n:find("money") or n:find("cash") or n:find("gold") or n:find("yen") then
-						local parsed = parseDisplayedMoney(v.Text)
-						if parsed > 0 then return parsed end
+	local function getFixedPlacementCFrame(slotIndex)
+		local fixedCF = nil
+		pcall(function()
+			local placeableBase = workspace:FindFirstChild("Placeable") and workspace.Placeable:FindFirstChild("Base")
+			if placeableBase then
+				local children = placeableBase:GetChildren()
+				local slot = children[slotIndex]
+				if slot then
+					local basePart = slot:FindFirstChild("Base_Part") or (slot:IsA("BasePart") and slot)
+					if basePart then
+						fixedCF = basePart.CFrame
 					end
 				end
 			end
-		end
-
-		return 0
+		end)
+		return fixedCF
 	end
 
 	local function doUpgradeAll()
 		local status = { Success = false, Count = 0 }
 		local uF = workspace:FindFirstChild("Unit")
+		local moneyObj = LocalPlayer:FindFirstChild("Money")
 		local currentMoney = getCurrentMoney()
 		if not uF then return status end
 
 		for _, u in pairs(uF:GetChildren()) do
 			local owner = u:FindFirstChild("Owner")
-			if owner and owner.Value == LocalPlayer then
+			local canUpgradeThisUnit = (
+				u == placementProgress.LockedUnits[2]
+				or u == placementProgress.LockedUnits[3]
+				or u == placementProgress.LockedUnits[4]
+			)
+			if owner and owner.Value == LocalPlayer and canUpgradeThisUnit then
 				-- ✅ แก้ Bug #2: ดึง cost หลายทาง ถ้าหาไม่เจอให้ยิงไปเลย (ไม่ fallback 150)
 				local cost = nil
 				pcall(function()
@@ -2237,7 +2292,7 @@ function ModuleX.StartCoordinator()
 								and workspace.Placeable:FindFirstChild("Base")
 							if placeableBase then
 								local children = placeableBase:GetChildren()
-								local slot = children[24]
+								local slot = children[33]
 								if slot then
 									local basePart = slot:FindFirstChild("Base_Part")
 											   or (slot:IsA("BasePart") and slot)
@@ -2434,9 +2489,9 @@ function ModuleX.StartCoordinator()
 
 				local totalOwned = #GetOwnedUnits()
 				local enemiesCount = enemiesFolder and #enemiesFolder:GetChildren() or 0
-
-				--  หลังวางครบ 3 ตัว ถ้าเงินมากกว่า 1500 (เช่น 1.5k) ให้รีบอัปตัวไหนก็ได้ก่อน
 				local currentMoney = getCurrentMoney()
+
+				-- ✅ หลังวางครบ 3 ตัว ถ้าเงินมากกว่า 1500 ให้รีบอัปตัวไหนก็ได้ก่อน
 				if totalOwned >= 3 and currentMoney >= 1500 then
 					local _, forcedUpgrade = safeCall("doUpgradeAll", doUpgradeAll)
 					if forcedUpgrade and forcedUpgrade.Success then
@@ -2445,81 +2500,49 @@ function ModuleX.StartCoordinator()
 					end
 				end
 
-				--  ต้องอัปตัวแรกที่วางก่อนเท่านั้น จะวางตัวเพิ่มได้ครบถึง 1 ครั้งแล้ว
-				if placementProgress.FirstPlacedUpgradeCount >= 1 then
-					placementProgress.RequireFirstPlacementUpgrade = false
-				end
+				-- ไม่บังคับอัปตัวที่ 1 ต่อแล้ว หลังจากช่วงเริ่มต้นให้เน้นอัปเฉพาะตัว 2,3,4
+				placementProgress.RequireFirstPlacementUpgrade = false
 
-				--  ต้องอัปตัวแรกที่วางก่อนเท่านั้น จะวางตัวเพิ่มได้
-				if placementProgress.RequireFirstPlacementUpgrade and placementProgress.FirstPlacedUnit then
-					local firstUnit = placementProgress.FirstPlacedUnit
-
-					if firstUnit.Parent == nil then
-						mxLog("FirstPlacedUnit destroyed, releasing first-unit lock")
-						placementProgress.RequireFirstPlacementUpgrade = false
-						placementProgress.FirstPlacedUnit = nil
-					else
-						local upgradedOk, reason = TryUpgradeSpecificUnit(firstUnit)
-						if upgradedOk then
-							placementProgress.FirstPlacedUpgradeCount += 1
-							placementProgress.RequireFirstPlacementUpgrade = false
-							placementProgress.RequireUpgradeBeforeNextPlace = false
-							mxLog("First placed unit upgraded, placement unlocked")
-						else
-							coordinatorRuntime.LastPlacementReason = "WaitingFirstUnitUpgrade:" .. tostring(reason)
-							return
-						end
-					end
-				end
-
-				-- วางตัวเพิ่มได้ ก็ต่อเมื่อไม่มีภารกิจบังคับอัปตัวแรก
+				-- วางตัว 2,3 ที่ slot[32] และตัว 4 ที่ slot[31]
 				if enemiesCount > 0
 					and totalOwned < 4
-					and not placementProgress.RequireUpgradeBeforeNextPlace
-					and not placementProgress.RequireFirstPlacementUpgrade then
+					and not placementProgress.RequireUpgradeBeforeNextPlace then
 					local _, affordable = safeCall("getAffordableTower", getAffordableTower)
 					if affordable and affordable.Success and affordable.Card then
 						local card = affordable.Card
 						local learnedType = learnedPlacements[card.Name] or "Base"
+						local targetSlotIndex = (totalOwned >= 3) and 31 or 32
+						local fixedCF = getFixedPlacementCFrame(targetSlotIndex)
 
-						local _, calculation = safeCall(
-							"Module3.CalculatePlacementPosition",
-							Module3.CalculatePlacementPosition,
-							card.Name,
-							learnedType,
-							25
-						)
-
-						if calculation and calculation.Success then
+						if fixedCF then
 							local _, placement = safeCall(
 								"Module4.RetryPlacementWithFallback",
 								Module4.RetryPlacementWithFallback,
 								card.Index,
-								calculation.BestCFrame,
-								buildFallbackPositions(calculation.BestPosition),
+								fixedCF,
+								{
+									fixedCF * CFrame.new(2,0,0),
+									fixedCF * CFrame.new(-2,0,0),
+									fixedCF * CFrame.new(0,0,2),
+								},
 								learnedType
 							)
 
 							if placement and placement.Success then
-								mxLog("Normal placement successful")
-
+								mxLog("Fixed placement successful at slot[" .. tostring(targetSlotIndex) .. "]")
 								task.wait(0.3)
 								local placedUnit = FindNewestOwnedUnitByName(card.Name)
 								if placedUnit then
+									local unitNumber = totalOwned + 1
+									placementProgress.LockedUnits[unitNumber] = placedUnit
 									placementProgress.LastPlacedUnit = placedUnit
 									placementProgress.LastPlacedUpgradeCount = 0
 									placementProgress.RequireUpgradeBeforeNextPlace = true
-
-									-- จำตัวแรกที่วางไว้เป็นตัวบังคับอัปก่อนวางตัวอื่น
-									if not placementProgress.FirstPlacedUnit or placementProgress.FirstPlacedUnit.Parent == nil then
-										placementProgress.FirstPlacedUnit = placedUnit
-										placementProgress.FirstPlacedUpgradeCount = 0
-										placementProgress.RequireFirstPlacementUpgrade = true
-										mxLog("First placed unit registered:", placedUnit.Name)
-									end
-
+									mxLog("Registered unit #" .. tostring(unitNumber) .. " at slot[" .. tostring(targetSlotIndex) .. "]:", placedUnit.Name)
 								end
 							end
+						else
+							mxLog("Fixed placement slot[" .. tostring(targetSlotIndex) .. "] not found")
 						end
 					end
 				end
