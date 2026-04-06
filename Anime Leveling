@@ -1,4 +1,4 @@
--- // MoMoHub - Anime Leveling (WindUI Version)
+-- // MoMoHub - Anime Leveling (WindUI + Dashboard เดิมครบ)
 -- // Purple Theme • WindUI
 
 local RunService = game:GetService("RunService")
@@ -39,7 +39,7 @@ local Blue   = Color3.fromHex("#60A5FA")
 local Yellow = Color3.fromHex("#FCD34D")
 local Grey   = Color3.fromHex("#9CA3AF")
 
--- ✅ สร้าง Window
+-- Window
 local Window = WindUI:CreateWindow({
     Title = "MoMoHub",
     Folder = "MoMoHub",
@@ -79,6 +79,15 @@ Window:Tag({
     Border = true,
 })
 
+-- Shared State
+getgenv().MoMoHub = {
+    AutoFarm = false, AutoRaids = false, AutoEgg = false,
+    Noclip = false, InfJump = false,
+    FarmKey = Enum.KeyCode.F,
+    ToggleKey = Enum.KeyCode.LeftControl,
+    AutoLoad = false,
+}
+
 -- Notify wrapper
 local function MoMoNotify(data)
     WindUI:Notify({
@@ -89,13 +98,87 @@ local function MoMoNotify(data)
 end
 
 -- ════════════════════════════════════════
--- TABS
+-- 🏠 DASHBOARD TAB (เดิมครบ)
 -- ════════════════════════════════════════
-local FarmTab = Window:Tab({ Title = "Auto Farm", Icon = "pickaxe",  IconColor = Green,  Border = true, IconShape = "Square" })
-local RaidTab = Window:Tab({ Title = "Raids",     Icon = "shield",   IconColor = Red,    Border = true, IconShape = "Square" })
-local EggTab  = Window:Tab({ Title = "Auto Egg",  Icon = "egg",      IconColor = Yellow, Border = true, IconShape = "Square" })
-local PlayerTab = Window:Tab({ Title = "Player",  Icon = "user",     IconColor = Blue,   Border = true, IconShape = "Square" })
-local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings", IconColor = Grey, Border = true, IconShape = "Square" })
+
+local DashboardTab = Window:Tab({
+    Title = "🏠 Dashboard",
+    Icon = "solar:home-2-bold",
+    IconColor = PrimaryPurple,
+    IconShape = "Square",
+    Border = true,
+})
+
+DashboardTab:Section({ Title = "MoMoHub Status ✅", TextSize = 24, FontWeight = Enum.FontWeight.Bold })
+DashboardTab:Paragraph({
+    Title = "Status: Ready 🚀",
+    Desc = "Anime Leveling Script\nAuto Farm • Auto Raid • Auto Egg\nใช้งานง่าย ปรับแต่งได้รวดเร็ว",
+    Image = "solar:sparkles-bold",
+    ImageSize = 32,
+    Color = PurpleGlow,
+})
+
+local quickActions = DashboardTab:Group({})
+quickActions:Button({
+    Title = "🔄 Rejoin Server", Icon = "refresh-cw", Color = LightPurple,
+    Callback = function()
+        WindUI:Notify({ Title = "Rejoining...", Content = "กำลังเข้าเซิร์ฟเวอร์ใหม่", Duration = 2 })
+        game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+    end,
+})
+quickActions:Space()
+quickActions:Button({
+    Title = "🎲 Hop Server", Icon = "shuffle", Color = PurpleGlow,
+    Callback = function()
+        WindUI:Notify({ Title = "Server Hopping...", Content = "กำลังหาเซิร์ฟเวอร์ใหม่", Duration = 3 })
+        local HttpService = game:GetService("HttpService")
+        local TeleportService = game:GetService("TeleportService")
+        local serversUrl = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+        local success, response = pcall(function() return game:HttpGet(serversUrl) end)
+        if success then
+            local data = HttpService:JSONDecode(response)
+            if data and data.data then
+                for _, server in ipairs(data.data) do
+                    if server.playing < server.maxPlayers and server.id ~= game.JobId then
+                        TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
+                        return
+                    end
+                end
+            end
+        end
+        WindUI:Notify({ Title = "No servers found", Content = "ลองอีกครั้งนะ", Duration = 3 })
+    end,
+})
+
+-- Discord Section (เดิม)
+local discordSection = DashboardTab:Section({ Title = "💜 Discord Community", Box = true, BoxBorder = true, Opened = true })
+local discordGroup = discordSection:Group({})
+discordGroup:Paragraph({
+    Title = "เข้ากลุ่ม Discord",
+    Desc = "อัพเดทสคริปต์ใหม่ + แชร์ฟีเจอร์",
+    Image = "solar:users-group-two-rounded-bold-duotone",
+    ImageSize = 32,
+    Color = PurpleGlow,
+    Buttons = {
+        { Title = "📱 Copy Link", Icon = "copy", Callback = function()
+            setclipboard("https://discord.gg/k2wdyy8QMN")
+            WindUI:Notify({ Title = "Copied!", Content = "Discord Link", Duration = 3 })
+        end },
+        { Title = "🚀 Join Now", Icon = "external-link", Color = PurpleGlow, Callback = function()
+            setclipboard("https://discord.gg/k2wdyy8QMN")
+            WindUI:Notify({ Title = "Copied!", Content = "เปิด Discord แล้ว paste", Duration = 4 })
+        end },
+    },
+})
+
+-- ════════════════════════════════════════
+-- TABS สำหรับ Anime Leveling
+-- ════════════════════════════════════════
+local FarmTab    = Window:Tab({ Title = "Auto Farm", Icon = "pickaxe",  IconColor = Green,  Border = true, IconShape = "Square" })
+local RaidTab    = Window:Tab({ Title = "Raids",     Icon = "shield",   IconColor = Red,    Border = true, IconShape = "Square" })
+local EggTab     = Window:Tab({ Title = "Auto Egg",  Icon = "egg",      IconColor = Yellow, Border = true, IconShape = "Square" })
+local PlayerTab  = Window:Tab({ Title = "Player",    Icon = "user",     IconColor = Blue,   Border = true, IconShape = "Square" })
+local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings", IconColor = Grey,   Border = true, IconShape = "Square" })
 
 -- ════════════════════════════════════════
 -- ANIME LEVELING CORE SYSTEM
@@ -224,11 +307,8 @@ do
         if not ok then log("WARN", context .. " failed", a) return false, a end
         return true, a, b, c, d
     end
-
-    -- WindUI: update label on a Section or Button by re-using stored ref
     local function setComponentLabel(component, text)
         if not component then return false end
-        -- WindUI uses :SetTitle() or stored .Label
         local methods = { "SetTitle", "SetName", "Update", "SetText" }
         for i = 1, #methods do
             local method = component[methods[i]]
@@ -241,7 +321,6 @@ do
         end
         return pcall(function() component.Name = text end)
     end
-
     local function setToggleValue(toggle, value)
         if not toggle then return false end
         local methods = { "SetValue", "Update", "SetActive" }
@@ -256,7 +335,6 @@ do
         end
         return false
     end
-
     local function getCharacter()
         local character = LocalPlayer and LocalPlayer.Character
         if character and character.Parent then return character end
@@ -293,7 +371,6 @@ do
         if Shared.GlobalState.currentMode ~= mode then
             Shared.GlobalState.lastMode = Shared.GlobalState.currentMode
             Shared.GlobalState.currentMode = mode
-            log("DEBUG", "Mode -> " .. tostring(mode))
         end
     end
     function StateManager.SetPaused(paused, duration)
@@ -385,18 +462,18 @@ do
         for attempt = 1, 3 do
             local remote = findRemoteByName(remoteName)
             if not remote then
-                local action = ErrorHandler.Handle("REMOTE_FIND_" .. remoteName, "Remote not found", attempt, 3)
+                local action = ErrorHandler.Handle("REMOTE_FIND_"..remoteName, "Remote not found", attempt, 3)
                 if action == "STOP" then return false, "SOFT_STOP" end
                 task.wait(ErrorHandler.GetRetryDelay(attempt))
             else
                 local ok, result = invokeRemote(remote, table.unpack(args, 1, args.n))
                 if ok then return true, result end
-                local action = ErrorHandler.Handle("REMOTE_CALL_" .. remoteName, result, attempt, 3)
+                local action = ErrorHandler.Handle("REMOTE_CALL_"..remoteName, result, attempt, 3)
                 if action == "STOP" then return false, result end
                 task.wait(ErrorHandler.GetRetryDelay(attempt))
             end
         end
-        return false, "RETRY_EXHAUSTED_" .. tostring(remoteName)
+        return false, "RETRY_EXHAUSTED_"..tostring(remoteName)
     end
     function RemoteService.OpenWisteriaRaid()
         local remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -568,7 +645,7 @@ do
         return nearest
     end
 
-    -- UI Status Updaters (WindUI paragraph/button label update)
+    -- UI Status Updaters
     local function updateFarmStatusText(text)
         Shared.FarmState.currentStatus = tostring(text or "Idle")
         setComponentLabel(Shared.UI.Components.FarmStatusLabel, "🟢 Status: " .. Shared.FarmState.currentStatus)
@@ -604,9 +681,7 @@ do
         end)
     end
 
-    -- ════════════════════════════════
-    -- BUILD FARM TAB
-    -- ════════════════════════════════
+    -- Farm Tab UI
     function UIModule.CreateFarmTab()
         local farmSection = FarmTab:Section({ Title = "🎯 Monster Selection", Box = true, BoxBorder = true, Opened = true })
 
@@ -641,7 +716,7 @@ do
         })
 
         farmSection:Button({
-            Title = "🔄 Refresh Monster List", Icon = "refresh-cw", Color = Blue,
+            Title = "🔄 Refresh List", Icon = "refresh-cw", Color = Blue,
             Callback = function()
                 MonsterTracker.RefreshFarmMonsters()
                 UIModule.RefreshFarmMonsterDropdown()
@@ -656,6 +731,7 @@ do
             Title = "Auto Farm",
             Value = false,
             Callback = function(enabled)
+                getgenv().MoMoHub.AutoFarm = enabled
                 CoreSystemManager.SetMode(enabled and "FARM" or "IDLE", { source = "FarmToggle" })
             end,
         })
@@ -682,9 +758,7 @@ do
         })
     end
 
-    -- ════════════════════════════════
-    -- BUILD RAID TAB
-    -- ════════════════════════════════
+    -- Raid Tab UI
     function UIModule.CreateRaidsTab()
         local raidSection = RaidTab:Section({ Title = "🏰 Wisteria Raid", Box = true, BoxBorder = true, Opened = true })
 
@@ -693,6 +767,7 @@ do
             Title = "Enable Raids",
             Value = false,
             Callback = function(enabled)
+                getgenv().MoMoHub.AutoRaids = enabled
                 CoreSystemManager.OnRaidsToggled(enabled)
             end,
         })
@@ -731,9 +806,7 @@ do
         })
     end
 
-    -- ════════════════════════════════
-    -- BUILD EGG TAB
-    -- ════════════════════════════════
+    -- Egg Tab UI
     function UIModule.CreateEggTab()
         local eggSection = EggTab:Section({ Title = "🥚 Auto Egg", Box = true, BoxBorder = true, Opened = true })
 
@@ -772,6 +845,7 @@ do
             Title = "Auto Open Egg",
             Value = false,
             Callback = function(v)
+                getgenv().MoMoHub.AutoEgg = v
                 if v then AutoEggModule.Start() else AutoEggModule.Stop() end
             end,
         })
@@ -1077,14 +1151,6 @@ do
     function RaidsModule._Tick()
         if not Shared.RaidsState.isRaiding or Shared.GlobalState.currentMode ~= "RAIDS" then return end
         if StateManager.IsPaused() then return end
-        local currentWave = getCurrentRaidWave()
-        local restartWave = Shared.RaidsState.restartAtWave
-        if Shared.RaidsState.autoRestart and restartWave and restartWave > 0 then
-            if currentWave and currentWave >= restartWave then
-                raidsSetStatus("Restarting at wave " .. tostring(currentWave))
-                RaidsModule._RestartRaid() return
-            end
-        end
         local fps = PerformanceMonitor.GetCurrentFPS()
         if fps > 0 and fps < Shared.Config.MinAcceptableFPS then
             StateManager.SetPaused(true, Shared.Config.LowFPSPauseSeconds)
@@ -1176,8 +1242,8 @@ do
             end
         end)
         if not ok then
-            ErrorHandler.Record("SET_MODE_" .. tostring(mode), err)
-            notify("System", "Mode switch failed: " .. tostring(mode), 3)
+            ErrorHandler.Record("SET_MODE_"..tostring(mode), err)
+            notify("System", "Mode switch failed: "..tostring(mode), 3)
         end
     end
     function CoreSystemManager.ResumePreviousMode()
@@ -1197,74 +1263,140 @@ do
         end
     end
 
-    -- ════════════════════════════════
-    -- PLAYER TAB
-    -- ════════════════════════════════
+    -- ════════════════════════════════════════
+    -- PLAYER TAB (เดิม)
+    -- ════════════════════════════════════════
     local moveSection = PlayerTab:Section({ Title = "🏃 Movement", Box = true, BoxBorder = true })
-    moveSection:Slider({
-        Flag = "WalkSpeed", Title = "WalkSpeed", Step = 1,
-        Value = { Min = 16, Max = 250, Default = 16 },
-        Callback = function(val)
-            pcall(function()
-                local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                if hum then hum.WalkSpeed = val end
-            end)
+    moveSection:Slider({ Flag = "WalkSpeed", Title = "WalkSpeed", Step = 1,
+        Value = { Min = 16, Max = 200, Default = 16 },
+        Callback = function(v)
+            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = v end
         end,
     })
-    moveSection:Slider({
-        Flag = "JumpPower", Title = "JumpPower", Step = 1,
+    moveSection:Slider({ Flag = "JumpPower", Title = "JumpPower", Step = 1,
         Value = { Min = 50, Max = 300, Default = 50 },
-        Callback = function(val)
-            pcall(function()
-                local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-                if hum then hum.JumpPower = val end
-            end)
+        Callback = function(v)
+            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.JumpPower = v end
         end,
     })
 
     local utilGroup = PlayerTab:Group({})
     local noclipEnabled = false
     local infJumpEnabled = false
+    utilGroup:Toggle({ Flag = "Noclip", Title = "Noclip", Value = false,
+        Callback = function(v) noclipEnabled = v getgenv().MoMoHub.Noclip = v end })
+    utilGroup:Toggle({ Flag = "InfJump", Title = "Infinite Jump", Value = false,
+        Callback = function(v) infJumpEnabled = v getgenv().MoMoHub.InfJump = v end })
 
-    utilGroup:Toggle({ Flag = "Noclip", Title = "Noclip", Value = false, Callback = function(v) noclipEnabled = v end })
-    utilGroup:Toggle({ Flag = "InfJump", Title = "Infinite Jump", Value = false, Callback = function(v) infJumpEnabled = v end })
-
-    -- Anti-AFK
-    local antiAfkEnabled = false
     local afkSection = PlayerTab:Section({ Title = "⚙️ Utilities", Box = true })
-    afkSection:Toggle({ Flag = "AntiAFK", Title = "Anti-AFK", Value = false, Callback = function(v) antiAfkEnabled = v end })
-    afkSection:Button({
-        Title = "🔄 Rejoin Server", Icon = "refresh-cw", Color = LightPurple,
-        Callback = function()
-            WindUI:Notify({ Title = "Rejoining...", Content = "กำลังเข้าเซิร์ฟเวอร์ใหม่", Duration = 2 })
-            game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+    local antiAfkEnabled = false
+    afkSection:Toggle({ Flag = "AntiAFK", Title = "Anti-AFK", Value = false,
+        Callback = function(v) antiAfkEnabled = v end })
+
+    -- ════════════════════════════════════════
+    -- SETTINGS TAB (เดิมครบ)
+    -- ════════════════════════════════════════
+    SettingsTab:Section({ Title = "⌨️ Keybinds", Box = true, BoxBorder = true })
+    SettingsTab:Keybind({ Flag = "UIKeybind", Title = "Toggle UI", Value = "RightControl",
+        Callback = function(k) Window:SetToggleKey(Enum.KeyCode[k]) end })
+    SettingsTab:Keybind({ Flag = "FarmKeybind", Title = "Toggle Farm", Value = "F",
+        Callback = function(k) getgenv().MoMoHub.FarmKey = Enum.KeyCode[k] end })
+
+    local cfgSection = SettingsTab:Section({ Title = "💾 Config Manager", Box = true, BoxBorder = true, Opened = true })
+    local cfgMgr = Window.ConfigManager
+    local cfgName = "Default"
+
+    local cfgInput = cfgSection:Input({
+        Flag = "CfgName", Title = "Config Name", Value = "Default",
+        Placeholder = "กรอกชื่อ config...",
+        Callback = function(n) cfgName = (n ~= "" and n or "Default") end,
+    })
+    local cfgList = cfgSection:Dropdown({
+        Flag = "CfgList", Title = "📂 Saved Configs",
+        Values = cfgMgr:AllConfigs(), Value = nil,
+        Callback = function(n) if n then cfgName = n cfgInput:Set(n) end end,
+    })
+
+    cfgSection:Space()
+    cfgSection:Toggle({
+        Flag = "AutoLoadCfg", Title = "⚡ Auto Load Config on Start",
+        Desc = "โหลด config อัตโนมัติเมื่อเปิดสคริปต์",
+        Value = false,
+        Callback = function(v)
+            getgenv().MoMoHub.AutoLoad = v
+            WindUI:Notify({
+                Title = v and "Auto Load ON" or "Auto Load OFF",
+                Content = v and ("จะโหลด ["..cfgName..."] อัตโนมัติ") or "ปิดการโหลดอัตโนมัติแล้ว",
+                Duration = 3,
+            })
+            if v then local cfg = cfgMgr:Config(cfgName) cfg:Save() end
         end,
     })
-    afkSection:Button({
-        Title = "🎲 Hop Server", Icon = "shuffle", Color = PurpleGlow,
+    cfgSection:Space()
+
+    local cfgActionGroup = cfgSection:Group({})
+    cfgActionGroup:Button({
+        Title = "💾 Save Config", Icon = "save", Color = Green, Justify = "Center",
         Callback = function()
-            WindUI:Notify({ Title = "Server Hopping...", Content = "กำลังหาเซิร์ฟเวอร์ใหม่", Duration = 3 })
-            local HttpService = game:GetService("HttpService")
-            local TeleportService = game:GetService("TeleportService")
-            local success, response = pcall(function()
-                return game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
-            end)
-            if success then
-                local data = HttpService:JSONDecode(response)
-                if data and data.data then
-                    for _, server in ipairs(data.data) do
-                        if server.playing < server.maxPlayers and server.id ~= game.JobId then
-                            TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
-                            return
-                        end
-                    end
-                end
+            if cfgName == "" then WindUI:Notify({ Title = "⚠️ Error", Content = "กรุณาใส่ชื่อ config ก่อน", Duration = 3 }) return end
+            local cfg = cfgMgr:Config(cfgName)
+            if cfg:Save() then
+                WindUI:Notify({ Title = "✅ Saved!", Content = "บันทึก ["..cfgName.."] สำเร็จ", Duration = 3 })
+                cfgList:Refresh(cfgMgr:AllConfigs())
             end
-            WindUI:Notify({ Title = "No servers found", Content = "ลองอีกครั้งนะ", Duration = 3 })
+        end,
+    })
+    cfgActionGroup:Space()
+    cfgActionGroup:Button({
+        Title = "📂 Load Config", Icon = "download", Color = Blue, Justify = "Center",
+        Callback = function()
+            if cfgName == "" then WindUI:Notify({ Title = "⚠️ Error", Content = "กรุณาเลือก config ก่อน", Duration = 3 }) return end
+            local cfg = cfgMgr:CreateConfig(cfgName)
+            if cfg:Load() then
+                WindUI:Notify({ Title = "✅ Loaded!", Content = "โหลด ["..cfgName.."] สำเร็จ", Duration = 3 })
+            else
+                WindUI:Notify({ Title = "❌ Failed", Content = "ไม่พบ config: "..cfgName, Duration = 3 })
+            end
+        end,
+    })
+    cfgSection:Space()
+
+    local cfgManageGroup = cfgSection:Group({})
+    cfgManageGroup:Button({
+        Title = "🗑️ Delete Config", Icon = "trash-2", Color = Red, Justify = "Center",
+        Callback = function()
+            if cfgName == "" or cfgName == "Default" then
+                WindUI:Notify({ Title = "⚠️ Error", Content = "ไม่สามารถลบ Default config ได้", Duration = 3 }) return
+            end
+            local cfg = cfgMgr:Config(cfgName)
+            if cfg:Delete() then
+                WindUI:Notify({ Title = "🗑️ Deleted", Content = "ลบ ["..cfgName.."] สำเร็จ", Duration = 3 })
+                cfgName = "Default" cfgInput:Set("Default")
+                cfgList:Refresh(cfgMgr:AllConfigs())
+            else
+                WindUI:Notify({ Title = "❌ Failed", Content = "ไม่พบ config นี้", Duration = 3 })
+            end
+        end,
+    })
+    cfgManageGroup:Space()
+    cfgManageGroup:Button({
+        Title = "🔄 Refresh List", Icon = "refresh-cw", Color = Yellow, Justify = "Center",
+        Callback = function()
+            local configs = cfgMgr:AllConfigs()
+            cfgList:Refresh(configs)
+            WindUI:Notify({ Title = "🔄 Refreshed!", Content = "พบ "..#configs.." config", Duration = 3 })
         end,
     })
 
+    SettingsTab:Section({ Title = "🎨 Appearance", Box = true })
+    SettingsTab:Toggle({ Flag = "NoBG", Title = "No Panel BG",
+        Callback = function(b) Window:SetPanelBackground(not b) end })
+
+    -- ════════════════════════════════════════
     -- Runtime Connections
+    -- ════════════════════════════════════════
     UserInputService.JumpRequest:Connect(function()
         if infJumpEnabled then
             pcall(function() LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping") end)
@@ -1287,80 +1419,9 @@ do
         end
     end)
 
-    -- ════════════════════════════════
-    -- SETTINGS TAB
-    -- ════════════════════════════════
-    SettingsTab:Section({ Title = "⌨️ Keybinds", Box = true, BoxBorder = true })
-    SettingsTab:Keybind({
-        Flag = "UIKeybind", Title = "Toggle UI", Value = "RightControl",
-        Callback = function(k) Window:SetToggleKey(Enum.KeyCode[k]) end,
-    })
-
-    local discordSection = SettingsTab:Section({ Title = "💜 Discord Community", Box = true, BoxBorder = true, Opened = true })
-    discordSection:Paragraph({
-        Title = "Join Discord",
-        Desc = "อัพเดทสคริปต์ใหม่ + แชร์ฟีเจอร์",
-        Image = "solar:users-group-two-rounded-bold-duotone",
-        ImageSize = 32,
-        Color = PurpleGlow,
-        Buttons = {
-            { Title = "📱 Copy Link", Icon = "copy", Callback = function()
-                setclipboard("https://discord.gg/k2wdyy8QMN")
-                WindUI:Notify({ Title = "Copied!", Content = "Discord Link Copied", Duration = 3 })
-            end },
-        },
-    })
-
-    -- Config Manager
-    local cfgSection = SettingsTab:Section({ Title = "💾 Config Manager", Box = true, BoxBorder = true, Opened = true })
-    local cfgMgr = Window.ConfigManager
-    local cfgName = "Default"
-
-    local cfgInput = cfgSection:Input({
-        Flag = "CfgName", Title = "Config Name", Value = "Default",
-        Placeholder = "กรอกชื่อ config...",
-        Callback = function(n) cfgName = (n ~= "" and n or "Default") end,
-    })
-
-    local cfgList = cfgSection:Dropdown({
-        Flag = "CfgList", Title = "📂 Saved Configs",
-        Values = cfgMgr:AllConfigs(), Value = nil,
-        Callback = function(n) if n then cfgName = n cfgInput:Set(n) end end,
-    })
-
-    local cfgActionGroup = cfgSection:Group({})
-    cfgActionGroup:Button({
-        Title = "💾 Save Config", Icon = "save", Color = Green,
-        Callback = function()
-            if cfgName == "" then WindUI:Notify({ Title = "⚠️ Error", Content = "กรุณาใส่ชื่อ config ก่อน", Duration = 3 }) return end
-            local cfg = cfgMgr:Config(cfgName)
-            if cfg:Save() then
-                WindUI:Notify({ Title = "✅ Saved!", Content = "บันทึก [" .. cfgName .. "] สำเร็จ", Duration = 3 })
-                cfgList:Refresh(cfgMgr:AllConfigs())
-            end
-        end,
-    })
-    cfgActionGroup:Space()
-    cfgActionGroup:Button({
-        Title = "📂 Load Config", Icon = "download", Color = Blue,
-        Callback = function()
-            if cfgName == "" then WindUI:Notify({ Title = "⚠️ Error", Content = "กรุณาเลือก config ก่อน", Duration = 3 }) return end
-            local cfg = cfgMgr:CreateConfig(cfgName)
-            if cfg:Load() then
-                WindUI:Notify({ Title = "✅ Loaded!", Content = "โหลด [" .. cfgName .. "] สำเร็จ", Duration = 3 })
-            else
-                WindUI:Notify({ Title = "❌ Failed", Content = "ไม่พบ config: " .. cfgName, Duration = 3 })
-            end
-        end,
-    })
-
-    -- Appearance
-    SettingsTab:Section({ Title = "🎨 Appearance", Box = true })
-    SettingsTab:Toggle({ Flag = "NoBG", Title = "No Panel BG", Callback = function(b) Window:SetPanelBackground(not b) end })
-
-    -- ════════════════════════════════
+    -- ════════════════════════════════════════
     -- SYSTEM INIT
-    -- ════════════════════════════════
+    -- ════════════════════════════════════════
     local function BackgroundTick()
         if ErrorHandler.ShouldSoftStop() then
             if Shared.RaidsState.isRaiding then RaidsModule.StopRaiding(false) end
@@ -1393,20 +1454,19 @@ do
             end
         end)
     end)
-
     if not ok then
         log("ERROR", "System.Init failed", err)
         notify("System", "Initialization failed", 4)
     end
 
-    -- Auto Load Config on Startup
+    -- Auto Load on Startup (เดิมครบ)
     task.spawn(function()
         task.wait(0.5)
         local startupCfg = cfgMgr:CreateConfig("Default")
-        if startupCfg:Load() then
+        if startupCfg:Load() and getgenv().MoMoHub.AutoLoad then
             WindUI:Notify({ Title = "⚡ Auto Loaded!", Content = "โหลด Default config สำเร็จ", Duration = 4 })
         end
     end)
 end
 
-WindUI:Notify({ Title = "✨ MoMoHub - Anime Leveling", Content = "WindUI Version โหลดสำเร็จ! 🚀", Icon = "solar:sparkles-bold", Duration = 5 })
+WindUI:Notify({ Title = "✨ MoMoHub - Anime Leveling", Content = "พร้อมใช้งาน! Dashboard + ระบบครบ 🚀", Icon = "solar:sparkles-bold", Duration = 5 })
