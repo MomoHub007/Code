@@ -200,7 +200,7 @@ do
 
     local Shared = {
         Config = {
-            Debug = true,
+            Debug = false,
             MainLoopInterval = 0.2,
             LowFPS = 20,
             MinAcceptableFPS = 15,
@@ -209,7 +209,7 @@ do
             TargetDeadTimeout = 180,
             WaitDeadPollInterval = 0.25,
             MonsterStateCacheLifetime = 0.25,
-            MonsterRefreshFarmInterval = 1.25,
+            MonsterRefreshFarmInterval = 3,
             MonsterRefreshRaidInterval = 1.0,
             NearCacheLifetime = 0.4,
             RaidOpenBackoff = { 0.5, 1, 2 },
@@ -221,7 +221,7 @@ do
             ErrorWindowSeconds = 300,
             FarmFightStateMaxAge = 30,
             FarmReTeleportDistance = 15,
-            FarmLoopInterval = 0.15,
+            FarmLoopInterval = 0.3,
             RaidLoopInterval = 0.2,
             RaidRestartDelay = 0.75,
             RaidMapWaitTimeout = 5,
@@ -235,6 +235,7 @@ do
                 Vector3.new(0, 3, 5),
                 Vector3.new(0, 5, 8),
             },
+            FakeAttackInterval = 0.1,
         },
 
         GlobalState = {
@@ -251,6 +252,7 @@ do
             selectedMonsterNames = {}, farmMode = "SELECT",
             currentSelectedIndex = 1, lastMonsterRefresh = 0,
             lastLoopAt = 0, errors = 0, loopToken = 0,
+            lastFakeAttackAt = 0,
         },
 
         RaidsState = {
@@ -491,6 +493,32 @@ do
         return RemoteService.CallWithRetry("Hatch", star, quantity)
     end
 
+    function RemoteService.FakePositionAttack(target)
+        local root = getRootPart(getCharacter())
+        if not root then return false end
+        local monsterRoot = getMonsterRoot(target)
+        if not monsterRoot then return false end
+
+        local originalCFrame = root.CFrame  -- เซฟตำแหน่งเดิม
+
+        -- ย้ายไปติดมอน
+        pcall(function()
+            root.CFrame = monsterRoot.CFrame * CFrame.new(0, 0, 2)
+        end)
+
+        -- Fire attack
+        local remotes = ReplicatedStorage:WaitForChild("Remotes")
+        local remote = remotes:WaitForChild("Clicked")
+        pcall(function() remote:FireServer() end)
+
+        -- ย้ายกลับทันที
+        pcall(function()
+            root.CFrame = originalCFrame
+        end)
+
+        return true
+    end
+
     -- CombatService
     function CombatService.IsAlive(monster)
         if not (monster and monster.Parent) then return false end
@@ -700,14 +728,13 @@ do
                     selected[1] = val
                 end
                 Shared.FarmState.selectedMonsterNames = selected
-                notify("Auto Farm", #selected > 0 and table.concat(selected, ", ") or "None", 2)
             end,
         })
 
         farmSection:Dropdown({
             Flag = "FarmMode",
             Title = "Farm Mode",
-            Values = { "SELECT", "NEAR" },
+            Values = { "SELECT", "NEAR", "FAKE" },
             Value = Shared.FarmState.farmMode,
             Callback = function(v)
                 Shared.FarmState.farmMode = tostring(v or "SELECT")
@@ -734,27 +761,6 @@ do
                 getgenv().MoMoHub.AutoFarm = enabled
                 CoreSystemManager.SetMode(enabled and "FARM" or "IDLE", { source = "FarmToggle" })
             end,
-        })
-
-        local farmBtnGroup = farmControlSection:Group({})
-        farmBtnGroup:Button({
-            Title = "⏹️ Stop Farm", Icon = "square", Color = Red,
-            Callback = function()
-                CoreSystemManager.SetMode("IDLE", { source = "StopFarmButton" })
-                setToggleValue(Shared.UI.Components.FarmToggle, false)
-            end,
-        })
-        farmBtnGroup:Space()
-        farmBtnGroup:Button({
-            Title = "📊 Show Stats", Icon = "bar-chart-2", Color = PrimaryPurple,
-            Callback = function()
-                notify("Farm Stats", string.format("Kills: %d | Teleports: %d", Shared.FarmState.killedCount, Shared.FarmState.totalTeleports), 4)
-            end,
-        })
-
-        Shared.UI.Components.FarmStatusLabel = farmControlSection:Button({
-            Title = "🟢 Status: Idle", Icon = "activity", Color = Green,
-            Callback = function() notify("Auto Farm", Shared.FarmState.currentStatus, 2) end,
         })
     end
 
@@ -907,7 +913,6 @@ do
     -- AutoFarmModule
     local function farmSetStatus(text, notifyUser)
         updateFarmStatusText(text)
-        if notifyUser then notify("Auto Farm", text, 2) end
     end
     local function farmResolveTarget()
         if Shared.FarmState.farmMode == "NEAR" then return MonsterTracker.GetNearestMonster("FARM") end
@@ -972,9 +977,25 @@ do
         local current = now()
         if (current - Shared.FarmState.lastMonsterRefresh) >= Shared.Config.MonsterRefreshFarmInterval then
             MonsterTracker.RefreshFarmMonsters()
-            UIModule.RefreshFarmMonsterDropdown()
             Shared.FarmState.lastMonsterRefresh = current
         end
+
+        if Shared.FarmState.farmMode == "FAKE" then
+            local current = now()
+            if (current - (Shared.FarmState.lastFakeAttackAt or 0)) < Shared.Config.FakeAttackInterval then return end
+            local target = farmResolveTarget()
+            if not target then farmSetStatus("Waiting for target") return end
+            if not CombatService.IsAlive(target) then
+                Shared.FarmState.killedCount += 1
+                farmAdvanceIndex()
+                return
+            end
+            RemoteService.FakePositionAttack(target)
+            Shared.FarmState.lastFakeAttackAt = current
+            farmSetStatus("Fake attacking: " .. target.Name)
+            return
+        end
+
         local state = Shared.FarmState.fightState
         if state == "IDLE" then
             local target = farmResolveTarget()
@@ -1285,16 +1306,42 @@ do
     local utilGroup = PlayerTab:Group({})
     local noclipEnabled = false
     local infJumpEnabled = false
+    local noclipConn, antiAfkConn = nil, nil
+
     utilGroup:Toggle({ Flag = "Noclip", Title = "Noclip", Value = false,
-        Callback = function(v) noclipEnabled = v getgenv().MoMoHub.Noclip = v end })
+    Callback = function(v)
+        noclipEnabled = v
+        if noclipConn then noclipConn:Disconnect() noclipConn = nil end
+        if v then
+            noclipConn = RunService.Stepped:Connect(function()
+                pcall(function()
+                    for _, p in LocalPlayer.Character:GetDescendants() do
+                        if p:IsA("BasePart") then p.CanCollide = false end
+                    end
+                end)
+            end)
+        end
+    end
+    })
     utilGroup:Toggle({ Flag = "InfJump", Title = "Infinite Jump", Value = false,
         Callback = function(v) infJumpEnabled = v getgenv().MoMoHub.InfJump = v end })
 
     local afkSection = PlayerTab:Section({ Title = "⚙️ Utilities", Box = true })
-    local antiAfkEnabled = false
     afkSection:Toggle({ Flag = "AntiAFK", Title = "Anti-AFK", Value = false,
-        Callback = function(v) antiAfkEnabled = v end })
-
+    Callback = function(v)
+        antiAfkEnabled = v
+        if antiAfkConn then antiAfkConn:Disconnect() antiAfkConn = nil end
+        if v then
+            antiAfkConn = RunService.Stepped:Connect(function()
+                pcall(function()
+                    local VIM = game:GetService("VirtualInputManager")
+                    VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                    VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                end)
+            end)
+        end
+    end
+    })
     -- ════════════════════════════════════════
     -- SETTINGS TAB (เดิมครบ)
     -- ════════════════════════════════════════
@@ -1328,7 +1375,6 @@ do
             getgenv().MoMoHub.AutoLoad = v
             WindUI:Notify({
                 Title = v and "Auto Load ON" or "Auto Load OFF",
-                Content = v and ("จะโหลด ["..cfgName..."] อัตโนมัติ") or "ปิดการโหลดอัตโนมัติแล้ว",
                 Duration = 3,
             })
             if v then local cfg = cfgMgr:Config(cfgName) cfg:Save() end
@@ -1434,9 +1480,6 @@ do
         if Shared.GlobalState.isPaused and Shared.GlobalState.pauseUntil > 0 and now() >= Shared.GlobalState.pauseUntil then
             Shared.GlobalState.isPaused = false Shared.GlobalState.pauseUntil = 0
         end
-        updateEggStatusText(Shared.EggState.currentStatus)
-        updateFarmStatusText(Shared.FarmState.currentStatus)
-        updateRaidStatusText(Shared.RaidsState.status)
     end
 
     local ok, err = pcall(function()
@@ -1469,4 +1512,4 @@ do
     end)
 end
 
-WindUI:Notify({ Title = "✨ MoMoHub - Anime Leveling", Content = "พร้อมใช้งาน! Dashboard + ระบบครบ 🚀", Icon = "solar:sparkles-bold", Duration = 5 })
+WindUI:Notify({ Title = "✨ MoMoHub - Anime Leveling", Content = "Welcom to the best Script Hub", Icon = "solar:sparkles-bold", Duration = 5 })
