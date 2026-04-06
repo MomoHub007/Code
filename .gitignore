@@ -1,41 +1,1124 @@
-# Compiled Lua sources
-luac.out
-
-# luarocks build files
-*.src.rock
-*.zip
-*.tar.gz
-
-# Object files
-*.o
-*.os
-*.ko
-*.obj
-*.elf
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-*.def
-*.exp
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
+[05:42:59]
+RemoteEvent UpdateCoins
+[05:42:59]
+RemoteFunction GetData
+[05:42:59]
+RemoteEvent UpdateWins
+[05:42:59]
+RemoteEvent UpdateRebirths
+[05:42:59]
+RemoteEvent AutoRun
+[05:42:59]
+RemoteEvent RunningAnimation
+[05:42:59]
+RemoteEvent AutoTrain
+[05:42:59]
+RemoteEvent Progress
+[05:42:59]
+RemoteEvent CancelRun
+[05:42:59]
+RemoteEvent Rebirth
+[05:42:59]
+RemoteFunction RedeemCode
+[05:42:59]
+RemoteEvent Teleport
+[05:42:59]
+RemoteEvent UpdateChest
+[05:42:59]
+RemoteEvent UpgradeShoe
+[05:42:59]
+RemoteEvent EquipShoe
+[05:42:59]
+Folder Pets
+[05:42:59]
+Folder Eggs
+[05:42:59]
+RemoteEvent PurchaseGemItem
+[05:42:59]
+RemoteEvent GiveItem
+[05:42:59]
+RemoteEvent ClaimAchievement
+[05:42:59]
+RemoteEvent UpdateGamepass
+[05:42:59]
+RemoteFunction GetVIPs
+[05:42:59]
+RemoteEvent VIPJoined
+[05:42:59]
+RemoteFunction SpinWheel
+[05:42:59]
+RemoteEvent UpdateWheelSpin
+[05:42:59]
+RemoteEvent UpdateCoins
+[05:42:59]
+RemoteFunction GetData
+[05:42:59]
+RemoteEvent UpdateWins
+[05:42:59]
+RemoteEvent UpdateRebirths
+[05:42:59]
+RemoteEvent AutoRun
+[05:42:59]
+RemoteEvent RunningAnimation
+[05:42:59]
+RemoteEvent AutoTrain
+[05:42:59]
+RemoteEvent Progress
+[05:42:59]
+RemoteEvent CancelRun
+[05:42:59]
+RemoteEvent Rebirth
+[05:42:59]
+RemoteFunction RedeemCode
+[05:42:59]
+RemoteEvent Teleport
+[05:42:59]
+RemoteEvent UpdateChest
+[05:42:59]
+RemoteEvent UpgradeShoe
+[05:42:59]
+RemoteEvent EquipShoe
+[05:42:59]
+Folder Pets
+[05:42:59]
+Folder Eggs
+[05:42:59]
+RemoteEvent PurchaseGemItem
+[05:42:59]
+RemoteEvent GiveItem
+[05:42:59]
+RemoteEvent ClaimAchievement
+[05:42:59]
+RemoteEvent UpdateGamepass
+[05:42:59]
+RemoteFunction GetVIPs
+[05:42:59]
+RemoteEvent VIPJoined
+[05:42:59]
+RemoteFunction SpinWheel
+[05:42:59]
+RemoteEvent UpdateWheelSpin
+[05:42:59]
+RemoteEvent BuyWheelSpin
+[05:42:59]
+RemoteEvent UpdateBoost
+[05:42:59]
+RemoteFunction GetAllData
+[05:42:59]
+RemoteEvent UpdateCode
+[05:42:59]
+RemoteEvent Velocity
+[05:42:59]
+RemoteEvent UpdateSetting
+[05:42:59]
+RemoteEvent UpdateBadge
+[05:42:59]
+Folder Trades
+[05:42:59]
+RemoteEvent UpdateCurrentStarterPack
+[05:42:59]
+RemoteEvent RemoveItem
+[05:42:59]
+RemoteEvent DeleteItem
+[05:42:59]
+RemoteEvent UseItem
+[05:42:59]
+RemoteEvent GiveShoe
+[05:42:59]
+RemoteEvent DeleteShoe
+[05:42:59]
+RemoteEvent BuyWheelSpin
+[05:42:59]
+RemoteEvent UpdateBoost
+[05:42:59]
+RemoteFunction GetAllData
+[05:42:59]
+RemoteEvent UpdateCode
+[05:42:59]
+RemoteEvent Velocity
+[05:42:59]
+RemoteEvent UpdateSetting
+[05:42:59]
+RemoteEvent UpdateBadge
+[05:42:59]
+Folder Trades
+[05:42:59]
+RemoteEvent UpdateCurrentStarterPack
+[05:42:59]
+RemoteEvent RemoveItem
+[05:42:59]
+RemoteEvent DeleteItem
+[05:42:59]
+RemoteEvent UseItem
+[05:42:59]
+RemoteEvent GiveShoe
+[05:42:59]
+RemoteEvent DeleteShoe
+[05:42:59]
+RemoteEvent UnequipShoe
+[05:42:59]
+RemoteEvent EquipBestShoe
+[05:42:59]
+RemoteEvent DeleteShoes
+[05:42:59]
+RemoteEvent ClaimDailyReward
+[05:42:59]
+RemoteEvent UpdateDailyReward
+[05:42:59]
+RemoteEvent ResetDailyReward
+[05:42:59]
+RemoteEvent UpdateEnergy
+[05:42:59]
+Folder PVP
+[05:42:59]
+RemoteEvent EnhanceShoe
+[05:42:59]
+RemoteEvent OpenChest
+[05:42:59]
+RemoteFunction GetPetAmount
+[05:42:59]
+RemoteEvent LastArea
+[05:42:59]
+RemoteEvent GamePassPurchase
+[05:42:59]
+RemoteEvent PrintWalkSpeed
+[05:42:59]
+RemoteEvent ResetCharacter
+[05:42:59]
+RemoteEvent SendNotification
+[05:42:59]
+RemoteEvent LockShoe
+[05:42:59]
+RemoteEvent UnlockShoe
+[05:42:59]
+RemoteEvent MassDeleteShoes
+[05:42:59]
+RemoteEvent AutoRejoinTeleport
+[05:42:59]
+RemoteEvent AutoRejoinTrain
+[05:42:59]
+RemoteEvent HitPet
+[05:42:59]
+RemoteEvent Tutorial
+[05:42:59]
+Folder ShoeTrades
+[05:42:59]
+RemoteEvent UpdatePetStats
+[05:42:59]
+RemoteEvent SetGiftPlayer
+[05:42:59]
+RemoteEvent UnsetGiftPlayer
+[05:42:59]
+RemoteEvent Clicked
+[05:42:59]
+RemoteEvent AutoRejoinRun
+[05:42:59]
+RemoteEvent UpdateRank
+[05:42:59]
+RemoteEvent Sprint
+[05:42:59]
+RemoteEvent PurchasedAGamepass
+[05:42:59]
+RemoteEvent UpdateAttackRange
+[05:42:59]
+RemoteEvent UpdateExperience
+[05:42:59]
+RemoteEvent UpdateLevel
+[05:42:59]
+Folder MorphPets
+[05:42:59]
+RemoteEvent RollPetPower
+[05:42:59]
+RemoteEvent UpdateAttackRangeCoins
+[05:42:59]
+Folder BossQuests
+[05:42:59]
+RemoteEvent UpdatePetPowerCoins
+[05:42:59]
+RemoteEvent AutoClick
+[05:42:59]
+RemoteEvent TungFamilyPity
+[05:42:59]
+RemoteEvent RollTungFamily
+[05:42:59]
+RemoteEvent UpdateTungFamilyCoins
+[05:42:59]
+RemoteEvent PetPowerPity
+[05:42:59]
+RemoteEvent ItemDrops
+[05:42:59]
+RemoteEvent MorphDrops
+[05:42:59]
+RemoteEvent CoinsExpDrops
+[05:42:59]
+RemoteEvent StatReset
+[05:42:59]
+RemoteEvent UpdateHakiCoins
+[05:42:59]
+BindableEvent AdminWeaponsAnnouncement
+[05:42:59]
+Folder Weapons
+[05:42:59]
+RemoteEvent WeaponDrops
+[05:42:59]
+Folder Items
+[05:42:59]
+RemoteEvent ClaimPlaytime
+[05:42:59]
+RemoteEvent StatPoints
+[05:42:59]
+Folder Auras
+[05:42:59]
+RemoteEvent UpdateRobuxTokens
+[05:42:59]
+RemoteEvent ClaimQuest
+[05:42:59]
+RemoteEvent ClaimDaily
+[05:42:59]
+RemoteEvent ClaimAchievement
+[05:42:59]
+RemoteEvent PetKills
+[05:42:59]
+RemoteEvent BuyPotion
+[05:42:59]
+RemoteEvent ClaimExperienceBenefit
+[05:42:59]
+RemoteEvent ClaimPremiumBenefit
+[05:42:59]
+Folder Accessories
+[05:42:59]
+RemoteEvent RaidArea
+[05:42:59]
+RemoteEvent OpenWisteriaRaid
+[05:42:59]
+RemoteEvent JoinWisteriaRaid
+[05:42:59]
+RemoteEvent LeaveRaid
+[05:42:59]
+RemoteEvent RaidLobbyUpdate
+[05:42:59]
+RemoteEvent StartRaid
+[05:42:59]
+RemoteEvent EndRaid
+[05:42:59]
+RemoteEvent UpdateRaid
+[05:42:59]
+RemoteEvent PurchaseRobuxToken
+[05:42:59]
+RemoteEvent UpdateMaxWaves
+[05:42:59]
+BindableEvent VIPBought
+[05:42:59]
+RemoteEvent UpdateGiftedGamepass
+[05:42:59]
+RemoteEvent GiftNotification
+[05:42:59]
+RemoteEvent GiftedNotification
+[05:42:59]
+RemoteEvent UpdateAchievement
+[05:42:59]
+RemoteEvent UpdateStatResets
+[05:42:59]
+RemoteEvent UpdateRobuxTokenGamepass
+[05:42:59]
+RemoteEvent RewardedAchievement
+[05:42:59]
+RemoteEvent UnequipShoe
+[05:42:59]
+RemoteEvent EquipBestShoe
+[05:42:59]
+RemoteEvent DeleteShoes
+[05:42:59]
+RemoteEvent ClaimDailyReward
+[05:42:59]
+RemoteEvent UpdateDailyReward
+[05:42:59]
+RemoteEvent ResetDailyReward
+[05:42:59]
+RemoteEvent UpdateEnergy
+[05:42:59]
+Folder PVP
+[05:42:59]
+RemoteEvent EnhanceShoe
+[05:42:59]
+RemoteEvent OpenChest
+[05:42:59]
+RemoteFunction GetPetAmount
+[05:42:59]
+RemoteEvent LastArea
+[05:42:59]
+RemoteEvent GamePassPurchase
+[05:42:59]
+RemoteEvent PrintWalkSpeed
+[05:42:59]
+RemoteEvent ResetCharacter
+[05:42:59]
+RemoteEvent SendNotification
+[05:42:59]
+RemoteEvent LockShoe
+[05:42:59]
+RemoteEvent UnlockShoe
+[05:42:59]
+RemoteEvent MassDeleteShoes
+[05:42:59]
+RemoteEvent AutoRejoinTeleport
+[05:42:59]
+RemoteEvent AutoRejoinTrain
+[05:42:59]
+RemoteEvent HitPet
+[05:42:59]
+RemoteEvent Tutorial
+[05:42:59]
+Folder ShoeTrades
+[05:42:59]
+RemoteEvent UpdatePetStats
+[05:42:59]
+RemoteEvent SetGiftPlayer
+[05:42:59]
+RemoteEvent UnsetGiftPlayer
+[05:42:59]
+RemoteEvent Clicked
+[05:42:59]
+RemoteEvent AutoRejoinRun
+[05:42:59]
+RemoteEvent UpdateRank
+[05:42:59]
+RemoteEvent Sprint
+[05:42:59]
+RemoteEvent PurchasedAGamepass
+[05:42:59]
+RemoteEvent UpdateAttackRange
+[05:42:59]
+RemoteEvent UpdateExperience
+[05:42:59]
+RemoteEvent UpdateLevel
+[05:42:59]
+Folder MorphPets
+[05:42:59]
+RemoteEvent RollPetPower
+[05:42:59]
+RemoteEvent UpdateAttackRangeCoins
+[05:42:59]
+Folder BossQuests
+[05:42:59]
+RemoteEvent UpdatePetPowerCoins
+[05:42:59]
+RemoteEvent AutoClick
+[05:42:59]
+RemoteEvent TungFamilyPity
+[05:42:59]
+RemoteEvent RollTungFamily
+[05:42:59]
+RemoteEvent UpdateTungFamilyCoins
+[05:42:59]
+RemoteEvent PetPowerPity
+[05:42:59]
+RemoteEvent ItemDrops
+[05:42:59]
+RemoteEvent MorphDrops
+[05:42:59]
+RemoteEvent CoinsExpDrops
+[05:42:59]
+RemoteEvent StatReset
+[05:42:59]
+RemoteEvent UpdateHakiCoins
+[05:42:59]
+BindableEvent AdminWeaponsAnnouncement
+[05:42:59]
+Folder Weapons
+[05:42:59]
+RemoteEvent WeaponDrops
+[05:42:59]
+Folder Items
+[05:42:59]
+RemoteEvent ClaimPlaytime
+[05:42:59]
+RemoteEvent StatPoints
+[05:42:59]
+Folder Auras
+[05:42:59]
+RemoteEvent UpdateRobuxTokens
+[05:42:59]
+RemoteEvent ClaimQuest
+[05:42:59]
+RemoteEvent ClaimDaily
+[05:42:59]
+RemoteEvent ClaimAchievement
+[05:42:59]
+RemoteEvent PetKills
+[05:42:59]
+RemoteEvent BuyPotion
+[05:42:59]
+RemoteEvent ClaimExperienceBenefit
+[05:42:59]
+RemoteEvent ClaimPremiumBenefit
+[05:42:59]
+Folder Accessories
+[05:42:59]
+RemoteEvent RaidArea
+[05:42:59]
+RemoteEvent OpenWisteriaRaid
+[05:42:59]
+RemoteEvent JoinWisteriaRaid
+[05:42:59]
+RemoteEvent LeaveRaid
+[05:42:59]
+RemoteEvent RaidLobbyUpdate
+[05:42:59]
+RemoteEvent StartRaid
+[05:42:59]
+RemoteEvent EndRaid
+[05:42:59]
+RemoteEvent UpdateRaid
+[05:42:59]
+RemoteEvent PurchaseRobuxToken
+[05:42:59]
+RemoteEvent UpdateMaxWaves
+[05:42:59]
+BindableEvent VIPBought
+[05:42:59]
+RemoteEvent UpdateGiftedGamepass
+[05:42:59]
+RemoteEvent GiftNotification
+[05:42:59]
+RemoteEvent GiftedNotification
+[05:42:59]
+RemoteEvent UpdateAchievement
+[05:42:59]
+RemoteEvent UpdateStatResets
+[05:42:59]
+RemoteEvent UpdateRobuxTokenGamepass
+[05:42:59]
+RemoteEvent RewardedAchievement
+[05:42:59]
+RemoteEvent GlobalAnnouncement
+[05:42:59]
+RemoteEvent OpenMaxWaveWisteriaRaid
+[05:42:59]
+RemoteFunction GetPlayerGifts
+[05:42:59]
+RemoteEvent PauseBoost
+[05:42:59]
+BindableEvent AdminGlobalAnnouncement
+[05:42:59]
+RemoteEvent GlobalPlayerAnnouncement
+[05:42:59]
+BindableEvent AdminGiftingAnnouncement
+[05:42:59]
+BindableEvent AdminHatchingAnnouncement
+[05:42:59]
+BindableEvent AdminPowersAnnouncement
+[05:42:59]
+BindableEvent ServerHatchingAnnouncement
+[05:42:59]
+RemoteEvent RollSaiyanPower
+[05:42:59]
+RemoteEvent SaiyanPowerPity
+[05:42:59]
+RemoteEvent RollDragonBallPower
+[05:42:59]
+RemoteEvent DragonBallPowerPity
+[05:42:59]
+RemoteEvent RollDaggerPower
+[05:42:59]
+RemoteEvent DaggerPowerPity
+[05:42:59]
+RemoteEvent RollJunglePower
+[05:42:59]
+RemoteEvent JunglePowerPity
+[05:42:59]
+RemoteEvent RollFarmPower
+[05:42:59]
+RemoteEvent FarmPowerPity
+[05:42:59]
+RemoteEvent RollAvocadoPower
+[05:42:59]
+RemoteEvent AvocadoPowerPity
+[05:42:59]
+RemoteEvent UpdateEasterPowerCoins
+[05:42:59]
+RemoteEvent UpdateDragonBallPowerCoins
+[05:42:59]
+RemoteEvent UpdateDaggerPowerCoins
+[05:42:59]
+RemoteEvent UpdateFarmPowerCoins
+[05:42:59]
+RemoteEvent UpdateAvocadoPowerCoins
+[05:42:59]
+RemoteEvent UpdateJunglePowerCoins
+[05:42:59]
+RemoteEvent TralaleroLeveling
+[05:42:59]
+RemoteEvent SharpMelonLeveling
+[05:42:59]
+RemoteEvent EnergyMelonLeveling
+[05:42:59]
+RemoteEvent FortuneLeveling
+[05:42:59]
+RemoteEvent BlessedLeveling
+[05:42:59]
+RemoteEvent FruitLeveling
+[05:42:59]
+RemoteEvent UpdateTralaleroCoins
+[05:42:59]
+RemoteEvent UpdateMelonCoins
+[05:42:59]
+RemoteEvent UpdateFortuneCoins
+[05:42:59]
+RemoteEvent UpdateBlessedCoins
+[05:42:59]
+RemoteEvent UpdateFruitCoins
+[05:42:59]
+RemoteEvent PublishServerAnnouncement
+[05:42:59]
+RemoteEvent UpdatePotionTokens
+[05:42:59]
+RemoteEvent QuestClaimed
+[05:42:59]
+RemoteEvent DailyClaimed
+[05:42:59]
+RemoteEvent PlaytimeClaimed
+[05:42:59]
+RemoteEvent AccessoryDrops
+[05:42:59]
+RemoteEvent GlobalMessageAnnouncement
+[05:42:59]
+BindableEvent AdminAccessoryAnnouncement
+[05:42:59]
+RemoteEvent HakiLeveling
+[05:42:59]
+BindableEvent ServerPowersAnnouncement
+[05:42:59]
+BindableEvent ServerAccessoryAnnouncement
+[05:42:59]
+BindableEvent ServerWeaponsAnnouncement
+[05:42:59]
+RemoteEvent UpdateSoundAlpha
+[05:42:59]
+RemoteEvent GlobalBoostEventState
+[05:42:59]
+BindableEvent AdminStartGlobalBoost
+[05:42:59]
+BindableEvent AdminStopGlobalBoost
+[05:42:59]
+RemoteEvent InitializeFirstTimeGamepasses
+[05:42:59]
+RemoteEvent UpdateLavaPowerCoins
+[05:42:59]
+RemoteEvent UpdateSoundAlphaMusic
+[05:42:59]
+RemoteEvent UpdateSoundAlphaSFX
+[05:42:59]
+RemoteEvent KillPetSound
+[05:42:59]
+RemoteEvent LeaderboardSnapshot
+[05:42:59]
+RemoteEvent LaboratoryUpgrade
+[05:42:59]
+RemoteEvent RollLavaPower
+[05:42:59]
+RemoteEvent LavaPowerPity
+[05:42:59]
+RemoteEvent TowerRaidInvite
+[05:42:59]
+RemoteEvent UpdateBallerinaPowerCoins
+[05:42:59]
+RemoteEvent RollBallerinaPower
+[05:42:59]
+RemoteEvent BallerinaPowerPity
+[05:42:59]
+RemoteEvent HotspotLeveling
+[05:42:59]
+RemoteEvent UpdateHotspotCoins
+[05:42:59]
+RemoteEvent UpdateDragonCoins
+[05:42:59]
+RemoteEvent DragonLeveling
+[05:42:59]
+RemoteEvent UpdateDragonCoins
+[05:42:59]
+RemoteEvent UpdateCurrentExclusivePack
+[05:42:59]
+RemoteEvent UpdateChristmasCoins
+[05:42:59]
+RemoteEvent ChristmasLeveling
+[05:42:59]
+RemoteEvent OpenSigmaRanchRaid
+[05:42:59]
+RemoteEvent OpenMaxWaveSigmaRanchRaid
+[05:42:59]
+RemoteEvent JoinSigmaRanchRaid
+[05:42:59]
+RemoteEvent UpdateFoodTokens
+[05:42:59]
+RemoteEvent BuyFood
+[05:42:59]
+RemoteEvent UpdateMastery
+[05:42:59]
+RemoteEvent ToasterLeveling
+[05:42:59]
+RemoteEvent UpdateToasterCoins
+[05:42:59]
+RemoteEvent UpdateDragonfruitCoins
+[05:42:59]
+RemoteEvent DragonfruitLeveling
+[05:42:59]
+RemoteEvent UpdateSaturnPowerCoins
+[05:42:59]
+RemoteEvent RollSaturnPower
+[05:42:59]
+RemoteEvent SaturnPowerPity
+[05:42:59]
+RemoteEvent UpdateRobotPowerCoins
+[05:42:59]
+RemoteEvent RollRobotPower
+[05:42:59]
+RemoteEvent RobotPowerPity
+[05:42:59]
+RemoteEvent BoughtLimitedOffer1
+[05:42:59]
+RemoteEvent UpdateExclusiveQuest
+[05:42:59]
+RemoteEvent ExclusiveQuestClaimed
+[05:42:59]
+RemoteEvent ClaimExclusiveQuest
+[05:42:59]
+RemoteEvent RollSaiyan
+[05:42:59]
+RemoteEvent UpdateTotalCoins
+[05:42:59]
+RemoteEvent UpdateTotalEnergy
+[05:42:59]
+RemoteEvent UpdateEnemiesDefeated
+[05:42:59]
+RemoteEvent UpdateStarsHatched
+[05:42:59]
+RemoteEvent UpdateTotalGemsEarned
+[05:42:59]
+RemoteEvent UpdateRobuxSpent
+[05:42:59]
+RemoteEvent UnlockedAreas
+[05:42:59]
+RemoteEvent FruitPowerPity
+[05:42:59]
+RemoteEvent RollFruitPower
+[05:42:59]
+RemoteEvent UpdateFruitPowerCoins
+[05:42:59]
+RemoteEvent RollGrimoires
+[05:42:59]
+RemoteEvent RollGrimoiresPower
+[05:42:59]
+RemoteEvent GrimoiresPowerPity
+[05:42:59]
+RemoteEvent UpdateGrimoiresPowerCoins
+[05:42:59]
+RemoteEvent DemonPowerPity
+[05:42:59]
+RemoteEvent RollDemon
+[05:42:59]
+RemoteEvent RollDemonPower
+[05:42:59]
+RemoteEvent UpdateDemonPowerCoins
+[05:42:59]
+RemoteEvent ShinyMorphDrops
+[05:42:59]
+RemoteEvent BreathingPowerPity
+[05:42:59]
+RemoteEvent RollBreathing
+[05:42:59]
+RemoteEvent RollBreathingPower
+[05:42:59]
+RemoteEvent UpdateBreathingPowerCoins
+[05:42:59]
+RemoteEvent BloodArtLeveling
+[05:42:59]
+RemoteEvent UpdateWisteriaCoins
+[05:42:59]
+RemoteEvent WisteriaLeveling
+[05:42:59]
+RemoteEvent UpdateBloodArtCoins
+[05:42:59]
+RemoteEvent TowerRaidMove
+[05:42:59]
+RemoteEvent TowerRaidStart
+[05:42:59]
+RemoteEvent JoinTowerRaid
+[05:42:59]
+RemoteEvent LeaveRaid
+[05:42:59]
+RemoteEvent UpdateTokenBundle
+[05:42:59]
+RemoteEvent AutoRankUp
+[05:42:59]
+RemoteEvent UpdateAllGamepassBundle
+[05:42:59]
+RemoteFunction GetAllowsGifts
+[05:42:59]
+RemoteEvent RestartAnnouncement
+[05:42:59]
+RemoteEvent UpdateWorld5PackBundle
+[05:42:59]
+RemoteEvent UpdateStarterPack1Bundle
+[05:42:59]
+RemoteEvent ProsperityPowerPity
+[05:42:59]
+RemoteEvent RollProsperity
+[05:42:59]
+RemoteEvent RollProsperityPower
+[05:42:59]
+RemoteEvent UpdateProsperityPowerCoins
+[05:42:59]
+RemoteEvent BlessingPowerPity
+[05:42:59]
+RemoteEvent RollBlessing
+[05:42:59]
+RemoteEvent RollBlessingPower
+[05:42:59]
+RemoteEvent GlobalAnnouncement
+[05:42:59]
+RemoteEvent OpenMaxWaveWisteriaRaid
+[05:42:59]
+RemoteFunction GetPlayerGifts
+[05:42:59]
+RemoteEvent PauseBoost
+[05:42:59]
+BindableEvent AdminGlobalAnnouncement
+[05:42:59]
+RemoteEvent GlobalPlayerAnnouncement
+[05:42:59]
+BindableEvent AdminGiftingAnnouncement
+[05:42:59]
+BindableEvent AdminHatchingAnnouncement
+[05:42:59]
+BindableEvent AdminPowersAnnouncement
+[05:42:59]
+BindableEvent ServerHatchingAnnouncement
+[05:42:59]
+RemoteEvent RollSaiyanPower
+[05:42:59]
+RemoteEvent SaiyanPowerPity
+[05:42:59]
+RemoteEvent RollDragonBallPower
+[05:42:59]
+RemoteEvent DragonBallPowerPity
+[05:42:59]
+RemoteEvent RollDaggerPower
+[05:42:59]
+RemoteEvent DaggerPowerPity
+[05:42:59]
+RemoteEvent RollJunglePower
+[05:42:59]
+RemoteEvent JunglePowerPity
+[05:42:59]
+RemoteEvent RollFarmPower
+[05:42:59]
+RemoteEvent FarmPowerPity
+[05:42:59]
+RemoteEvent RollAvocadoPower
+[05:42:59]
+RemoteEvent AvocadoPowerPity
+[05:42:59]
+RemoteEvent UpdateEasterPowerCoins
+[05:42:59]
+RemoteEvent UpdateDragonBallPowerCoins
+[05:42:59]
+RemoteEvent UpdateDaggerPowerCoins
+[05:42:59]
+RemoteEvent UpdateFarmPowerCoins
+[05:42:59]
+RemoteEvent UpdateAvocadoPowerCoins
+[05:42:59]
+RemoteEvent UpdateJunglePowerCoins
+[05:42:59]
+RemoteEvent TralaleroLeveling
+[05:42:59]
+RemoteEvent SharpMelonLeveling
+[05:42:59]
+RemoteEvent EnergyMelonLeveling
+[05:42:59]
+RemoteEvent FortuneLeveling
+[05:42:59]
+RemoteEvent BlessedLeveling
+[05:42:59]
+RemoteEvent FruitLeveling
+[05:42:59]
+RemoteEvent UpdateTralaleroCoins
+[05:42:59]
+RemoteEvent UpdateMelonCoins
+[05:42:59]
+RemoteEvent UpdateFortuneCoins
+[05:42:59]
+RemoteEvent UpdateBlessedCoins
+[05:42:59]
+RemoteEvent UpdateFruitCoins
+[05:42:59]
+RemoteEvent PublishServerAnnouncement
+[05:42:59]
+RemoteEvent UpdatePotionTokens
+[05:42:59]
+RemoteEvent QuestClaimed
+[05:42:59]
+RemoteEvent DailyClaimed
+[05:42:59]
+RemoteEvent PlaytimeClaimed
+[05:42:59]
+RemoteEvent AccessoryDrops
+[05:42:59]
+RemoteEvent GlobalMessageAnnouncement
+[05:42:59]
+BindableEvent AdminAccessoryAnnouncement
+[05:42:59]
+RemoteEvent HakiLeveling
+[05:42:59]
+BindableEvent ServerPowersAnnouncement
+[05:42:59]
+BindableEvent ServerAccessoryAnnouncement
+[05:42:59]
+BindableEvent ServerWeaponsAnnouncement
+[05:42:59]
+RemoteEvent UpdateSoundAlpha
+[05:42:59]
+RemoteEvent GlobalBoostEventState
+[05:42:59]
+BindableEvent AdminStartGlobalBoost
+[05:42:59]
+BindableEvent AdminStopGlobalBoost
+[05:42:59]
+RemoteEvent InitializeFirstTimeGamepasses
+[05:42:59]
+RemoteEvent UpdateLavaPowerCoins
+[05:42:59]
+RemoteEvent UpdateSoundAlphaMusic
+[05:42:59]
+RemoteEvent UpdateSoundAlphaSFX
+[05:42:59]
+RemoteEvent KillPetSound
+[05:42:59]
+RemoteEvent LeaderboardSnapshot
+[05:42:59]
+RemoteEvent LaboratoryUpgrade
+[05:42:59]
+RemoteEvent RollLavaPower
+[05:42:59]
+RemoteEvent LavaPowerPity
+[05:42:59]
+RemoteEvent TowerRaidInvite
+[05:42:59]
+RemoteEvent UpdateBallerinaPowerCoins
+[05:42:59]
+RemoteEvent RollBallerinaPower
+[05:42:59]
+RemoteEvent BallerinaPowerPity
+[05:42:59]
+RemoteEvent HotspotLeveling
+[05:42:59]
+RemoteEvent UpdateHotspotCoins
+[05:42:59]
+RemoteEvent UpdateDragonCoins
+[05:42:59]
+RemoteEvent DragonLeveling
+[05:42:59]
+RemoteEvent UpdateDragonCoins
+[05:42:59]
+RemoteEvent UpdateCurrentExclusivePack
+[05:42:59]
+RemoteEvent UpdateChristmasCoins
+[05:42:59]
+RemoteEvent ChristmasLeveling
+[05:42:59]
+RemoteEvent OpenSigmaRanchRaid
+[05:42:59]
+RemoteEvent OpenMaxWaveSigmaRanchRaid
+[05:42:59]
+RemoteEvent JoinSigmaRanchRaid
+[05:42:59]
+RemoteEvent UpdateFoodTokens
+[05:42:59]
+RemoteEvent BuyFood
+[05:42:59]
+RemoteEvent UpdateMastery
+[05:42:59]
+RemoteEvent ToasterLeveling
+[05:42:59]
+RemoteEvent UpdateToasterCoins
+[05:42:59]
+RemoteEvent UpdateDragonfruitCoins
+[05:42:59]
+RemoteEvent DragonfruitLeveling
+[05:42:59]
+RemoteEvent UpdateSaturnPowerCoins
+[05:42:59]
+RemoteEvent RollSaturnPower
+[05:42:59]
+RemoteEvent SaturnPowerPity
+[05:42:59]
+RemoteEvent UpdateRobotPowerCoins
+[05:42:59]
+RemoteEvent RollRobotPower
+[05:42:59]
+RemoteEvent RobotPowerPity
+[05:42:59]
+RemoteEvent BoughtLimitedOffer1
+[05:42:59]
+RemoteEvent UpdateExclusiveQuest
+[05:42:59]
+RemoteEvent ExclusiveQuestClaimed
+[05:42:59]
+RemoteEvent ClaimExclusiveQuest
+[05:42:59]
+RemoteEvent RollSaiyan
+[05:42:59]
+RemoteEvent UpdateTotalCoins
+[05:42:59]
+RemoteEvent UpdateTotalEnergy
+[05:42:59]
+RemoteEvent UpdateEnemiesDefeated
+[05:42:59]
+RemoteEvent UpdateStarsHatched
+[05:42:59]
+RemoteEvent UpdateTotalGemsEarned
+[05:42:59]
+RemoteEvent UpdateRobuxSpent
+[05:42:59]
+RemoteEvent UnlockedAreas
+[05:42:59]
+RemoteEvent FruitPowerPity
+[05:42:59]
+RemoteEvent RollFruitPower
+[05:42:59]
+RemoteEvent UpdateFruitPowerCoins
+[05:42:59]
+RemoteEvent RollGrimoires
+[05:42:59]
+RemoteEvent RollGrimoiresPower
+[05:42:59]
+RemoteEvent GrimoiresPowerPity
+[05:42:59]
+RemoteEvent UpdateGrimoiresPowerCoins
+[05:42:59]
+RemoteEvent DemonPowerPity
+[05:42:59]
+RemoteEvent RollDemon
+[05:42:59]
+RemoteEvent RollDemonPower
+[05:42:59]
+RemoteEvent UpdateDemonPowerCoins
+[05:42:59]
+RemoteEvent ShinyMorphDrops
+[05:42:59]
+RemoteEvent BreathingPowerPity
+[05:42:59]
+RemoteEvent RollBreathing
+[05:42:59]
+RemoteEvent RollBreathingPower
+[05:42:59]
+RemoteEvent UpdateBreathingPowerCoins
+[05:42:59]
+RemoteEvent BloodArtLeveling
+[05:42:59]
+RemoteEvent UpdateWisteriaCoins
+[05:42:59]
+RemoteEvent WisteriaLeveling
+[05:42:59]
+RemoteEvent UpdateBloodArtCoins
+[05:42:59]
+RemoteEvent TowerRaidMove
+[05:42:59]
+RemoteEvent TowerRaidStart
+[05:42:59]
+RemoteEvent JoinTowerRaid
+[05:42:59]
+RemoteEvent LeaveRaid
+[05:42:59]
+RemoteEvent UpdateTokenBundle
+[05:42:59]
+RemoteEvent AutoRankUp
+[05:42:59]
+RemoteEvent UpdateAllGamepassBundle
+[05:42:59]
+RemoteFunction GetAllowsGifts
+[05:42:59]
+RemoteEvent RestartAnnouncement
+[05:42:59]
+RemoteEvent UpdateWorld5PackBundle
+[05:42:59]
+RemoteEvent UpdateStarterPack1Bundle
+[05:42:59]
+RemoteEvent ProsperityPowerPity
+[05:42:59]
+RemoteEvent RollProsperity
+[05:42:59]
+RemoteEvent RollProsperityPower
+[05:42:59]
+RemoteEvent UpdateProsperityPowerCoins
+[05:42:59]
+RemoteEvent BlessingPowerPity
+[05:42:59]
+RemoteEvent RollBlessing
+[05:42:59]
+RemoteEvent RollBlessingPower
+[05:42:59]
+RemoteEvent UpdateBlessingPowerCoins
+[05:42:59]
+Folder StarQuests
+[05:42:59]
+RemoteEvent MaskPowerPity
+[05:42:59]
+RemoteEvent RollMask
+[05:42:59]
+RemoteEvent RollMaskPower
+[05:42:59]
+RemoteEvent UpdateMaskPowerCoins
+[05:42:59]
+RemoteEvent KaguneLeveling
+[05:42:59]
+RemoteEvent UpdateKaguneCoins
+[05:42:59]
+RemoteEvent RequestAfkRestore
+[05:42:59]
+RemoteEvent RollEaster
+[05:42:59]
+RemoteEvent RollEasterPower
+[05:42:59]
+RemoteEvent EasterPowerPity
+[05:42:59]
+RemoteEvent UpdateSaiyanPowerCoins
+[05:42:59]
+RemoteEvent UpdateEasterBundle
+[05:42:59]
+RemoteEvent CancelAfkRestore
+[05:42:59]
+RemoteEvent APlayerTeleported
+[05:42:59]
+RemoteEvent UpdateBlessingPowerCoins
+[05:42:59]
+Folder StarQuests
+[05:42:59]
+RemoteEvent MaskPowerPity
+[05:42:59]
+RemoteEvent RollMask
+[05:42:59]
+RemoteEvent RollMaskPower
+[05:42:59]
+RemoteEvent UpdateMaskPowerCoins
+[05:42:59]
+RemoteEvent KaguneLeveling
+[05:42:59]
+RemoteEvent UpdateKaguneCoins
+[05:42:59]
+RemoteEvent RequestAfkRestore
+[05:42:59]
+RemoteEvent RollEaster
+[05:42:59]
+RemoteEvent RollEasterPower
+[05:42:59]
+RemoteEvent EasterPowerPity
+[05:42:59]
+RemoteEvent UpdateSaiyanPowerCoins
+[05:42:59]
+RemoteEvent UpdateEasterBundle
+[05:42:59]
+RemoteEvent CancelAfkRestore
+[05:42:59]
+RemoteEvent APlayerTeleported
