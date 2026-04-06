@@ -1,2299 +1,1412 @@
+-- // MoMoHub - Anime Leveling (WindUI Version)
+-- // Purple Theme • WindUI
+
+local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
-local LP = Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
 
-local MoMoLogo = "rbxthumb://type=Asset&id=121052363208302&w=150&h=150"
+local cloneref = cloneref or clonereference or function(v) return v end
 
--- ==========================================
--- ⚙️ ค่าเริ่มต้นสำหรับ UI State (เฉพาะ Settings)
--- ==========================================
-local MoMoConfig = {
-	AutoFpsBoost = false,
-	WalkSpeed = 16,
-	JumpPower = 50,
-	AntiAFK = false,
-	AutoRejoin = false,
-}
-
--- ==========================================
--- 🎨 เริ่มโหลด UI (MACLIB)
--- ==========================================
-local MacLib = loadstring(game:HttpGet("https://github.com/biggaboy212/Maclib/releases/latest/download/maclib.txt"))()
-
-local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-local windowSize = isMobile and UDim2.fromOffset(868, 550) or UDim2.fromOffset(868, 550)
-
-local Window = MacLib:Window({
-	Title = "MOMOHUB",
-	Subtitle = "Anime Leveling",
-	Size = windowSize,
-	DragStyle = 1,
-	DisabledWindowControls = {},
-	ShowUserInfo = not isMobile,
-	Keybind = Enum.KeyCode.LeftControl,
-	AcrylicBlur = not isMobile,
-})
-
--- 🌟 ย่อ UI ทั้งหน้าต่าง MacLib
-
-task.spawn(function()
-	task.wait(1)
-	local targetGui = (gethui and gethui()) or game:GetService("CoreGui") or Players.LocalPlayer:WaitForChild("PlayerGui")
-
-	for _, gui in pairs(targetGui:GetChildren()) do
-		if gui:IsA("ScreenGui") then
-			for _, child in pairs(gui:GetChildren()) do
-				if (child:IsA("Frame") or child:IsA("CanvasGroup")) and child.Size.X.Offset > 300 then
-					local scale = child:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
-					scale.Scale = 0.8
-					scale.Parent = child
-				end
-			end
-		end
-	end
-end)
-
-local function MoMoNotify(data)
-	Window:Notify({
-		Title = data.Title or "MoMoHub",
-		Description = data.Desc or "",
-		Lifetime = data.Time or 3,
-	})
-end
-
-local globalSettings = {
-	UIBlurToggle = Window:GlobalSetting({
-		Name = "UI Blur",
-		Default = Window:GetAcrylicBlurState(),
-		Callback = function(bool)
-			Window:SetAcrylicBlurState(bool)
-			MoMoNotify({ Title = "Settings", Desc = (bool and "Enabled" or "Disabled") .. " UI Blur", Time = 5 })
-		end,
-	}),
-	NotificationToggler = Window:GlobalSetting({
-		Name = "Notifications",
-		Default = Window:GetNotificationsState(),
-		Callback = function(bool)
-			Window:SetNotificationsState(bool)
-			MoMoNotify({ Title = "Settings", Desc = (bool and "Enabled" or "Disabled") .. " Notifications", Time = 5 })
-		end,
-	}),
-	ShowUserInfo = Window:GlobalSetting({
-		Name = "Show User Info",
-		Default = Window:GetUserInfoState(),
-		Callback = function(bool)
-			Window:SetUserInfoState(bool)
-			MoMoNotify({ Title = "Settings", Desc = (bool and "Showing" or "Redacted") .. " User Info", Time = 5 })
-		end,
-	}),
-}
-
--- ==========================================
--- 📌 ปุ่มเปิด/ปิด UI สำหรับผู้เล่นมือถือ
--- ==========================================
-local targetGui = (gethui and gethui()) or game:GetService("CoreGui") or Players.LocalPlayer:WaitForChild("PlayerGui")
-local CustomGui = Instance.new("ScreenGui")
-CustomGui.Name = "MoMoHubToggleUI"
-CustomGui.ResetOnSpawn = false
-CustomGui.Parent = targetGui
-
-local ToggleBtn = Instance.new("ImageButton")
-ToggleBtn.Name = "MoMoHubToggle"
-ToggleBtn.Parent = CustomGui
-ToggleBtn.Position = UDim2.new(0.5, -25, 0, 5)
-ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
-ToggleBtn.BackgroundTransparency = 1
-ToggleBtn.Image = MoMoLogo
-
-local dragging, dragInput, dragStart, startPos
-ToggleBtn.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		dragging = true
-		dragStart = input.Position
-		startPos = ToggleBtn.Position
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				dragging = false
-			end
-		end)
-	end
-end)
-
-ToggleBtn.InputChanged:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-		dragInput = input
-	end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-	if input == dragInput and dragging then
-		local delta = input.Position - dragStart
-		ToggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-	end
-end)
-
-local vim = game:GetService("VirtualInputManager")
-local isClicking = false
-ToggleBtn.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		isClicking = true
-	end
-end)
-ToggleBtn.InputChanged:Connect(function(input)
-	if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then
-		isClicking = false
-	end
-end)
-ToggleBtn.InputEnded:Connect(function(input)
-	if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and isClicking then
-		pcall(function()
-			vim:SendKeyEvent(true, Enum.KeyCode.LeftControl, false, game)
-			task.wait(0.05)
-			vim:SendKeyEvent(false, Enum.KeyCode.LeftControl, false, game)
-		end)
-	end
-end)
-
--- ==========================================
--- 📑 สร้าง Tabs & Sections (MacLib)
--- ==========================================
-local tabGroups = { Main = Window:TabGroup() }
-
-local tabs = {
-	Farm = tabGroups.Main:Tab({ Name = "Auto Farm", Image = "rbxassetid://6031092050" }),
-	Egg = tabGroups.Main:Tab({ Name = "Auto Egg", Image = "rbxassetid://6031075931" }),
-	Settings = tabGroups.Main:Tab({ Name = "Settings", Image = "rbxassetid://10709810948" }),
-}
-
--- ====== Settings Tab ======
-local PerfSec = tabs.Settings:Section({ Side = "Left" })
-PerfSec:Header({ Name = "Performance" })
-PerfSec:Toggle({
-	Name = "Enable FPS Boost (Smooth Plastic)",
-	Default = MoMoConfig.AutoFpsBoost,
-	Callback = function(val)
-		MoMoConfig.AutoFpsBoost = val
-		if val then
-			MoMoNotify({ Title = "FPS Boost", Desc = "🚀 FPS Boost Enabled!", Time = 3 })
-		else
-			MoMoNotify({ Title = "FPS Boost", Desc = "⚠️ Rejoin to restore graphics", Time = 4 })
-		end
-	end,
-}, "MoMo_FpsBoost")
-
-local PlSec = tabs.Settings:Section({ Side = "Right" })
-PlSec:Header({ Name = "Local Player" })
-PlSec:Slider({
-	Name = "WalkSpeed",
-	Default = MoMoConfig.WalkSpeed,
-	Minimum = 16,
-	Maximum = 250,
-	Precision = 1,
-	DisplayMethod = "Value",
-	Callback = function(val)
-		MoMoConfig.WalkSpeed = val
-		pcall(function()
-			local character = LP.Character
-			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-			if humanoid then
-				humanoid.WalkSpeed = val
-			end
-		end)
-	end,
-}, "MoMo_WalkSpd")
-PlSec:Slider({
-	Name = "JumpPower",
-	Default = MoMoConfig.JumpPower,
-	Minimum = 50,
-	Maximum = 300,
-	Precision = 1,
-	DisplayMethod = "Value",
-	Callback = function(val)
-		MoMoConfig.JumpPower = val
-		pcall(function()
-			local character = LP.Character
-			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-			if humanoid then
-				humanoid.JumpPower = val
-			end
-		end)
-	end,
-}, "MoMo_JumpPwr")
-PlSec:Toggle({ Name = "Anti-AFK", Default = MoMoConfig.AntiAFK, Callback = function(val) MoMoConfig.AntiAFK = val end }, "MoMo_AntiAFK")
-PlSec:Toggle({ Name = "Auto Rejoin", Default = MoMoConfig.AutoRejoin, Callback = function(val) MoMoConfig.AutoRejoin = val end }, "MoMo_AutoRejoin")
-
-local DisSec = tabs.Settings:Section({ Side = "Left" })
-DisSec:Header({ Name = "Discord" })
-DisSec:Button({
-	Name = "Join Discord",
-	Callback = function()
-		if setclipboard then
-			setclipboard("https://discord.gg/k2wdyy8QMN")
-			MoMoNotify({ Title = "MoMoHub", Desc = "Discord link copied!", Time = 3 })
-		end
-	end,
-})
-
--- ==========================================
--- 🛠️ Advanced Config Manager (Delete & Reset)
--- ==========================================
-local ConfigFolder = "MoMoHub_UI_Only"
-local selectedConfigToDelete = "None"
-local configDeleteDropdown
-
-local AdvConfigSec = tabs.Settings:Section({ Side = "Left" })
-AdvConfigSec:Header({ Name = "Advanced Config Utilities" })
-
-local function getConfigList()
-	local files = {}
-
-	if listfiles and isfolder and isfolder(ConfigFolder) then
-		pcall(function()
-			for _, file in ipairs(listfiles(ConfigFolder)) do
-				if type(file) == "string" and file:match("%.json$") then
-					local name = file:match("([^/\\]+)%.json$")
-					if name then
-						table.insert(files, name)
-					end
-				end
-			end
-		end)
-	end
-
-	table.sort(files, function(a, b)
-		return tostring(a):lower() < tostring(b):lower()
-	end)
-
-	if #files == 0 then
-		return { "None" }
-	end
-
-	return files
-end
-
-local function refreshConfigDeleteDropdown(forceSelection)
-	local currentList = getConfigList()
-
-	if forceSelection and forceSelection ~= "" then
-		local found = false
-		for _, v in ipairs(currentList) do
-			if v == forceSelection then
-				found = true
-				break
-			end
-		end
-		selectedConfigToDelete = found and forceSelection or "None"
-	else
-		local stillExists = false
-		for _, v in ipairs(currentList) do
-			if v == selectedConfigToDelete then
-				stillExists = true
-				break
-			end
-		end
-		if not stillExists then
-			selectedConfigToDelete = "None"
-		end
-	end
-
-	if configDeleteDropdown then
-		local refreshed = false
-
-		for funcName, func in pairs(configDeleteDropdown) do
-			if type(func) == "function" then
-				local lowerName = string.lower(funcName)
-				if lowerName:find("option") or lowerName:find("refresh") or lowerName:find("updatelist") or lowerName:find("setlist") or lowerName:find("reload") then
-					local ok = pcall(function()
-						func(configDeleteDropdown, currentList)
-					end)
-					if ok then
-						refreshed = true
-					end
-				end
-			end
-		end
-
-		if selectedConfigToDelete and selectedConfigToDelete ~= "None" then
-			pcall(function()
-				if configDeleteDropdown.UpdateSelection then
-					configDeleteDropdown:UpdateSelection(selectedConfigToDelete)
-				end
-			end)
-		end
-
-		if not refreshed then
-			warn("[ConfigManager] Could not auto-refresh config dropdown methods.")
-		end
-	end
-end
-
-configDeleteDropdown = AdvConfigSec:Dropdown({
-	Name = "Select Config to Delete",
-	Options = getConfigList(),
-	Default = "None",
-	Callback = function(val)
-		selectedConfigToDelete = val
-	end,
-}, "MoMoConfigDeleteDropdown")
-
-AdvConfigSec:Button({
-	Name = "Delete Selected Config",
-	Callback = function()
-		if not selectedConfigToDelete or selectedConfigToDelete == "None" then
-			MoMoNotify({ Title = "Error", Desc = "กรุณาเลือกไฟล์ Config ก่อนกดลบ!", Time = 3 })
-			return
-		end
-
-		local filepath = ConfigFolder .. "/" .. selectedConfigToDelete .. ".json"
-		if isfile and delfile and isfile(filepath) then
-			local ok = pcall(function()
-				delfile(filepath)
-			end)
-
-			if ok then
-				MoMoNotify({ Title = "Config Deleted", Desc = "ลบไฟล์ " .. selectedConfigToDelete .. " เรียบร้อย!", Time = 3 })
-				selectedConfigToDelete = "None"
-				refreshConfigDeleteDropdown("None")
-			else
-				MoMoNotify({ Title = "Error", Desc = "ลบไฟล์ Config ไม่สำเร็จ!", Time = 3 })
-			end
-		else
-			MoMoNotify({ Title = "Notice", Desc = "ไม่พบไฟล์ Config ที่เลือก", Time = 3 })
-			selectedConfigToDelete = "None"
-			refreshConfigDeleteDropdown("None")
-		end
-	end,
-})
-
-AdvConfigSec:Button({
-	Name = "Reset Auto Load Config",
-	Callback = function()
-		local autoloadPath = ConfigFolder .. "/autoload.txt"
-		if isfile and delfile and isfile(autoloadPath) then
-			local ok = pcall(function()
-				delfile(autoloadPath)
-			end)
-			if ok then
-				MoMoNotify({ Title = "Auto Load Cleared", Desc = "ล้างค่า Auto Load แล้ว! รันรอบหน้าจะไม่มีการโหลดออโต้", Time = 4 })
-			else
-				MoMoNotify({ Title = "Error", Desc = "ล้าง Auto Load ไม่สำเร็จ!", Time = 3 })
-			end
-		else
-			MoMoNotify({ Title = "Notice", Desc = "ไม่มีไฟล์ Auto Load ให้ล้าง (ปกติ)", Time = 3 })
-		end
-	end,
-})
-
-AdvConfigSec:Button({
-	Name = "Refresh Config List",
-	Callback = function()
-		refreshConfigDeleteDropdown(selectedConfigToDelete)
-		MoMoNotify({ Title = "Refreshed", Desc = "อัปเดตรายชื่อ Config แล้ว!", Time = 2 })
-	end,
-})
-
--- ==========================================
--- 💾 Config System (MacLib Built-in)
--- ==========================================
-MacLib:SetFolder("MoMoHub_UI_Only")
-tabs.Settings:InsertConfigSection("Right")
-
-tabs.Farm:Select()
-
---==================================================
--- Combined Anime Leveling System
---==================================================
+-- Load WindUI
 do
-	local RunService = game:GetService("RunService")
-	local ReplicatedStorage = game:GetService("ReplicatedStorage")
-	local LocalPlayer = Players.LocalPlayer
-
-	local System = {}
-	local StateManager = {}
-	local ErrorHandler = {}
-	local PerformanceMonitor = {}
-	local RemoteService = {}
-	local CombatService = {}
-	local TeleportationService = {}
-	local MonsterTracker = {}
-	local UIModule = {}
-	local AutoEggModule = {}
-	local AutoFarmModule = {}
-	local RaidsModule = {}
-	local CoreSystemManager = {}
-
-	local Shared = {
-		Config = {
-			Debug = true,
-			MainLoopInterval = 0.2,
-			LowFPS = 20,
-			MinAcceptableFPS = 15,
-			LowFPSPauseSeconds = 1.5,
-			PlacementCooldownMs = 350,
-			TargetDeadTimeout = 180,
-			WaitDeadPollInterval = 0.25,
-			MonsterStateCacheLifetime = 0.25,
-			MonsterRefreshFarmInterval = 1.25,
-			MonsterRefreshRaidInterval = 1.0,
-			NearCacheLifetime = 0.4,
-			RaidOpenBackoff = { 0.5, 1, 2 },
-			GenericBackoff = { 0.25, 0.5, 1 },
-			RaidOpenMaxAttempts = 3,
-			TeleportMaxAttempts = 3,
-			ScanMaxAttempts = 2,
-			MaxErrorsBeforeSoftStop = 25,
-			ErrorWindowSeconds = 300,
-			FarmFightStateMaxAge = 30,
-			FarmReTeleportDistance = 15,
-			FarmLoopInterval = 0.15,
-			RaidLoopInterval = 0.2,
-			RaidRestartDelay = 0.75,
-			RaidMapWaitTimeout = 5,
-			RaidWaveWaitTimeout = 8,
-			EggLoopInterval = 0.05,
-			EggMinInterval = 0.05,
-			EggMaxInterval = 1.0,
-			EggDefaultInterval = 0.1,
-			TeleportOffsets = {
-				Vector3.new(0, 0, 3),
-				Vector3.new(0, 3, 5),
-				Vector3.new(0, 5, 8),
-			},
-		},
-
-		GlobalState = {
-			currentMode = "IDLE",
-			lastMode = "IDLE",
-			isPaused = false,
-			pauseUntil = 0,
-			eggRunning = false,
-			lastPlacementAt = 0,
-			initialized = false,
-			mainLoopRunning = false,
-		},
-
-		FarmState = {
-			isRunning = false,
-			fightState = "IDLE",
-			currentTarget = nil,
-			currentStatus = "Idle",
-			killedCount = 0,
-			totalTeleports = 0,
-			selectedMonsterNames = {},
-			farmMode = "SELECT",
-			currentSelectedIndex = 1,
-			lastMonsterRefresh = 0,
-			lastLoopAt = 0,
-			errors = 0,
-			loopToken = 0,
-		},
-
-		RaidsState = {
-			isRaiding = false,
-			raidOpened = false,
-			enemiesList = {},
-			currentTarget = nil,
-			killsThisRaid = 0,
-			raidsCompleted = 0,
-			autoRestart = true,
-			maxRaids = 0,
-			status = "Idle",
-			lastRefreshTime = 0,
-			lastTeleportTime = 0,
-			errorCount = 0,
-			retryAttempts = {},
-			loopToken = 0,
-			lastOpenAt = 0,
-			emptySince = 0,
-		},
-
-		EggState = {
-			isRunning = false,
-			selectedStar = "Star1",
-			eggsPerHatch = 1,
-			intervalSeconds = 0.1,
-			totalCalls = 0,
-			totalEggsOpened = 0,
-			currentStatus = "Stopped",
-			lastCallAt = 0,
-			loopToken = 0,
-		},
-
-		Performance = {
-			currentFPS = 60,
-			frameCounter = 0,
-			frameAccumulator = 0,
-			lastSampleAt = os.clock(),
-		},
-
-		Caches = {
-			monsterAlive = setmetatable({}, { __mode = "k" }),
-			mode = "FARM",
-			farm = {
-				all = {},
-				byName = {},
-				uniqueNames = {},
-				lastRefresh = 0,
-				nearestCache = nil,
-				lastNearAt = 0,
-			},
-			raid = {
-				all = {},
-				lastRefresh = 0,
-				nearestCache = nil,
-				lastNearAt = 0,
-			},
-			remotes = {},
-		},
-
-		Errors = {
-			timestamps = {},
-		},
-
-		UI = {
-			Components = {},
-			Tabs = {},
-		},
-	}
-
-	local STAR_OPTIONS = { "Star1", "Star2", "Star3", "Star4" }
-
-	local function log(level, message, ...)
-		if level == "DEBUG" and not Shared.Config.Debug then
-			return
-		end
-
-		local prefix = string.format("[AnimeLevelingSystem][%s] %s", tostring(level), tostring(message))
-		if select("#", ...) > 0 then
-			warn(prefix, ...)
-		else
-			warn(prefix)
-		end
-	end
-
-	local function now()
-		return os.clock()
-	end
-
-	local function nowMs()
-		return math.floor(os.clock() * 1000)
-	end
-
-	local function clearArray(arr)
-		if type(arr) == "table" then
-			table.clear(arr)
-		end
-	end
-
-	local function clamp(value, minValue, maxValue)
-		value = tonumber(value) or minValue
-		return math.min(math.max(value, minValue), maxValue)
-	end
-
-	local function safePCall(context, fn, ...)
-		local ok, a, b, c, d = pcall(fn, ...)
-		if not ok then
-			log("WARN", context .. " failed", a)
-			return false, a
-		end
-		return true, a, b, c, d
-	end
-
-	local function setComponentLabel(component, text)
-		if not component then
-			return false
-		end
-
-		local methods = { "SetName", "Update", "SetText", "SetTitle" }
-		for i = 1, #methods do
-			local method = component[methods[i]]
-			if type(method) == "function" then
-				local ok = pcall(function()
-					method(component, text)
-				end)
-				if ok then
-					return true
-				end
-				ok = pcall(function()
-					method(text)
-				end)
-				if ok then
-					return true
-				end
-			end
-		end
-
-		return pcall(function()
-			component.Name = text
-		end)
-	end
-
-	local function setToggleValue(toggle, value)
-		if not toggle then
-			return false
-		end
-
-		local methods = { "SetValue", "Update", "SetActive" }
-		for i = 1, #methods do
-			local method = toggle[methods[i]]
-			if type(method) == "function" then
-				local ok = pcall(function()
-					method(toggle, value)
-				end)
-				if ok then
-					return true
-				end
-				ok = pcall(function()
-					method(value)
-				end)
-				if ok then
-					return true
-				end
-			end
-		end
-
-		return false
-	end
-
-	local function getCharacter()
-		local character = LocalPlayer and LocalPlayer.Character
-		if character and character.Parent then
-			return character
-		end
-		return nil
-	end
-
-	local function getHumanoid(character)
-		if not character then
-			return nil
-		end
-		local humanoid = character:FindFirstChildOfClass("Humanoid")
-		if humanoid and humanoid.Parent then
-			return humanoid
-		end
-		return nil
-	end
-
-	local function getRootPart(character)
-		if not character then
-			return nil
-		end
-		local root = character:FindFirstChild("HumanoidRootPart")
-		if root and root:IsA("BasePart") then
-			return root
-		end
-		return nil
-	end
-
-	local function getMonsterRoot(monster)
-		if not (monster and monster.Parent) then
-			return nil
-		end
-		local root = monster:FindFirstChild("HumanoidRootPart") or monster.PrimaryPart or monster:FindFirstChildWhichIsA("BasePart")
-		if root and root:IsA("BasePart") then
-			return root
-		end
-		return nil
-	end
-
-	local function getDistanceSquared(a, b)
-		local delta = a - b
-		return delta.X * delta.X + delta.Y * delta.Y + delta.Z * delta.Z
-	end
-
-	local function notify(title, desc, timeValue)
-		pcall(function()
-			if type(MoMoNotify) == "function" then
-				MoMoNotify({
-					Title = title or "Anime Leveling",
-					Desc = desc or "",
-					Time = timeValue or 3,
-				})
-			end
-		end)
-	end
-
-	--==================================================
-	-- StateManager
-	--==================================================
-	function StateManager.GetGlobalState()
-		return Shared.GlobalState
-	end
-
-	function StateManager.GetFarmState()
-		return Shared.FarmState
-	end
-
-	function StateManager.GetRaidsState()
-		return Shared.RaidsState
-	end
-
-	function StateManager.GetEggState()
-		return Shared.EggState
-	end
-
-	function StateManager.SetMode(mode)
-		if Shared.GlobalState.currentMode ~= mode then
-			Shared.GlobalState.lastMode = Shared.GlobalState.currentMode
-			Shared.GlobalState.currentMode = mode
-			log("DEBUG", "Mode changed -> " .. tostring(mode))
-		end
-	end
-
-	function StateManager.SetPaused(paused, duration)
-		Shared.GlobalState.isPaused = paused == true
-		if paused and duration and duration > 0 then
-			Shared.GlobalState.pauseUntil = now() + duration
-		else
-			Shared.GlobalState.pauseUntil = 0
-		end
-	end
-
-	function StateManager.IsPaused()
-		if not Shared.GlobalState.isPaused then
-			return false
-		end
-
-		if Shared.GlobalState.pauseUntil > 0 and now() >= Shared.GlobalState.pauseUntil then
-			Shared.GlobalState.isPaused = false
-			Shared.GlobalState.pauseUntil = 0
-			return false
-		end
-
-		return Shared.GlobalState.isPaused
-	end
-
-	--==================================================
-	-- ErrorHandler
-	--==================================================
-	local function trimErrorWindow()
-		local timestamps = Shared.Errors.timestamps
-		local current = now()
-
-		while #timestamps > 0 and (current - timestamps[1]) > Shared.Config.ErrorWindowSeconds do
-			table.remove(timestamps, 1)
-		end
-	end
-
-	function ErrorHandler.Record(operation, err)
-		Shared.Errors.timestamps[#Shared.Errors.timestamps + 1] = now()
-		trimErrorWindow()
-		log("WARN", string.format("%s error", tostring(operation)), err)
-	end
-
-	function ErrorHandler.GetRetryDelay(attempt)
-		local backoff = Shared.Config.GenericBackoff
-		return backoff[math.min(attempt, #backoff)] or 1
-	end
-
-	function ErrorHandler.ShouldSoftStop()
-		trimErrorWindow()
-		return #Shared.Errors.timestamps >= Shared.Config.MaxErrorsBeforeSoftStop
-	end
-
-	function ErrorHandler.Handle(operation, err, attempt, maxAttempts)
-		ErrorHandler.Record(operation, err)
-
-		if ErrorHandler.ShouldSoftStop() then
-			return "STOP"
-		end
-
-		if (attempt or 1) < (maxAttempts or 1) then
-			return "RETRY"
-		end
-
-		return "SKIP"
-	end
-
-	--==================================================
-	-- PerformanceMonitor
-	--==================================================
-	function PerformanceMonitor.Init()
-		if Shared.Performance._connection then
-			return
-		end
-
-		Shared.Performance._connection = RunService.Heartbeat:Connect(function(dt)
-			local perf = Shared.Performance
-			perf.frameCounter += 1
-			perf.frameAccumulator += dt
-
-			if perf.frameAccumulator >= 1 then
-				perf.currentFPS = perf.frameCounter / perf.frameAccumulator
-				perf.frameCounter = 0
-				perf.frameAccumulator = 0
-				perf.lastSampleAt = now()
-			end
-		end)
-	end
-
-	function PerformanceMonitor.GetCurrentFPS()
-		return Shared.Performance.currentFPS
-	end
-
-	--==================================================
-	-- RemoteService
-	--==================================================
-	local function findRemoteByName(remoteName)
-		local cached = Shared.Caches.remotes[remoteName]
-		if cached and cached.Parent then
-			return cached
-		end
-
-		local remote = nil
-		pcall(function()
-			for _, desc in ipairs(ReplicatedStorage:GetDescendants()) do
-				if (desc:IsA("RemoteEvent") or desc:IsA("RemoteFunction")) and desc.Name == remoteName then
-					remote = desc
-					break
-				end
-			end
-		end)
-
-		if remote then
-			Shared.Caches.remotes[remoteName] = remote
-		end
-		return remote
-	end
-
-	local function invokeRemote(remote, ...)
-		if not remote then
-			return false, "REMOTE_NIL"
-		end
-
-		if remote:IsA("RemoteFunction") then
-			local ok, result = pcall(function(...)
-				return remote:InvokeServer(...)
-			end, ...)
-			if ok then
-				return true, result
-			end
-			return false, result
-		end
-
-		if remote:IsA("RemoteEvent") then
-			local ok, err = pcall(function(...)
-				remote:FireServer(...)
-			end, ...)
-			if ok then
-				return true, true
-			end
-			return false, err
-		end
-
-		return false, "UNSUPPORTED_REMOTE_TYPE"
-	end
-
-	function RemoteService.CallWithRetry(remoteName, ...)
-		local args = table.pack(...)
-		local maxAttempts = 3
-
-		for attempt = 1, maxAttempts do
-			local remote = findRemoteByName(remoteName)
-			if not remote then
-				local action = ErrorHandler.Handle("REMOTE_FIND_" .. remoteName, "Remote not found", attempt, maxAttempts)
-				if action == "STOP" then
-					return false, "SOFT_STOP"
-				end
-				task.wait(ErrorHandler.GetRetryDelay(attempt))
-			else
-				local ok, result = invokeRemote(remote, table.unpack(args, 1, args.n))
-				if ok then
-					return true, result
-				end
-
-				local action = ErrorHandler.Handle("REMOTE_CALL_" .. remoteName, result, attempt, maxAttempts)
-				if action == "STOP" then
-					return false, result
-				end
-				task.wait(ErrorHandler.GetRetryDelay(attempt))
-			end
-		end
-
-		return false, "RETRY_EXHAUSTED_" .. tostring(remoteName)
-	end
-
-	function RemoteService.OpenWisteriaRaid()
-		local remotes = ReplicatedStorage:WaitForChild("Remotes")
-		local remote = remotes:WaitForChild("OpenWisteriaRaid")
-
-		local ok, err = pcall(function()
-			remote:FireServer()
-		end)
-
-		if ok then
-			return true, true
-		end
-
-		return false, err
-	end
-
-	function RemoteService.LeaveRaid()
-		local remotes = ReplicatedStorage:WaitForChild("Remotes")
-		local remote = remotes:WaitForChild("LeaveRaid")
-
-		local ok, err = pcall(function()
-			remote:FireServer()
-		end)
-
-		if ok then
-			return true, true
-		end
-
-		return false, err
-	end
-
-	function RemoteService.Hatch(star, quantity)
-		return RemoteService.CallWithRetry("Hatch", star, quantity)
-	end
-
-	--==================================================
-	-- CombatService
-	--==================================================
-	function CombatService.IsAlive(monster)
-		if not (monster and monster.Parent) then
-			return false
-		end
-
-		local cached = Shared.Caches.monsterAlive[monster]
-		if cached and (now() - cached.timestamp) <= Shared.Config.MonsterStateCacheLifetime then
-			return cached.alive
-		end
-
-		local attackable = monster:GetAttribute("Attackable")
-		local turnable = monster:GetAttribute("Turnable")
-		local alive = attackable == true and turnable == true
-
-		Shared.Caches.monsterAlive[monster] = {
-			alive = alive,
-			timestamp = now(),
-		}
-
-		return alive
-	end
-
-	function CombatService.WaitUntilDead(monster, timeout)
-		local deadline = now() + (timeout or Shared.Config.TargetDeadTimeout)
-		while now() < deadline do
-			if not CombatService.IsAlive(monster) then
-				return true
-			end
-			task.wait(Shared.Config.WaitDeadPollInterval)
-		end
-		return not CombatService.IsAlive(monster)
-	end
-
-	function CombatService.GetDistanceToTarget(player, monster)
-		local character = player and player.Character or getCharacter()
-		local root = getRootPart(character)
-		local monsterRoot = getMonsterRoot(monster)
-		if not root or not monsterRoot then
-			return math.huge
-		end
-		return (root.Position - monsterRoot.Position).Magnitude
-	end
-
-	--==================================================
-	-- TeleportationService
-	--==================================================
-	function TeleportationService.CanTeleport()
-		return (nowMs() - Shared.GlobalState.lastPlacementAt) >= Shared.Config.PlacementCooldownMs
-	end
-
-	function TeleportationService.TeleportToMonster(monster, offsets)
-		if not monster or not monster.Parent then
-			return false, "INVALID_MONSTER"
-		end
-
-		local character = getCharacter()
-		local root = getRootPart(character)
-		local monsterRoot = getMonsterRoot(monster)
-		if not root then
-			return false, "PLAYER_ROOT_MISSING"
-		end
-		if not monsterRoot then
-			return false, "MONSTER_ROOT_MISSING"
-		end
-		if not TeleportationService.CanTeleport() then
-			return false, "TELEPORT_COOLDOWN"
-		end
-
-		offsets = type(offsets) == "table" and offsets or Shared.Config.TeleportOffsets
-		for i = 1, #offsets do
-			local ok = pcall(function()
-				root.CFrame = monsterRoot.CFrame * CFrame.new(offsets[i])
-			end)
-			if ok then
-				Shared.GlobalState.lastPlacementAt = nowMs()
-				return true
-			end
-		end
-
-		return false, "TELEPORT_FAILED"
-	end
-
-	function TeleportationService.IsInRaidMap()
-		local character = getCharacter()
-		local root = getRootPart(character)
-		if not root then
-			return false
-		end
-
-		local raid = workspace:FindFirstChild("WisteriaRaid")
-		local raid1 = raid and raid:FindFirstChild("Raid1")
-		local raidPart = raid1 and raid1:FindFirstChild("Part")
-
-		if not raidPart or not raidPart:IsA("BasePart") then
-			return false
-		end
-
-		local distance = (root.Position - raidPart.Position).Magnitude
-		return distance <= 150
-	end
-
-	local function waitForRaidMap(timeoutSeconds)
-		local deadline = now() + (timeoutSeconds or Shared.Config.RaidMapWaitTimeout)
-		while now() < deadline do
-			if TeleportationService.IsInRaidMap() then
-				return true
-			end
-			task.wait(0.25)
-		end
-		return false
-	end
-
-	function TeleportationService.TeleportToRaid()
-		if TeleportationService.IsInRaidMap() then
-			return true
-		end
-
-		local lastError = "RAID_OPEN_FAILED"
-
-		for attempt = 1, Shared.Config.RaidOpenMaxAttempts do
-			local ok, result = RemoteService.OpenWisteriaRaid()
-			if ok then
-				if waitForRaidMap(Shared.Config.RaidMapWaitTimeout) then
-					task.wait(0.5)
-					return true
-				end
-				lastError = "RAID_MAP_TIMEOUT"
-			else
-				lastError = result
-			end
-
-			task.wait(Shared.Config.RaidOpenBackoff[math.min(attempt, #Shared.Config.RaidOpenBackoff)] or 1)
-		end
-
-		return false, lastError
-	end
-
-	--==================================================
-	-- MonsterTracker
-	--==================================================
-	local function scanFarmMonsters()
-		local all = {}
-		local byName = {}
-		local uniqueNames = {}
-		local seenNames = {}
-
-		for _, child in ipairs(workspace:GetChildren()) do
-			if string.match(child.Name, "^World%d+$") then
-				local enemyFolder = child:FindFirstChild("Enemy")
-				if enemyFolder then
-					for _, monster in ipairs(enemyFolder:GetChildren()) do
-						if monster:IsA("Model") then
-							all[#all + 1] = monster
-							byName[monster.Name] = byName[monster.Name] or {}
-							table.insert(byName[monster.Name], monster)
-							if not seenNames[monster.Name] then
-								seenNames[monster.Name] = true
-								uniqueNames[#uniqueNames + 1] = monster.Name
-							end
-						end
-					end
-				end
-			end
-		end
-
-		table.sort(uniqueNames)
-		Shared.Caches.farm.all = all
-		Shared.Caches.farm.byName = byName
-		Shared.Caches.farm.uniqueNames = uniqueNames
-		Shared.Caches.farm.lastRefresh = now()
-	end
-
-	local function scanRaidMonsters()
-		local all = {}
-		local raid = workspace:FindFirstChild("WisteriaRaid")
-		local raid1 = raid and raid:FindFirstChild("Raid1")
-		local enemyFolder = raid1 and raid1:FindFirstChild("Enemy")
-
-		if enemyFolder then
-			for _, monster in ipairs(enemyFolder:GetChildren()) do
-				if monster:IsA("Model") and CombatService.IsAlive(monster) then
-					all[#all + 1] = monster
-				end
-			end
-		end
-
-		Shared.Caches.raid.all = all
-		Shared.Caches.raid.lastRefresh = now()
-	end
-
-	function MonsterTracker.SetMode(mode)
-		Shared.Caches.mode = mode == "RAID" and "RAID" or "FARM"
-	end
-
-	function MonsterTracker.RefreshFarmMonsters()
-		local ok, err = safePCall("RefreshFarmMonsters", scanFarmMonsters)
-		if not ok then
-			ErrorHandler.Record("FARM_SCAN", err)
-		end
-		return Shared.Caches.farm.all
-	end
-
-	function MonsterTracker.RefreshRaidEnemies()
-		local ok, err = safePCall("RefreshRaidEnemies", scanRaidMonsters)
-		if not ok then
-			ErrorHandler.Record("RAID_SCAN", err)
-		end
-		return Shared.Caches.raid.all
-	end
-
-	function MonsterTracker.RefreshMonsters(mode)
-		mode = mode == "RAID" and "RAID" or "FARM"
-		if mode == "RAID" then
-			return MonsterTracker.RefreshRaidEnemies()
-		end
-		return MonsterTracker.RefreshFarmMonsters()
-	end
-
-	function MonsterTracker.GetAllMonsters(mode)
-		mode = mode == "RAID" and "RAID" or "FARM"
-		local source = mode == "RAID" and Shared.Caches.raid.all or Shared.Caches.farm.all
-		local result = {}
-		local idx = 0
-
-		for i = 1, #source do
-			local monster = source[i]
-			if monster and monster.Parent and CombatService.IsAlive(monster) then
-				idx += 1
-				result[idx] = monster
-			end
-		end
-
-		return result
-	end
-
-	function MonsterTracker.GetNearestMonster(mode)
-		mode = mode == "RAID" and "RAID" or "FARM"
-		local cache = mode == "RAID" and Shared.Caches.raid or Shared.Caches.farm
-		local current = now()
-
-		if cache.nearestCache and cache.nearestCache.Parent and (current - cache.lastNearAt) <= Shared.Config.NearCacheLifetime then
-			if CombatService.IsAlive(cache.nearestCache) then
-				return cache.nearestCache
-			end
-		end
-
-		local root = getRootPart(getCharacter())
-		if not root then
-			return nil
-		end
-
-		local myPos = root.Position
-		local source = mode == "RAID" and Shared.Caches.raid.all or Shared.Caches.farm.all
-		local nearest = nil
-		local bestDist = math.huge
-
-		for i = 1, #source do
-			local monster = source[i]
-			if monster and monster.Parent and CombatService.IsAlive(monster) then
-				local monsterRoot = getMonsterRoot(monster)
-				if monsterRoot then
-					local d2 = getDistanceSquared(myPos, monsterRoot.Position)
-					if d2 < bestDist then
-						bestDist = d2
-						nearest = monster
-					end
-				end
-			end
-		end
-
-		cache.nearestCache = nearest
-		cache.lastNearAt = current
-		return nearest
-	end
-
-	--==================================================
-	-- UI Module
-	--==================================================
-	local function updateFarmStatusText(text)
-		Shared.FarmState.currentStatus = tostring(text or "Idle")
-		setComponentLabel(Shared.UI.Components.FarmStatusButton, "Status: " .. Shared.FarmState.currentStatus)
-	end
-
-	local function updateRaidStatusText(text)
-		Shared.RaidsState.status = tostring(text or "Idle")
-		setComponentLabel(
-			Shared.UI.Components.RaidsStatusButton,
-			string.format("Status: %s | Kills: %d | Raids: %d", Shared.RaidsState.status, Shared.RaidsState.killsThisRaid, Shared.RaidsState.raidsCompleted)
-		)
-	end
-
-	local function updateEggStatusText(text)
-		Shared.EggState.currentStatus = tostring(text or "Stopped")
-		setComponentLabel(
-			Shared.UI.Components.EggStatusButton,
-			string.format("Status: %s | Eggs: %d", Shared.EggState.currentStatus, Shared.EggState.totalEggsOpened)
-		)
-	end
-
-	function UIModule.UpdateFarmStatus(text)
-		updateFarmStatusText(text)
-	end
-
-	function UIModule.UpdateRaidsStatus(text, kills, raidsDone)
-		if kills ~= nil then
-			Shared.RaidsState.killsThisRaid = tonumber(kills) or Shared.RaidsState.killsThisRaid
-		end
-		if raidsDone ~= nil then
-			Shared.RaidsState.raidsCompleted = tonumber(raidsDone) or Shared.RaidsState.raidsCompleted
-		end
-		updateRaidStatusText(text)
-	end
-
-	function UIModule.UpdateEggStatus(text)
-		updateEggStatusText(text)
-	end
-
-	function UIModule.RefreshFarmMonsterDropdown()
-		local dropdown = Shared.UI.Components.FarmMonsterDropdown
-		if not dropdown then
-			return
-		end
-
-		local options = Shared.Caches.farm.uniqueNames
-		if #options == 0 then
-			options = { "None" }
-		end
-
-		pcall(function()
-			if dropdown.ClearOptions then
-				dropdown:ClearOptions()
-			end
-			if dropdown.InsertOptions then
-				dropdown:InsertOptions(options)
-			end
-		end)
-	end
-
-	function UIModule.CreateFarmTab()
-		local farmTab = tabs.Farm
-		local section = farmTab:Section({ Side = "Left" })
-
-		section:Header({ Name = "Monster Selection" })
-		Shared.UI.Components.FarmMonsterDropdown = section:Dropdown({
-			Name = "Select Monster",
-			Options = Shared.Caches.farm.uniqueNames,
-			Default = {},
-			Search = true,
-			Callback = function(val)
-				local selected = {}
-				local options = Shared.Caches.farm.uniqueNames
-
-				if type(val) == "table" then
-					for _, entry in ipairs(val) do
-						local name = type(entry) == "number" and options[entry] or entry
-						if name and name ~= "None" then
-							selected[#selected + 1] = name
-						end
-					end
-				elseif type(val) == "string" and val ~= "None" then
-					selected[1] = val
-				end
-
-				Shared.FarmState.selectedMonsterNames = selected
-				notify("Auto Farm", #selected > 0 and table.concat(selected, ", ") or "None", 2)
-			end,
-		})
-
-		section:Dropdown({
-			Name = "Farm Mode",
-			Options = { "SELECT", "NEAR" },
-			Default = Shared.FarmState.farmMode,
-			Callback = function(v)
-				Shared.FarmState.farmMode = tostring(v or "SELECT")
-				updateFarmStatusText("Mode: " .. Shared.FarmState.farmMode)
-			end,
-		})
-
-		section:Button({
-			Name = "Refresh List",
-			Callback = function()
-				MonsterTracker.RefreshFarmMonsters()
-				UIModule.RefreshFarmMonsterDropdown()
-			end,
-		})
-
-		section:Header({ Name = "Farm Control" })
-		Shared.UI.Components.FarmToggle = section:Toggle({
-			Name = "Auto Farm",
-			Default = false,
-			Callback = function(enabled)
-				CoreSystemManager.SetMode(enabled and "FARM" or "IDLE", { source = "FarmToggle" })
-			end,
-		})
-
-		section:Button({
-			Name = "Stop Farm",
-			Callback = function()
-				CoreSystemManager.SetMode("IDLE", { source = "StopFarmButton" })
-				setToggleValue(Shared.UI.Components.FarmToggle, false)
-			end,
-		})
-
-		section:Button({
-			Name = "Show Stats",
-			Callback = function()
-				notify("Farm Stats", string.format("Kills: %d | Teleports: %d", Shared.FarmState.killedCount, Shared.FarmState.totalTeleports), 4)
-			end,
-		})
-
-		Shared.UI.Components.FarmStatusButton = section:Button({
-			Name = "Status: Idle",
-			Callback = function()
-				notify("Auto Farm", Shared.FarmState.currentStatus, 2)
-			end,
-		})
-	end
-
-	function UIModule.CreateRaidsTab()
-		tabs.Raids = tabs.Raids or tabGroups.Main:Tab({
-			Name = "Raids",
-			Image = "rbxassetid://6031071053",
-		})
-
-		local raidsTab = tabs.Raids
-		local section = raidsTab:Section({ Side = "Left" })
-
-		section:Header({ Name = "Wisteria Raid" })
-		Shared.UI.Components.RaidsToggle = section:Toggle({
-			Name = "Enable Raids",
-			Default = false,
-			Callback = function(enabled)
-				CoreSystemManager.OnRaidsToggled(enabled)
-			end,
-		})
-
-		Shared.UI.Components.RaidAutoRestartToggle = section:Toggle({
-			Name = "Auto Restart",
-			Default = true,
-			Callback = function(v)
-				Shared.RaidsState.autoRestart = v == true
-			end,
-		})
-
-		Shared.UI.Components.RaidMaxSlider = section:Slider({
-			Name = "Max Raids (0 = Infinite)",
-			Default = 0,
-			Minimum = 0,
-			Maximum = 100,
-			Precision = 0,
-			DisplayMethod = "Value",
-			Callback = function(v)
-				Shared.RaidsState.maxRaids = math.max(0, math.floor(tonumber(v) or 0))
-			end,
-		})
-
-		Shared.UI.Components.RaidsStatusButton = section:Button({
-			Name = "Status: Idle | Kills: 0 | Raids: 0",
-			Callback = function()
-				notify("Raids", string.format("%s | Kills: %d | Completed: %d", Shared.RaidsState.status, Shared.RaidsState.killsThisRaid, Shared.RaidsState.raidsCompleted), 3)
-			end,
-		})
-
-		section:Button({
-			Name = "Stop Raids",
-			Callback = function()
-				CoreSystemManager.OnRaidsToggled(false)
-				setToggleValue(Shared.UI.Components.RaidsToggle, false)
-			end,
-		})
-	end
-
-	function UIModule.CreateEggTab()
-		local eggTab = tabs.Egg
-		local left = eggTab:Section({ Side = "Left" })
-		local right = eggTab:Section({ Side = "Right" })
-
-		left:Header({ Name = "Auto Egg" })
-		left:Dropdown({
-			Name = "Select Star",
-			Options = STAR_OPTIONS,
-			Default = Shared.EggState.selectedStar,
-			Callback = function(v)
-				if type(v) == "table" then
-					Shared.EggState.selectedStar = tostring(v[1] or "Star1")
-				else
-					Shared.EggState.selectedStar = tostring(v or "Star1")
-				end
-			end,
-		})
-
-		left:Slider({
-			Name = "Eggs Per Hatch",
-			Default = Shared.EggState.eggsPerHatch,
-			Minimum = 1,
-			Maximum = 10,
-			Precision = 0,
-			DisplayMethod = "Value",
-			Callback = function(v)
-				Shared.EggState.eggsPerHatch = math.max(1, math.floor(tonumber(v) or 1))
-			end,
-		})
-
-		left:Slider({
-			Name = "Interval",
-			Default = Shared.EggState.intervalSeconds,
-			Minimum = Shared.Config.EggMinInterval,
-			Maximum = Shared.Config.EggMaxInterval,
-			Precision = 2,
-			DisplayMethod = "Value",
-			Callback = function(v)
-				Shared.EggState.intervalSeconds = clamp(v, Shared.Config.EggMinInterval, Shared.Config.EggMaxInterval)
-			end,
-		})
-
-		Shared.UI.Components.EggToggle = left:Toggle({
-			Name = "Auto Open Egg",
-			Default = false,
-			Callback = function(v)
-				if v then
-					AutoEggModule.Start()
-				else
-					AutoEggModule.Stop()
-				end
-			end,
-		})
-
-		Shared.UI.Components.EggStatusButton = right:Button({
-			Name = "Status: Stopped | Eggs: 0",
-			Callback = function()
-				notify("Auto Egg", Shared.EggState.currentStatus, 2)
-			end,
-		})
-	end
-
-	function UIModule.Init()
-		UIModule.CreateFarmTab()
-		UIModule.CreateRaidsTab()
-		UIModule.CreateEggTab()
-		updateFarmStatusText("Idle")
-		updateRaidStatusText("Idle")
-		updateEggStatusText("Stopped")
-	end
-
-	--==================================================
-	-- AutoEggModule
-	--==================================================
-	function AutoEggModule.Start()
-		if Shared.EggState.isRunning then
-			return
-		end
-		Shared.EggState.isRunning = true
-		Shared.GlobalState.eggRunning = true
-		updateEggStatusText("Running")
-	end
-
-	function AutoEggModule.Stop()
-		Shared.EggState.isRunning = false
-		Shared.GlobalState.eggRunning = false
-		updateEggStatusText("Stopped")
-	end
-
-	function AutoEggModule.Tick()
-		if not Shared.EggState.isRunning then
-			return
-		end
-
-		local current = now()
-		if (current - Shared.EggState.lastCallAt) < Shared.EggState.intervalSeconds then
-			return
-		end
-
-		local ok, result = RemoteService.Hatch(Shared.EggState.selectedStar, Shared.EggState.eggsPerHatch)
-		if ok then
-			Shared.EggState.lastCallAt = current
-			Shared.EggState.totalCalls += 1
-			Shared.EggState.totalEggsOpened += Shared.EggState.eggsPerHatch
-			updateEggStatusText("Running")
-		else
-			ErrorHandler.Record("EGG_HATCH", result)
-			updateEggStatusText("Retrying")
-		end
-	end
-
-	function AutoEggModule.Loop()
-		local token = Shared.EggState.loopToken + 1
-		Shared.EggState.loopToken = token
-
-		task.spawn(function()
-			log("DEBUG", "AutoEgg loop started")
-			while Shared.GlobalState.initialized and Shared.EggState.loopToken == token do
-				local ok, err = pcall(AutoEggModule.Tick)
-				if not ok then
-					ErrorHandler.Record("EGG_LOOP", err)
-				end
-				task.wait(Shared.Config.EggLoopInterval)
-			end
-			log("DEBUG", "AutoEgg loop ended")
-		end)
-	end
-
-	--==================================================
-	-- AutoFarmModule
-	--==================================================
-	local function farmSetStatus(text, notifyUser)
-		updateFarmStatusText(text)
-		if notifyUser then
-			notify("Auto Farm", text, 2)
-		end
-	end
-
-	local function farmResolveTarget()
-		if Shared.FarmState.farmMode == "NEAR" then
-			return MonsterTracker.GetNearestMonster("FARM")
-		end
-
-		local selected = Shared.FarmState.selectedMonsterNames
-		local count = #selected
-		if count == 0 then
-			return nil
-		end
-
-		for _ = 1, count do
-			if Shared.FarmState.currentSelectedIndex > count then
-				Shared.FarmState.currentSelectedIndex = 1
-			end
-
-			local name = selected[Shared.FarmState.currentSelectedIndex]
-			local list = Shared.Caches.farm.byName[name] or {}
-			for i = 1, #list do
-				local monster = list[i]
-				if monster and monster.Parent and CombatService.IsAlive(monster) then
-					return monster
-				end
-			end
-
-			Shared.FarmState.currentSelectedIndex = (Shared.FarmState.currentSelectedIndex % count) + 1
-		end
-
-		return nil
-	end
-
-	local function farmAdvanceIndex()
-		local count = #Shared.FarmState.selectedMonsterNames
-		if count > 0 then
-			Shared.FarmState.currentSelectedIndex = (Shared.FarmState.currentSelectedIndex % count) + 1
-		end
-	end
-
-	function AutoFarmModule.StartFarming()
-		if Shared.FarmState.isRunning then
-			return true
-		end
-
-		if Shared.FarmState.farmMode == "SELECT" and #Shared.FarmState.selectedMonsterNames == 0 then
-			notify("Auto Farm", "Please select monsters first", 3)
-			farmSetStatus("No monsters selected", true)
-			return false
-		end
-
-		Shared.FarmState.isRunning = true
-		Shared.FarmState.fightState = "IDLE"
-		Shared.FarmState.currentTarget = nil
-		Shared.FarmState.currentSelectedIndex = 1
-		Shared.FarmState.loopToken += 1
-		StateManager.SetMode("FARM")
-		farmSetStatus("Running", true)
-
-		local myToken = Shared.FarmState.loopToken
-		task.spawn(function()
-			log("DEBUG", "AutoFarm loop started")
-			while Shared.GlobalState.initialized and Shared.FarmState.isRunning and Shared.FarmState.loopToken == myToken do
-				local ok, err = pcall(AutoFarmModule._Tick)
-				if not ok then
-					Shared.FarmState.errors += 1
-					ErrorHandler.Record("FARM_TICK", err)
-				end
-				task.wait(Shared.Config.FarmLoopInterval)
-			end
-			log("DEBUG", "AutoFarm loop ended")
-		end)
-
-		return true
-	end
-
-	function AutoFarmModule.StopFarming()
-		Shared.FarmState.isRunning = false
-		Shared.FarmState.currentTarget = nil
-		Shared.FarmState.fightState = "IDLE"
-		Shared.FarmState.loopToken += 1
-		farmSetStatus("Stopped", true)
-	end
-
-	function AutoFarmModule._Tick()
-		if not Shared.FarmState.isRunning then
-			return
-		end
-		if Shared.GlobalState.currentMode ~= "FARM" then
-			return
-		end
-		if StateManager.IsPaused() then
-			return
-		end
-
-		local fps = PerformanceMonitor.GetCurrentFPS()
-		if fps > 0 and fps < Shared.Config.MinAcceptableFPS then
-			StateManager.SetPaused(true, Shared.Config.LowFPSPauseSeconds)
-			farmSetStatus("Paused: low FPS")
-			return
-		end
-
-		local current = now()
-		if (current - Shared.FarmState.lastMonsterRefresh) >= Shared.Config.MonsterRefreshFarmInterval then
-			MonsterTracker.RefreshFarmMonsters()
-			UIModule.RefreshFarmMonsterDropdown()
-			Shared.FarmState.lastMonsterRefresh = current
-		end
-
-		local state = Shared.FarmState.fightState
-
-		if state == "IDLE" then
-			local target = farmResolveTarget()
-			if not target then
-				farmSetStatus("Waiting for target")
-				return
-			end
-
-			Shared.FarmState.currentTarget = target
-			Shared.FarmState.fightState = "MOVING"
-			Shared.FarmState.lastLoopAt = current
-			return
-		end
-
-		if state == "MOVING" then
-			local target = Shared.FarmState.currentTarget
-			if not target or not target.Parent or not CombatService.IsAlive(target) then
-				Shared.FarmState.currentTarget = nil
-				Shared.FarmState.fightState = "IDLE"
-				return
-			end
-
-			local teleportOk, teleportErr = TeleportationService.TeleportToMonster(target, Shared.Config.TeleportOffsets)
-			if teleportOk then
-				Shared.FarmState.totalTeleports += 1
-				Shared.FarmState.fightState = "FIGHTING"
-				Shared.FarmState.lastLoopAt = current
-				farmSetStatus("Fighting " .. target.Name)
-			else
-				if teleportErr ~= "TELEPORT_COOLDOWN" then
-					Shared.FarmState.errors += 1
-					ErrorHandler.Record("FARM_TELEPORT", teleportErr)
-				end
-			end
-			return
-		end
-
-		if state == "FIGHTING" then
-			local target = Shared.FarmState.currentTarget
-			if not target or not target.Parent then
-				Shared.FarmState.killedCount += 1
-				Shared.FarmState.currentTarget = nil
-				Shared.FarmState.fightState = "IDLE"
-				farmAdvanceIndex()
-				farmSetStatus("Killed! Total: " .. Shared.FarmState.killedCount)
-				return
-			end
-
-			if not CombatService.IsAlive(target) then
-				Shared.FarmState.killedCount += 1
-				Shared.FarmState.currentTarget = nil
-				Shared.FarmState.fightState = "IDLE"
-				farmAdvanceIndex()
-				farmSetStatus("Killed " .. target.Name .. "! Total: " .. Shared.FarmState.killedCount)
-				return
-			end
-
-			local distance = CombatService.GetDistanceToTarget(LocalPlayer, target)
-			if distance > Shared.Config.FarmReTeleportDistance then
-				Shared.FarmState.fightState = "MOVING"
-				return
-			end
-
-			if (current - Shared.FarmState.lastLoopAt) > Shared.Config.FarmFightStateMaxAge then
-				Shared.FarmState.currentTarget = nil
-				Shared.FarmState.fightState = "IDLE"
-				Shared.FarmState.errors += 1
-				farmAdvanceIndex()
-				ErrorHandler.Record("FARM_FIGHT_TIMEOUT", target.Name)
-				return
-			end
-
-			farmSetStatus(string.format("Fighting %s (%.1f)", target.Name, distance))
-			return
-		end
-
-		Shared.FarmState.fightState = "IDLE"
-		Shared.FarmState.currentTarget = nil
-	end
-
-	--==================================================
-	-- RaidsModule
-	--==================================================
-	local function raidsSetStatus(text)
-		UIModule.UpdateRaidsStatus(text, Shared.RaidsState.killsThisRaid, Shared.RaidsState.raidsCompleted)
-	end
-
-	local function raidsWaitForPlayerAlive(timeout)
-		local deadline = now() + (timeout or 30)
-		while now() < deadline do
-			local character = getCharacter()
-			local humanoid = getHumanoid(character)
-			local root = getRootPart(character)
-			if humanoid and humanoid.Health > 0 and root then
-				return true
-			end
-			task.wait(0.25)
-		end
-		return false
-	end
-
-	function RaidsModule._IsRaidActive()
-		local raid = workspace:FindFirstChild("WisteriaRaid")
-		local raid1 = raid and raid:FindFirstChild("Raid1")
-		local enemyFolder = raid1 and raid1:FindFirstChild("Enemy")
-		if not enemyFolder then
-			return false
-		end
-
-		for _, enemy in ipairs(enemyFolder:GetChildren()) do
-			if enemy:IsA("Model") and CombatService.IsAlive(enemy) then
-				return true
-			end
-		end
-		return false
-	end
-
-	function RaidsModule._RefreshEnemies()
-		local state = Shared.RaidsState
-		local enemies = {}
-		local success = false
-
-		for attempt = 1, Shared.Config.ScanMaxAttempts do
-			local ok, result = safePCall("RaidsRefreshEnemies", function()
-				MonsterTracker.SetMode("RAID")
-				MonsterTracker.RefreshRaidEnemies()
-				return MonsterTracker.GetAllMonsters("RAID")
-			end)
-
-			if ok and type(result) == "table" then
-				enemies = result
-				success = true
-				break
-			end
-
-			local action = ErrorHandler.Handle("RAID_SCAN", result, attempt, Shared.Config.ScanMaxAttempts)
-			if action == "STOP" then
-				break
-			end
-			task.wait(ErrorHandler.GetRetryDelay(attempt))
-		end
-
-		if success then
-			clearArray(state.enemiesList)
-			for i = 1, #enemies do
-				state.enemiesList[i] = enemies[i]
-			end
-			state.lastRefreshTime = now()
-
-			if #state.enemiesList > 0 then
-				state.emptySince = 0
-			end
-		end
-
-		return state.enemiesList
-	end
-
-	function RaidsModule._OpenRaidWithRetry()
-		local state = Shared.RaidsState
-
-		if TeleportationService.IsInRaidMap() then
-			state.raidOpened = true
-			state.lastOpenAt = now()
-			raidsSetStatus("Raid detected")
-			return true
-		end
-
-		for attempt = 1, Shared.Config.RaidOpenMaxAttempts do
-			raidsSetStatus("Teleporting to raid")
-			local ok, result = TeleportationService.TeleportToRaid()
-			if ok then
-				state.raidOpened = true
-				state.lastOpenAt = now()
-				state.emptySince = 0
-				state.lastRefreshTime = 0
-				raidsSetStatus("Raid opened")
-				return true
-			end
-
-			local action = ErrorHandler.Handle("RAID_OPEN", result, attempt, Shared.Config.RaidOpenMaxAttempts)
-			if action == "STOP" then
-				return false
-			end
-			task.wait(Shared.Config.RaidOpenBackoff[math.min(attempt, #Shared.Config.RaidOpenBackoff)] or 1)
-		end
-
-		state.raidOpened = false
-		return false
-	end
-
-	function RaidsModule._ProcessEnemy(enemy)
-		if not enemy or not enemy.Parent then
-			return false
-		end
-		if not CombatService.IsAlive(enemy) then
-			return false
-		end
-
-		Shared.RaidsState.currentTarget = enemy
-
-		if not TeleportationService.IsInRaidMap() then
-			local entered, enterErr = TeleportationService.TeleportToRaid()
-			if not entered then
-				ErrorHandler.Record("RAID_ENTER", enterErr)
-				return false
-			end
-		end
-
-		local teleported = false
-		for attempt = 1, Shared.Config.TeleportMaxAttempts do
-			if not raidsWaitForPlayerAlive(30) then
-				ErrorHandler.Record("RAID_PLAYER_DEAD", "RESPAWN_TIMEOUT")
-			else
-				local ok, err = TeleportationService.TeleportToMonster(enemy, Shared.Config.TeleportOffsets)
-				if ok then
-					teleported = true
-					Shared.RaidsState.lastTeleportTime = now()
-					break
-				end
-
-				if err ~= "TELEPORT_COOLDOWN" then
-					local action = ErrorHandler.Handle("RAID_TELEPORT", err, attempt, Shared.Config.TeleportMaxAttempts)
-					if action == "STOP" then
-						return false
-					end
-				end
-			end
-
-			task.wait(ErrorHandler.GetRetryDelay(attempt))
-		end
-
-		if not teleported then
-			return false
-		end
-
-		raidsSetStatus("Fighting " .. tostring(enemy.Name))
-
-		local defeated = false
-		local deadline = now() + Shared.Config.TargetDeadTimeout
-		while now() < deadline do
-			if not enemy or not enemy.Parent or not CombatService.IsAlive(enemy) then
-				defeated = true
-				break
-			end
-
-			if not raidsWaitForPlayerAlive(1) then
-				task.wait(0.5)
-			else
-				task.wait(Shared.Config.WaitDeadPollInterval)
-			end
-		end
-
-		if not defeated then
-			ErrorHandler.Record("RAID_WAIT_DEAD", "TIMEOUT")
-			defeated = true
-		end
-
-		if defeated then
-			Shared.RaidsState.killsThisRaid += 1
-			Shared.RaidsState.currentTarget = nil
-			Shared.RaidsState.lastRefreshTime = 0
-			raidsSetStatus("Kills: " .. Shared.RaidsState.killsThisRaid)
-			return true
-		end
-
-		Shared.RaidsState.currentTarget = nil
-		return false
-	end
-
-	local function getCurrentRaidWave()
-		local ok, waveText = pcall(function()
-			local gui = LocalPlayer:WaitForChild("PlayerGui")
-			local label = gui:WaitForChild("Main")
-				:WaitForChild("HUD")
-				:WaitForChild("Dungeon")
-				:WaitForChild("RaidsInfo")
-				:WaitForChild("WavesFrame")
-				:WaitForChild("Wave")
-
-			return label.Text or label.ContentText
-		end)
-
-		if not ok or type(waveText) ~= "string" then
-			return nil
-		end
-
-		local currentWave = string.match(waveText, "(%d+)%s*/%s*%d+")
-		return currentWave and tonumber(currentWave) or nil
-	end
-
-	function RaidsModule._RestartRaid()
-		clearArray(Shared.RaidsState.enemiesList)
-		Shared.RaidsState.currentTarget = nil
-		Shared.RaidsState.killsThisRaid = 0
-		Shared.RaidsState.raidOpened = false
-		Shared.RaidsState.emptySince = 0
-
-		local leaveOk, leaveErr = RemoteService.LeaveRaid()
-		if not leaveOk then
-			ErrorHandler.Record("RAID_LEAVE", leaveErr)
-			return false
-		end
-
-		task.wait(1.5)
-		return RaidsModule._OpenRaidWithRetry()
-	end
-
-	function RaidsModule._CompleteRaid()
-		Shared.RaidsState.raidsCompleted += 1
-		Shared.RaidsState.currentTarget = nil
-		Shared.RaidsState.raidOpened = false
-		Shared.RaidsState.emptySince = 0
-		raidsSetStatus("Completed")
-
-		if Shared.RaidsState.autoRestart and (Shared.RaidsState.maxRaids == 0 or Shared.RaidsState.raidsCompleted < Shared.RaidsState.maxRaids) then
-			return RaidsModule._RestartRaid()
-		end
-
-		RaidsModule.StopRaiding(true)
-		return true
-	end
-
-	function RaidsModule._Tick()
-		if not Shared.RaidsState.isRaiding then
-			return
-		end
-		if Shared.GlobalState.currentMode ~= "RAIDS" then
-			return
-		end
-		if StateManager.IsPaused() then
-			return
-		end
-
-		-- Check for wave-based restart
-		local currentWave = getCurrentRaidWave()
-		local restartWave = Shared.RaidsState.restartAtWave
-
-		if Shared.RaidsState.autoRestart and restartWave and restartWave > 0 then
-			if currentWave and currentWave >= restartWave then
-				raidsSetStatus("Restarting at wave " .. tostring(currentWave))
-				RaidsModule._RestartRaid()
-				return
-			end
-		end
-
-		local fps = PerformanceMonitor.GetCurrentFPS()
-		if fps > 0 and fps < Shared.Config.MinAcceptableFPS then
-			StateManager.SetPaused(true, Shared.Config.LowFPSPauseSeconds)
-			raidsSetStatus("Paused: low FPS")
-			return
-		end
-
-		if not Shared.RaidsState.raidOpened then
-			local opened = RaidsModule._OpenRaidWithRetry()
-			if not opened then
-				RaidsModule.StopRaiding(true)
-			end
-			return
-		end
-
-		if not TeleportationService.IsInRaidMap() then
-			raidsSetStatus("Re-entering raid")
-			TeleportationService.TeleportToRaid()
-			return
-		end
-
-		if (now() - Shared.RaidsState.lastRefreshTime) >= Shared.Config.MonsterRefreshRaidInterval then
-			RaidsModule._RefreshEnemies()
-		end
-
-		if #Shared.RaidsState.enemiesList == 0 then
-			if Shared.RaidsState.emptySince == 0 then
-				Shared.RaidsState.emptySince = now()
-			end
-
-			if (now() - Shared.RaidsState.emptySince) < Shared.Config.RaidWaveWaitTimeout then
-				raidsSetStatus("Waiting for next wave")
-				return
-			end
-
-			RaidsModule._CompleteRaid()
-			return
-		end
-
-		Shared.RaidsState.emptySince = 0
-
-		local target = MonsterTracker.GetNearestMonster("RAID")
-		if not target then
-			local enemies = Shared.RaidsState.enemiesList
-			for i = 1, #enemies do
-				local enemy = enemies[i]
-				if enemy and enemy.Parent and CombatService.IsAlive(enemy) then
-					target = enemy
-					break
-				end
-			end
-		end
-
-		if target then
-			RaidsModule._ProcessEnemy(target)
-		else
-			raidsSetStatus("Waiting for target")
-			Shared.RaidsState.lastRefreshTime = 0
-		end
-	end
-
-	function RaidsModule.StartRaiding(config)
-		config = type(config) == "table" and config or {}
-		if Shared.RaidsState.isRaiding then
-			return true
-		end
-
-		Shared.RaidsState.isRaiding = true
-		Shared.RaidsState.raidOpened = false
-		Shared.RaidsState.currentTarget = nil
-		Shared.RaidsState.killsThisRaid = 0
-		Shared.RaidsState.raidsCompleted = 0
-		Shared.RaidsState.autoRestart = config.autoRestart ~= false
-		Shared.RaidsState.maxRaids = math.max(0, math.floor(tonumber(config.maxRaids) or 0))
-		Shared.RaidsState.lastRefreshTime = 0
-		Shared.RaidsState.emptySince = 0
-		Shared.RaidsState.loopToken += 1
-		clearArray(Shared.RaidsState.enemiesList)
-
-		StateManager.SetMode("RAIDS")
-		raidsSetStatus("Init")
-
-		local myToken = Shared.RaidsState.loopToken
-		task.spawn(function()
-			log("DEBUG", "Raids loop started")
-			while Shared.GlobalState.initialized and Shared.RaidsState.isRaiding and Shared.RaidsState.loopToken == myToken do
-				local ok, err = pcall(RaidsModule._Tick)
-				if not ok then
-					Shared.RaidsState.errorCount += 1
-					ErrorHandler.Record("RAID_TICK", err)
-				end
-				task.wait(Shared.Config.RaidLoopInterval)
-			end
-			log("DEBUG", "Raids loop ended")
-		end)
-
-		return true
-	end
-
-	function RaidsModule.StopRaiding(resumeFarm)
-		Shared.RaidsState.isRaiding = false
-		Shared.RaidsState.raidOpened = false
-		Shared.RaidsState.currentTarget = nil
-		Shared.RaidsState.emptySince = 0
-		Shared.RaidsState.loopToken += 1
-		clearArray(Shared.RaidsState.enemiesList)
-		raidsSetStatus("Stopped")
-
-		if resumeFarm then
-			task.spawn(function()
-				pcall(function()
-					CoreSystemManager.ResumePreviousMode()
-				end)
-			end)
-		else
-			StateManager.SetMode("IDLE")
-		end
-
-		return true
-	end
-
-	--==================================================
-	-- CoreSystemManager
-	--==================================================
-	function CoreSystemManager.SetMode(mode, options)
-		options = type(options) == "table" and options or {}
-
-		local ok, err = pcall(function()
-			if mode == "RAIDS" then
-				if Shared.RaidsState.isRaiding then
-					return
-				end
-
-				if Shared.FarmState.isRunning then
-					Shared.GlobalState.lastMode = "FARM"
-					AutoFarmModule.StopFarming()
-					setToggleValue(Shared.UI.Components.FarmToggle, false)
-				end
-
-				RaidsModule.StartRaiding({
-					autoRestart = Shared.RaidsState.autoRestart,
-					maxRaids = Shared.RaidsState.maxRaids,
-				})
-				setToggleValue(Shared.UI.Components.RaidsToggle, true)
-				return
-			end
-
-			if mode == "FARM" then
-				if Shared.RaidsState.isRaiding then
-					RaidsModule.StopRaiding(false)
-					setToggleValue(Shared.UI.Components.RaidsToggle, false)
-				end
-
-				local started = AutoFarmModule.StartFarming()
-				if started then
-					setToggleValue(Shared.UI.Components.FarmToggle, true)
-				else
-					setToggleValue(Shared.UI.Components.FarmToggle, false)
-				end
-				return
-			end
-
-			if mode == "IDLE" then
-				if Shared.RaidsState.isRaiding then
-					RaidsModule.StopRaiding(false)
-				end
-				if Shared.FarmState.isRunning then
-					AutoFarmModule.StopFarming()
-				end
-				setToggleValue(Shared.UI.Components.FarmToggle, false)
-				setToggleValue(Shared.UI.Components.RaidsToggle, false)
-				StateManager.SetMode("IDLE")
-				return
-			end
-		end)
-
-		if not ok then
-			ErrorHandler.Record("SET_MODE_" .. tostring(mode), err)
-			notify("System", "Mode switch failed: " .. tostring(mode), 3)
-		end
-	end
-
-	function CoreSystemManager.ResumePreviousMode()
-		if Shared.GlobalState.lastMode == "FARM" then
-			CoreSystemManager.SetMode("FARM", { source = "ResumePreviousMode" })
-		else
-			CoreSystemManager.SetMode("IDLE", { source = "ResumePreviousMode" })
-		end
-	end
-
-	function CoreSystemManager.OnRaidsToggled(enabled)
-		if enabled then
-			CoreSystemManager.SetMode("RAIDS", { source = "RaidToggle" })
-		else
-			if Shared.RaidsState.isRaiding then
-				RaidsModule.StopRaiding(true)
-			else
-				CoreSystemManager.ResumePreviousMode()
-			end
-			setToggleValue(Shared.UI.Components.RaidsToggle, false)
-		end
-	end
-
-	function CoreSystemManager.BackgroundTick()
-		if ErrorHandler.ShouldSoftStop() then
-			if Shared.RaidsState.isRaiding then
-				RaidsModule.StopRaiding(false)
-			end
-			if Shared.FarmState.isRunning then
-				AutoFarmModule.StopFarming()
-			end
-			StateManager.SetMode("IDLE")
-			notify("System", "Soft stop: too many errors", 4)
-			return
-		end
-
-		local fps = PerformanceMonitor.GetCurrentFPS()
-		if fps > 0 and fps < Shared.Config.MinAcceptableFPS then
-			StateManager.SetPaused(true, Shared.Config.LowFPSPauseSeconds)
-		end
-
-		if Shared.GlobalState.isPaused and Shared.GlobalState.pauseUntil > 0 and now() >= Shared.GlobalState.pauseUntil then
-			Shared.GlobalState.isPaused = false
-			Shared.GlobalState.pauseUntil = 0
-		end
-
-		updateEggStatusText(Shared.EggState.currentStatus)
-		updateFarmStatusText(Shared.FarmState.currentStatus)
-		updateRaidStatusText(Shared.RaidsState.status)
-	end
-
-	--==================================================
-	-- System Init
-	--==================================================
-	function System.Init()
-		if Shared.GlobalState.initialized then
-			return System
-		end
-
-		local ok, err = pcall(function()
-			PerformanceMonitor.Init()
-			MonsterTracker.RefreshFarmMonsters()
-			UIModule.RefreshFarmMonsterDropdown()
-			UIModule.Init()
-
-			Shared.GlobalState.initialized = true
-			Shared.GlobalState.mainLoopRunning = true
-
-			AutoEggModule.Loop()
-
-			task.spawn(function()
-				log("DEBUG", "Main background loop started")
-				while Shared.GlobalState.initialized and Shared.GlobalState.mainLoopRunning do
-					local loopOk, loopErr = pcall(CoreSystemManager.BackgroundTick)
-					if not loopOk then
-						ErrorHandler.Record("MAIN_LOOP", loopErr)
-					end
-					task.wait(Shared.Config.MainLoopInterval)
-				end
-				log("DEBUG", "Main background loop ended")
-			end)
-		end)
-
-		if not ok then
-			log("ERROR", "System.Init failed", err)
-			notify("System", "Initialization failed", 4)
-		else
-			log("DEBUG", "System initialized successfully")
-		end
-
-		return System
-	end
-
-	function System.GetShared()
-		return Shared
-	end
-
-	System.Init()
-	_G.AnimeLevelingSystem = System
+    local ok, result = pcall(function() return require("./src/Init") end)
+    if ok then
+        WindUI = result
+    else
+        if cloneref(game:GetService("RunService")):IsStudio() then
+            WindUI = require(cloneref(ReplicatedStorage):WaitForChild("WindUI"):WaitForChild("Init"))
+        else
+            WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+        end
+    end
+end
+WindUI:SetFont("rbxasset://fonts/families/Balthazar.json")
+
+-- Purple Theme Colors
+local PrimaryPurple  = Color3.fromHex("#8B5CF6")
+local DarkPurple     = Color3.fromHex("#7C3AED")
+local LightPurple    = Color3.fromHex("#A78BFA")
+local PurpleGlow     = Color3.fromHex("#C084FC")
+local DeepPurple     = Color3.fromHex("#6D28D9")
+local PurpleGradient = ColorSequence.new(PrimaryPurple, PurpleGlow)
+
+local Green  = Color3.fromHex("#34D399")
+local Red    = Color3.fromHex("#F87171")
+local Blue   = Color3.fromHex("#60A5FA")
+local Yellow = Color3.fromHex("#FCD34D")
+local Grey   = Color3.fromHex("#9CA3AF")
+
+-- ✅ สร้าง Window
+local Window = WindUI:CreateWindow({
+    Title = "MoMoHub",
+    Folder = "MoMoHub",
+    Icon = "solar:sparkles-bold",
+    HideSearchBar = false,
+    NewElements = true,
+    Size = UDim2.fromOffset(650, 520),
+    ToggleTransparency = true,
+
+    OpenButton = {
+        Title = "Anime Leveling",
+        CornerRadius = UDim.new(1, 0),
+        StrokeThickness = 3,
+        Enabled = true,
+        Draggable = true,
+        OnlyMobile = false,
+        Scale = 0.6,
+        Color = PurpleGradient,
+    },
+
+    User = {
+        Enabled = true,
+        Anonymous = true,
+        Callback = function() print("clicked") end,
+    },
+
+    Topbar = { Height = 44, ButtonsType = "Mac" },
+})
+
+Window:SetUIScale(1.0)
+task.wait(0.2)
+
+Window:Tag({
+    Title = "Anime Leveling",
+    Icon = "swords",
+    Color = DeepPurple,
+    Border = true,
+})
+
+-- Notify wrapper
+local function MoMoNotify(data)
+    WindUI:Notify({
+        Title   = data.Title or "MoMoHub",
+        Content = data.Desc or "",
+        Duration = data.Time or 3,
+    })
 end
 
-MacLib:LoadAutoLoadConfig()
-MoMoNotify({ Title = "MoMoHub", Desc = "UI Template Loaded!", Time = 4 })
+-- ════════════════════════════════════════
+-- TABS
+-- ════════════════════════════════════════
+local FarmTab = Window:Tab({ Title = "Auto Farm", Icon = "pickaxe",  IconColor = Green,  Border = true, IconShape = "Square" })
+local RaidTab = Window:Tab({ Title = "Raids",     Icon = "shield",   IconColor = Red,    Border = true, IconShape = "Square" })
+local EggTab  = Window:Tab({ Title = "Auto Egg",  Icon = "egg",      IconColor = Yellow, Border = true, IconShape = "Square" })
+local PlayerTab = Window:Tab({ Title = "Player",  Icon = "user",     IconColor = Blue,   Border = true, IconShape = "Square" })
+local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings", IconColor = Grey, Border = true, IconShape = "Square" })
+
+-- ════════════════════════════════════════
+-- ANIME LEVELING CORE SYSTEM
+-- ════════════════════════════════════════
+do
+    local System = {}
+    local StateManager = {}
+    local ErrorHandler = {}
+    local PerformanceMonitor = {}
+    local RemoteService = {}
+    local CombatService = {}
+    local TeleportationService = {}
+    local MonsterTracker = {}
+    local UIModule = {}
+    local AutoEggModule = {}
+    local AutoFarmModule = {}
+    local RaidsModule = {}
+    local CoreSystemManager = {}
+
+    local Shared = {
+        Config = {
+            Debug = true,
+            MainLoopInterval = 0.2,
+            LowFPS = 20,
+            MinAcceptableFPS = 15,
+            LowFPSPauseSeconds = 1.5,
+            PlacementCooldownMs = 350,
+            TargetDeadTimeout = 180,
+            WaitDeadPollInterval = 0.25,
+            MonsterStateCacheLifetime = 0.25,
+            MonsterRefreshFarmInterval = 1.25,
+            MonsterRefreshRaidInterval = 1.0,
+            NearCacheLifetime = 0.4,
+            RaidOpenBackoff = { 0.5, 1, 2 },
+            GenericBackoff = { 0.25, 0.5, 1 },
+            RaidOpenMaxAttempts = 3,
+            TeleportMaxAttempts = 3,
+            ScanMaxAttempts = 2,
+            MaxErrorsBeforeSoftStop = 25,
+            ErrorWindowSeconds = 300,
+            FarmFightStateMaxAge = 30,
+            FarmReTeleportDistance = 15,
+            FarmLoopInterval = 0.15,
+            RaidLoopInterval = 0.2,
+            RaidRestartDelay = 0.75,
+            RaidMapWaitTimeout = 5,
+            RaidWaveWaitTimeout = 8,
+            EggLoopInterval = 0.05,
+            EggMinInterval = 0.05,
+            EggMaxInterval = 1.0,
+            EggDefaultInterval = 0.1,
+            TeleportOffsets = {
+                Vector3.new(0, 0, 3),
+                Vector3.new(0, 3, 5),
+                Vector3.new(0, 5, 8),
+            },
+        },
+
+        GlobalState = {
+            currentMode = "IDLE", lastMode = "IDLE",
+            isPaused = false, pauseUntil = 0,
+            eggRunning = false, lastPlacementAt = 0,
+            initialized = false, mainLoopRunning = false,
+        },
+
+        FarmState = {
+            isRunning = false, fightState = "IDLE",
+            currentTarget = nil, currentStatus = "Idle",
+            killedCount = 0, totalTeleports = 0,
+            selectedMonsterNames = {}, farmMode = "SELECT",
+            currentSelectedIndex = 1, lastMonsterRefresh = 0,
+            lastLoopAt = 0, errors = 0, loopToken = 0,
+        },
+
+        RaidsState = {
+            isRaiding = false, raidOpened = false,
+            enemiesList = {}, currentTarget = nil,
+            killsThisRaid = 0, raidsCompleted = 0,
+            autoRestart = true, maxRaids = 0, status = "Idle",
+            lastRefreshTime = 0, lastTeleportTime = 0,
+            errorCount = 0, retryAttempts = {}, loopToken = 0,
+            lastOpenAt = 0, emptySince = 0,
+        },
+
+        EggState = {
+            isRunning = false, selectedStar = "Star1",
+            eggsPerHatch = 1, intervalSeconds = 0.1,
+            totalCalls = 0, totalEggsOpened = 0,
+            currentStatus = "Stopped", lastCallAt = 0, loopToken = 0,
+        },
+
+        Performance = {
+            currentFPS = 60, frameCounter = 0,
+            frameAccumulator = 0, lastSampleAt = os.clock(),
+        },
+
+        Caches = {
+            monsterAlive = setmetatable({}, { __mode = "k" }),
+            mode = "FARM",
+            farm = { all = {}, byName = {}, uniqueNames = {}, lastRefresh = 0, nearestCache = nil, lastNearAt = 0 },
+            raid = { all = {}, lastRefresh = 0, nearestCache = nil, lastNearAt = 0 },
+            remotes = {},
+        },
+
+        Errors = { timestamps = {} },
+        UI = { Components = {}, Tabs = {} },
+    }
+
+    local STAR_OPTIONS = { "Star1", "Star2", "Star3", "Star4" }
+
+    local function log(level, message, ...)
+        if level == "DEBUG" and not Shared.Config.Debug then return end
+        local prefix = string.format("[AnimeLeveling][%s] %s", tostring(level), tostring(message))
+        if select("#", ...) > 0 then warn(prefix, ...) else warn(prefix) end
+    end
+
+    local function now() return os.clock() end
+    local function nowMs() return math.floor(os.clock() * 1000) end
+    local function clearArray(arr) if type(arr) == "table" then table.clear(arr) end end
+    local function clamp(value, minValue, maxValue)
+        value = tonumber(value) or minValue
+        return math.min(math.max(value, minValue), maxValue)
+    end
+    local function safePCall(context, fn, ...)
+        local ok, a, b, c, d = pcall(fn, ...)
+        if not ok then log("WARN", context .. " failed", a) return false, a end
+        return true, a, b, c, d
+    end
+
+    -- WindUI: update label on a Section or Button by re-using stored ref
+    local function setComponentLabel(component, text)
+        if not component then return false end
+        -- WindUI uses :SetTitle() or stored .Label
+        local methods = { "SetTitle", "SetName", "Update", "SetText" }
+        for i = 1, #methods do
+            local method = component[methods[i]]
+            if type(method) == "function" then
+                local ok = pcall(function() method(component, text) end)
+                if ok then return true end
+                ok = pcall(function() method(text) end)
+                if ok then return true end
+            end
+        end
+        return pcall(function() component.Name = text end)
+    end
+
+    local function setToggleValue(toggle, value)
+        if not toggle then return false end
+        local methods = { "SetValue", "Update", "SetActive" }
+        for i = 1, #methods do
+            local method = toggle[methods[i]]
+            if type(method) == "function" then
+                local ok = pcall(function() method(toggle, value) end)
+                if ok then return true end
+                ok = pcall(function() method(value) end)
+                if ok then return true end
+            end
+        end
+        return false
+    end
+
+    local function getCharacter()
+        local character = LocalPlayer and LocalPlayer.Character
+        if character and character.Parent then return character end
+        return nil
+    end
+    local function getHumanoid(character)
+        if not character then return nil end
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid and humanoid.Parent then return humanoid end
+        return nil
+    end
+    local function getRootPart(character)
+        if not character then return nil end
+        local root = character:FindFirstChild("HumanoidRootPart")
+        if root and root:IsA("BasePart") then return root end
+        return nil
+    end
+    local function getMonsterRoot(monster)
+        if not (monster and monster.Parent) then return nil end
+        local root = monster:FindFirstChild("HumanoidRootPart") or monster.PrimaryPart or monster:FindFirstChildWhichIsA("BasePart")
+        if root and root:IsA("BasePart") then return root end
+        return nil
+    end
+    local function getDistanceSquared(a, b)
+        local delta = a - b
+        return delta.X * delta.X + delta.Y * delta.Y + delta.Z * delta.Z
+    end
+    local function notify(title, desc, timeValue)
+        pcall(function() MoMoNotify({ Title = title or "Anime Leveling", Desc = desc or "", Time = timeValue or 3 }) end)
+    end
+
+    -- StateManager
+    function StateManager.SetMode(mode)
+        if Shared.GlobalState.currentMode ~= mode then
+            Shared.GlobalState.lastMode = Shared.GlobalState.currentMode
+            Shared.GlobalState.currentMode = mode
+            log("DEBUG", "Mode -> " .. tostring(mode))
+        end
+    end
+    function StateManager.SetPaused(paused, duration)
+        Shared.GlobalState.isPaused = paused == true
+        Shared.GlobalState.pauseUntil = (paused and duration and duration > 0) and (now() + duration) or 0
+    end
+    function StateManager.IsPaused()
+        if not Shared.GlobalState.isPaused then return false end
+        if Shared.GlobalState.pauseUntil > 0 and now() >= Shared.GlobalState.pauseUntil then
+            Shared.GlobalState.isPaused = false
+            Shared.GlobalState.pauseUntil = 0
+            return false
+        end
+        return Shared.GlobalState.isPaused
+    end
+
+    -- ErrorHandler
+    local function trimErrorWindow()
+        local ts = Shared.Errors.timestamps
+        local current = now()
+        while #ts > 0 and (current - ts[1]) > Shared.Config.ErrorWindowSeconds do table.remove(ts, 1) end
+    end
+    function ErrorHandler.Record(op, err)
+        Shared.Errors.timestamps[#Shared.Errors.timestamps + 1] = now()
+        trimErrorWindow()
+        log("WARN", tostring(op) .. " error", err)
+    end
+    function ErrorHandler.GetRetryDelay(attempt)
+        local b = Shared.Config.GenericBackoff
+        return b[math.min(attempt, #b)] or 1
+    end
+    function ErrorHandler.ShouldSoftStop()
+        trimErrorWindow()
+        return #Shared.Errors.timestamps >= Shared.Config.MaxErrorsBeforeSoftStop
+    end
+    function ErrorHandler.Handle(op, err, attempt, maxAttempts)
+        ErrorHandler.Record(op, err)
+        if ErrorHandler.ShouldSoftStop() then return "STOP" end
+        if (attempt or 1) < (maxAttempts or 1) then return "RETRY" end
+        return "SKIP"
+    end
+
+    -- PerformanceMonitor
+    function PerformanceMonitor.Init()
+        if Shared.Performance._connection then return end
+        Shared.Performance._connection = RunService.Heartbeat:Connect(function(dt)
+            local perf = Shared.Performance
+            perf.frameCounter += 1
+            perf.frameAccumulator += dt
+            if perf.frameAccumulator >= 1 then
+                perf.currentFPS = perf.frameCounter / perf.frameAccumulator
+                perf.frameCounter = 0
+                perf.frameAccumulator = 0
+                perf.lastSampleAt = now()
+            end
+        end)
+    end
+    function PerformanceMonitor.GetCurrentFPS() return Shared.Performance.currentFPS end
+
+    -- RemoteService
+    local function findRemoteByName(remoteName)
+        local cached = Shared.Caches.remotes[remoteName]
+        if cached and cached.Parent then return cached end
+        local remote = nil
+        pcall(function()
+            for _, desc in ipairs(ReplicatedStorage:GetDescendants()) do
+                if (desc:IsA("RemoteEvent") or desc:IsA("RemoteFunction")) and desc.Name == remoteName then
+                    remote = desc break
+                end
+            end
+        end)
+        if remote then Shared.Caches.remotes[remoteName] = remote end
+        return remote
+    end
+    local function invokeRemote(remote, ...)
+        if not remote then return false, "REMOTE_NIL" end
+        if remote:IsA("RemoteFunction") then
+            local ok, result = pcall(function(...) return remote:InvokeServer(...) end, ...)
+            return ok and true or false, ok and result or result
+        end
+        if remote:IsA("RemoteEvent") then
+            local ok, err = pcall(function(...) remote:FireServer(...) end, ...)
+            return ok and true or false, ok and true or err
+        end
+        return false, "UNSUPPORTED_REMOTE_TYPE"
+    end
+    function RemoteService.CallWithRetry(remoteName, ...)
+        local args = table.pack(...)
+        for attempt = 1, 3 do
+            local remote = findRemoteByName(remoteName)
+            if not remote then
+                local action = ErrorHandler.Handle("REMOTE_FIND_" .. remoteName, "Remote not found", attempt, 3)
+                if action == "STOP" then return false, "SOFT_STOP" end
+                task.wait(ErrorHandler.GetRetryDelay(attempt))
+            else
+                local ok, result = invokeRemote(remote, table.unpack(args, 1, args.n))
+                if ok then return true, result end
+                local action = ErrorHandler.Handle("REMOTE_CALL_" .. remoteName, result, attempt, 3)
+                if action == "STOP" then return false, result end
+                task.wait(ErrorHandler.GetRetryDelay(attempt))
+            end
+        end
+        return false, "RETRY_EXHAUSTED_" .. tostring(remoteName)
+    end
+    function RemoteService.OpenWisteriaRaid()
+        local remotes = ReplicatedStorage:WaitForChild("Remotes")
+        local remote = remotes:WaitForChild("OpenWisteriaRaid")
+        local ok, err = pcall(function() remote:FireServer() end)
+        return ok and true or false, ok and true or err
+    end
+    function RemoteService.LeaveRaid()
+        local remotes = ReplicatedStorage:WaitForChild("Remotes")
+        local remote = remotes:WaitForChild("LeaveRaid")
+        local ok, err = pcall(function() remote:FireServer() end)
+        return ok and true or false, ok and true or err
+    end
+    function RemoteService.Hatch(star, quantity)
+        return RemoteService.CallWithRetry("Hatch", star, quantity)
+    end
+
+    -- CombatService
+    function CombatService.IsAlive(monster)
+        if not (monster and monster.Parent) then return false end
+        local cached = Shared.Caches.monsterAlive[monster]
+        if cached and (now() - cached.timestamp) <= Shared.Config.MonsterStateCacheLifetime then return cached.alive end
+        local alive = monster:GetAttribute("Attackable") == true and monster:GetAttribute("Turnable") == true
+        Shared.Caches.monsterAlive[monster] = { alive = alive, timestamp = now() }
+        return alive
+    end
+    function CombatService.GetDistanceToTarget(player, monster)
+        local root = getRootPart(getCharacter())
+        local monsterRoot = getMonsterRoot(monster)
+        if not root or not monsterRoot then return math.huge end
+        return (root.Position - monsterRoot.Position).Magnitude
+    end
+
+    -- TeleportationService
+    function TeleportationService.CanTeleport()
+        return (nowMs() - Shared.GlobalState.lastPlacementAt) >= Shared.Config.PlacementCooldownMs
+    end
+    function TeleportationService.TeleportToMonster(monster, offsets)
+        if not monster or not monster.Parent then return false, "INVALID_MONSTER" end
+        local root = getRootPart(getCharacter())
+        local monsterRoot = getMonsterRoot(monster)
+        if not root then return false, "PLAYER_ROOT_MISSING" end
+        if not monsterRoot then return false, "MONSTER_ROOT_MISSING" end
+        if not TeleportationService.CanTeleport() then return false, "TELEPORT_COOLDOWN" end
+        offsets = type(offsets) == "table" and offsets or Shared.Config.TeleportOffsets
+        for i = 1, #offsets do
+            local ok = pcall(function() root.CFrame = monsterRoot.CFrame * CFrame.new(offsets[i]) end)
+            if ok then Shared.GlobalState.lastPlacementAt = nowMs() return true end
+        end
+        return false, "TELEPORT_FAILED"
+    end
+    function TeleportationService.IsInRaidMap()
+        local root = getRootPart(getCharacter())
+        if not root then return false end
+        local raid = workspace:FindFirstChild("WisteriaRaid")
+        local raid1 = raid and raid:FindFirstChild("Raid1")
+        local raidPart = raid1 and raid1:FindFirstChild("Part")
+        if not raidPart or not raidPart:IsA("BasePart") then return false end
+        return (root.Position - raidPart.Position).Magnitude <= 150
+    end
+    local function waitForRaidMap(timeoutSeconds)
+        local deadline = now() + (timeoutSeconds or Shared.Config.RaidMapWaitTimeout)
+        while now() < deadline do
+            if TeleportationService.IsInRaidMap() then return true end
+            task.wait(0.25)
+        end
+        return false
+    end
+    function TeleportationService.TeleportToRaid()
+        if TeleportationService.IsInRaidMap() then return true end
+        local lastError = "RAID_OPEN_FAILED"
+        for attempt = 1, Shared.Config.RaidOpenMaxAttempts do
+            local ok, result = RemoteService.OpenWisteriaRaid()
+            if ok then
+                if waitForRaidMap(Shared.Config.RaidMapWaitTimeout) then task.wait(0.5) return true end
+                lastError = "RAID_MAP_TIMEOUT"
+            else lastError = result end
+            task.wait(Shared.Config.RaidOpenBackoff[math.min(attempt, #Shared.Config.RaidOpenBackoff)] or 1)
+        end
+        return false, lastError
+    end
+
+    -- MonsterTracker
+    local function scanFarmMonsters()
+        local all, byName, uniqueNames, seenNames = {}, {}, {}, {}
+        for _, child in ipairs(workspace:GetChildren()) do
+            if string.match(child.Name, "^World%d+$") then
+                local enemyFolder = child:FindFirstChild("Enemy")
+                if enemyFolder then
+                    for _, monster in ipairs(enemyFolder:GetChildren()) do
+                        if monster:IsA("Model") then
+                            all[#all + 1] = monster
+                            byName[monster.Name] = byName[monster.Name] or {}
+                            table.insert(byName[monster.Name], monster)
+                            if not seenNames[monster.Name] then
+                                seenNames[monster.Name] = true
+                                uniqueNames[#uniqueNames + 1] = monster.Name
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        table.sort(uniqueNames)
+        Shared.Caches.farm.all = all
+        Shared.Caches.farm.byName = byName
+        Shared.Caches.farm.uniqueNames = uniqueNames
+        Shared.Caches.farm.lastRefresh = now()
+    end
+    local function scanRaidMonsters()
+        local all = {}
+        local raid = workspace:FindFirstChild("WisteriaRaid")
+        local raid1 = raid and raid:FindFirstChild("Raid1")
+        local enemyFolder = raid1 and raid1:FindFirstChild("Enemy")
+        if enemyFolder then
+            for _, monster in ipairs(enemyFolder:GetChildren()) do
+                if monster:IsA("Model") and CombatService.IsAlive(monster) then all[#all + 1] = monster end
+            end
+        end
+        Shared.Caches.raid.all = all
+        Shared.Caches.raid.lastRefresh = now()
+    end
+    function MonsterTracker.SetMode(mode) Shared.Caches.mode = mode == "RAID" and "RAID" or "FARM" end
+    function MonsterTracker.RefreshFarmMonsters()
+        local ok, err = safePCall("RefreshFarmMonsters", scanFarmMonsters)
+        if not ok then ErrorHandler.Record("FARM_SCAN", err) end
+        return Shared.Caches.farm.all
+    end
+    function MonsterTracker.RefreshRaidEnemies()
+        local ok, err = safePCall("RefreshRaidEnemies", scanRaidMonsters)
+        if not ok then ErrorHandler.Record("RAID_SCAN", err) end
+        return Shared.Caches.raid.all
+    end
+    function MonsterTracker.GetAllMonsters(mode)
+        mode = mode == "RAID" and "RAID" or "FARM"
+        local source = mode == "RAID" and Shared.Caches.raid.all or Shared.Caches.farm.all
+        local result, idx = {}, 0
+        for i = 1, #source do
+            local monster = source[i]
+            if monster and monster.Parent and CombatService.IsAlive(monster) then
+                idx += 1 result[idx] = monster
+            end
+        end
+        return result
+    end
+    function MonsterTracker.GetNearestMonster(mode)
+        mode = mode == "RAID" and "RAID" or "FARM"
+        local cache = mode == "RAID" and Shared.Caches.raid or Shared.Caches.farm
+        local current = now()
+        if cache.nearestCache and cache.nearestCache.Parent and (current - cache.lastNearAt) <= Shared.Config.NearCacheLifetime then
+            if CombatService.IsAlive(cache.nearestCache) then return cache.nearestCache end
+        end
+        local root = getRootPart(getCharacter())
+        if not root then return nil end
+        local myPos = root.Position
+        local source = mode == "RAID" and Shared.Caches.raid.all or Shared.Caches.farm.all
+        local nearest, bestDist = nil, math.huge
+        for i = 1, #source do
+            local monster = source[i]
+            if monster and monster.Parent and CombatService.IsAlive(monster) then
+                local monsterRoot = getMonsterRoot(monster)
+                if monsterRoot then
+                    local d2 = getDistanceSquared(myPos, monsterRoot.Position)
+                    if d2 < bestDist then bestDist = d2 nearest = monster end
+                end
+            end
+        end
+        cache.nearestCache = nearest cache.lastNearAt = current
+        return nearest
+    end
+
+    -- UI Status Updaters (WindUI paragraph/button label update)
+    local function updateFarmStatusText(text)
+        Shared.FarmState.currentStatus = tostring(text or "Idle")
+        setComponentLabel(Shared.UI.Components.FarmStatusLabel, "🟢 Status: " .. Shared.FarmState.currentStatus)
+    end
+    local function updateRaidStatusText(text)
+        Shared.RaidsState.status = tostring(text or "Idle")
+        setComponentLabel(Shared.UI.Components.RaidStatusLabel,
+            string.format("🛡️ Status: %s | Kills: %d | Raids: %d",
+                Shared.RaidsState.status, Shared.RaidsState.killsThisRaid, Shared.RaidsState.raidsCompleted))
+    end
+    local function updateEggStatusText(text)
+        Shared.EggState.currentStatus = tostring(text or "Stopped")
+        setComponentLabel(Shared.UI.Components.EggStatusLabel,
+            string.format("🥚 Status: %s | Eggs: %d", Shared.EggState.currentStatus, Shared.EggState.totalEggsOpened))
+    end
+
+    function UIModule.UpdateFarmStatus(text) updateFarmStatusText(text) end
+    function UIModule.UpdateRaidsStatus(text, kills, raidsDone)
+        if kills ~= nil then Shared.RaidsState.killsThisRaid = tonumber(kills) or Shared.RaidsState.killsThisRaid end
+        if raidsDone ~= nil then Shared.RaidsState.raidsCompleted = tonumber(raidsDone) or Shared.RaidsState.raidsCompleted end
+        updateRaidStatusText(text)
+    end
+    function UIModule.UpdateEggStatus(text) updateEggStatusText(text) end
+
+    function UIModule.RefreshFarmMonsterDropdown()
+        local dropdown = Shared.UI.Components.FarmMonsterDropdown
+        if not dropdown then return end
+        local options = Shared.Caches.farm.uniqueNames
+        if #options == 0 then options = { "None" } end
+        pcall(function()
+            if dropdown.Refresh then dropdown:Refresh(options)
+            elseif dropdown.ClearOptions then dropdown:ClearOptions() if dropdown.InsertOptions then dropdown:InsertOptions(options) end end
+        end)
+    end
+
+    -- ════════════════════════════════
+    -- BUILD FARM TAB
+    -- ════════════════════════════════
+    function UIModule.CreateFarmTab()
+        local farmSection = FarmTab:Section({ Title = "🎯 Monster Selection", Box = true, BoxBorder = true, Opened = true })
+
+        Shared.UI.Components.FarmMonsterDropdown = farmSection:Dropdown({
+            Flag = "FarmMonster",
+            Title = "Select Monster",
+            Values = Shared.Caches.farm.uniqueNames,
+            Value = nil,
+            Callback = function(val)
+                local selected = {}
+                if type(val) == "table" then
+                    for _, entry in ipairs(val) do
+                        if entry and entry ~= "None" then selected[#selected + 1] = entry end
+                    end
+                elseif type(val) == "string" and val ~= "None" then
+                    selected[1] = val
+                end
+                Shared.FarmState.selectedMonsterNames = selected
+                notify("Auto Farm", #selected > 0 and table.concat(selected, ", ") or "None", 2)
+            end,
+        })
+
+        farmSection:Dropdown({
+            Flag = "FarmMode",
+            Title = "Farm Mode",
+            Values = { "SELECT", "NEAR" },
+            Value = Shared.FarmState.farmMode,
+            Callback = function(v)
+                Shared.FarmState.farmMode = tostring(v or "SELECT")
+                updateFarmStatusText("Mode: " .. Shared.FarmState.farmMode)
+            end,
+        })
+
+        farmSection:Button({
+            Title = "🔄 Refresh Monster List", Icon = "refresh-cw", Color = Blue,
+            Callback = function()
+                MonsterTracker.RefreshFarmMonsters()
+                UIModule.RefreshFarmMonsterDropdown()
+                WindUI:Notify({ Title = "Refreshed!", Content = "Monster list updated", Duration = 2 })
+            end,
+        })
+
+        local farmControlSection = FarmTab:Section({ Title = "⚔️ Farm Control", Box = true, BoxBorder = true, Opened = true })
+
+        Shared.UI.Components.FarmToggle = farmControlSection:Toggle({
+            Flag = "AutoFarm",
+            Title = "Auto Farm",
+            Value = false,
+            Callback = function(enabled)
+                CoreSystemManager.SetMode(enabled and "FARM" or "IDLE", { source = "FarmToggle" })
+            end,
+        })
+
+        local farmBtnGroup = farmControlSection:Group({})
+        farmBtnGroup:Button({
+            Title = "⏹️ Stop Farm", Icon = "square", Color = Red,
+            Callback = function()
+                CoreSystemManager.SetMode("IDLE", { source = "StopFarmButton" })
+                setToggleValue(Shared.UI.Components.FarmToggle, false)
+            end,
+        })
+        farmBtnGroup:Space()
+        farmBtnGroup:Button({
+            Title = "📊 Show Stats", Icon = "bar-chart-2", Color = PrimaryPurple,
+            Callback = function()
+                notify("Farm Stats", string.format("Kills: %d | Teleports: %d", Shared.FarmState.killedCount, Shared.FarmState.totalTeleports), 4)
+            end,
+        })
+
+        Shared.UI.Components.FarmStatusLabel = farmControlSection:Button({
+            Title = "🟢 Status: Idle", Icon = "activity", Color = Green,
+            Callback = function() notify("Auto Farm", Shared.FarmState.currentStatus, 2) end,
+        })
+    end
+
+    -- ════════════════════════════════
+    -- BUILD RAID TAB
+    -- ════════════════════════════════
+    function UIModule.CreateRaidsTab()
+        local raidSection = RaidTab:Section({ Title = "🏰 Wisteria Raid", Box = true, BoxBorder = true, Opened = true })
+
+        Shared.UI.Components.RaidsToggle = raidSection:Toggle({
+            Flag = "AutoRaid",
+            Title = "Enable Raids",
+            Value = false,
+            Callback = function(enabled)
+                CoreSystemManager.OnRaidsToggled(enabled)
+            end,
+        })
+
+        Shared.UI.Components.RaidAutoRestartToggle = raidSection:Toggle({
+            Flag = "RaidAutoRestart",
+            Title = "Auto Restart",
+            Value = true,
+            Callback = function(v) Shared.RaidsState.autoRestart = v == true end,
+        })
+
+        Shared.UI.Components.RaidMaxSlider = raidSection:Slider({
+            Flag = "MaxRaids",
+            Title = "Max Raids (0 = ∞)",
+            Step = 1,
+            Value = { Min = 0, Max = 100, Default = 0 },
+            Callback = function(v)
+                Shared.RaidsState.maxRaids = math.max(0, math.floor(tonumber(v) or 0))
+            end,
+        })
+
+        raidSection:Button({
+            Title = "⏹️ Stop Raids", Icon = "square", Color = Red,
+            Callback = function()
+                CoreSystemManager.OnRaidsToggled(false)
+                setToggleValue(Shared.UI.Components.RaidsToggle, false)
+            end,
+        })
+
+        Shared.UI.Components.RaidStatusLabel = raidSection:Button({
+            Title = "🛡️ Status: Idle | Kills: 0 | Raids: 0", Icon = "activity", Color = PrimaryPurple,
+            Callback = function()
+                notify("Raids", string.format("%s | Kills: %d | Completed: %d",
+                    Shared.RaidsState.status, Shared.RaidsState.killsThisRaid, Shared.RaidsState.raidsCompleted), 3)
+            end,
+        })
+    end
+
+    -- ════════════════════════════════
+    -- BUILD EGG TAB
+    -- ════════════════════════════════
+    function UIModule.CreateEggTab()
+        local eggSection = EggTab:Section({ Title = "🥚 Auto Egg", Box = true, BoxBorder = true, Opened = true })
+
+        eggSection:Dropdown({
+            Flag = "EggStar",
+            Title = "Select Star",
+            Values = STAR_OPTIONS,
+            Value = Shared.EggState.selectedStar,
+            Callback = function(v)
+                Shared.EggState.selectedStar = type(v) == "table" and tostring(v[1] or "Star1") or tostring(v or "Star1")
+            end,
+        })
+
+        eggSection:Slider({
+            Flag = "EggsPerHatch",
+            Title = "Eggs Per Hatch",
+            Step = 1,
+            Value = { Min = 1, Max = 10, Default = 1 },
+            Callback = function(v)
+                Shared.EggState.eggsPerHatch = math.max(1, math.floor(tonumber(v) or 1))
+            end,
+        })
+
+        eggSection:Slider({
+            Flag = "EggInterval",
+            Title = "Interval (sec)",
+            Step = 0.05,
+            Value = { Min = Shared.Config.EggMinInterval, Max = Shared.Config.EggMaxInterval, Default = 0.1 },
+            Callback = function(v)
+                Shared.EggState.intervalSeconds = clamp(v, Shared.Config.EggMinInterval, Shared.Config.EggMaxInterval)
+            end,
+        })
+
+        Shared.UI.Components.EggToggle = eggSection:Toggle({
+            Flag = "AutoEgg",
+            Title = "Auto Open Egg",
+            Value = false,
+            Callback = function(v)
+                if v then AutoEggModule.Start() else AutoEggModule.Stop() end
+            end,
+        })
+
+        Shared.UI.Components.EggStatusLabel = eggSection:Button({
+            Title = "🥚 Status: Stopped | Eggs: 0", Icon = "activity", Color = Yellow,
+            Callback = function() notify("Auto Egg", Shared.EggState.currentStatus, 2) end,
+        })
+    end
+
+    function UIModule.Init()
+        UIModule.CreateFarmTab()
+        UIModule.CreateRaidsTab()
+        UIModule.CreateEggTab()
+        updateFarmStatusText("Idle")
+        updateRaidStatusText("Idle")
+        updateEggStatusText("Stopped")
+    end
+
+    -- AutoEggModule
+    function AutoEggModule.Start()
+        if Shared.EggState.isRunning then return end
+        Shared.EggState.isRunning = true
+        Shared.GlobalState.eggRunning = true
+        updateEggStatusText("Running")
+    end
+    function AutoEggModule.Stop()
+        Shared.EggState.isRunning = false
+        Shared.GlobalState.eggRunning = false
+        updateEggStatusText("Stopped")
+    end
+    function AutoEggModule.Tick()
+        if not Shared.EggState.isRunning then return end
+        local current = now()
+        if (current - Shared.EggState.lastCallAt) < Shared.EggState.intervalSeconds then return end
+        local ok, result = RemoteService.Hatch(Shared.EggState.selectedStar, Shared.EggState.eggsPerHatch)
+        if ok then
+            Shared.EggState.lastCallAt = current
+            Shared.EggState.totalCalls += 1
+            Shared.EggState.totalEggsOpened += Shared.EggState.eggsPerHatch
+            updateEggStatusText("Running")
+        else
+            ErrorHandler.Record("EGG_HATCH", result)
+            updateEggStatusText("Retrying")
+        end
+    end
+    function AutoEggModule.Loop()
+        local token = Shared.EggState.loopToken + 1
+        Shared.EggState.loopToken = token
+        task.spawn(function()
+            while Shared.GlobalState.initialized and Shared.EggState.loopToken == token do
+                local ok, err = pcall(AutoEggModule.Tick)
+                if not ok then ErrorHandler.Record("EGG_LOOP", err) end
+                task.wait(Shared.Config.EggLoopInterval)
+            end
+        end)
+    end
+
+    -- AutoFarmModule
+    local function farmSetStatus(text, notifyUser)
+        updateFarmStatusText(text)
+        if notifyUser then notify("Auto Farm", text, 2) end
+    end
+    local function farmResolveTarget()
+        if Shared.FarmState.farmMode == "NEAR" then return MonsterTracker.GetNearestMonster("FARM") end
+        local selected = Shared.FarmState.selectedMonsterNames
+        local count = #selected
+        if count == 0 then return nil end
+        for _ = 1, count do
+            if Shared.FarmState.currentSelectedIndex > count then Shared.FarmState.currentSelectedIndex = 1 end
+            local name = selected[Shared.FarmState.currentSelectedIndex]
+            local list = Shared.Caches.farm.byName[name] or {}
+            for i = 1, #list do
+                local monster = list[i]
+                if monster and monster.Parent and CombatService.IsAlive(monster) then return monster end
+            end
+            Shared.FarmState.currentSelectedIndex = (Shared.FarmState.currentSelectedIndex % count) + 1
+        end
+        return nil
+    end
+    local function farmAdvanceIndex()
+        local count = #Shared.FarmState.selectedMonsterNames
+        if count > 0 then Shared.FarmState.currentSelectedIndex = (Shared.FarmState.currentSelectedIndex % count) + 1 end
+    end
+    function AutoFarmModule.StartFarming()
+        if Shared.FarmState.isRunning then return true end
+        if Shared.FarmState.farmMode == "SELECT" and #Shared.FarmState.selectedMonsterNames == 0 then
+            notify("Auto Farm", "Please select monsters first", 3)
+            farmSetStatus("No monsters selected", true)
+            return false
+        end
+        Shared.FarmState.isRunning = true
+        Shared.FarmState.fightState = "IDLE"
+        Shared.FarmState.currentTarget = nil
+        Shared.FarmState.currentSelectedIndex = 1
+        Shared.FarmState.loopToken += 1
+        StateManager.SetMode("FARM")
+        farmSetStatus("Running", true)
+        local myToken = Shared.FarmState.loopToken
+        task.spawn(function()
+            while Shared.GlobalState.initialized and Shared.FarmState.isRunning and Shared.FarmState.loopToken == myToken do
+                local ok, err = pcall(AutoFarmModule._Tick)
+                if not ok then Shared.FarmState.errors += 1 ErrorHandler.Record("FARM_TICK", err) end
+                task.wait(Shared.Config.FarmLoopInterval)
+            end
+        end)
+        return true
+    end
+    function AutoFarmModule.StopFarming()
+        Shared.FarmState.isRunning = false
+        Shared.FarmState.currentTarget = nil
+        Shared.FarmState.fightState = "IDLE"
+        Shared.FarmState.loopToken += 1
+        farmSetStatus("Stopped", true)
+    end
+    function AutoFarmModule._Tick()
+        if not Shared.FarmState.isRunning or Shared.GlobalState.currentMode ~= "FARM" then return end
+        if StateManager.IsPaused() then return end
+        local fps = PerformanceMonitor.GetCurrentFPS()
+        if fps > 0 and fps < Shared.Config.MinAcceptableFPS then
+            StateManager.SetPaused(true, Shared.Config.LowFPSPauseSeconds)
+            farmSetStatus("Paused: low FPS") return
+        end
+        local current = now()
+        if (current - Shared.FarmState.lastMonsterRefresh) >= Shared.Config.MonsterRefreshFarmInterval then
+            MonsterTracker.RefreshFarmMonsters()
+            UIModule.RefreshFarmMonsterDropdown()
+            Shared.FarmState.lastMonsterRefresh = current
+        end
+        local state = Shared.FarmState.fightState
+        if state == "IDLE" then
+            local target = farmResolveTarget()
+            if not target then farmSetStatus("Waiting for target") return end
+            Shared.FarmState.currentTarget = target
+            Shared.FarmState.fightState = "MOVING"
+            Shared.FarmState.lastLoopAt = current
+        elseif state == "MOVING" then
+            local target = Shared.FarmState.currentTarget
+            if not target or not target.Parent or not CombatService.IsAlive(target) then
+                Shared.FarmState.currentTarget = nil Shared.FarmState.fightState = "IDLE" return
+            end
+            local ok, err = TeleportationService.TeleportToMonster(target, Shared.Config.TeleportOffsets)
+            if ok then
+                Shared.FarmState.totalTeleports += 1
+                Shared.FarmState.fightState = "FIGHTING"
+                Shared.FarmState.lastLoopAt = current
+                farmSetStatus("Fighting " .. target.Name)
+            elseif err ~= "TELEPORT_COOLDOWN" then
+                Shared.FarmState.errors += 1 ErrorHandler.Record("FARM_TELEPORT", err)
+            end
+        elseif state == "FIGHTING" then
+            local target = Shared.FarmState.currentTarget
+            if not target or not target.Parent then
+                Shared.FarmState.killedCount += 1 Shared.FarmState.currentTarget = nil
+                Shared.FarmState.fightState = "IDLE" farmAdvanceIndex()
+                farmSetStatus("Killed! Total: " .. Shared.FarmState.killedCount) return
+            end
+            if not CombatService.IsAlive(target) then
+                Shared.FarmState.killedCount += 1 Shared.FarmState.currentTarget = nil
+                Shared.FarmState.fightState = "IDLE" farmAdvanceIndex()
+                farmSetStatus("Killed " .. target.Name .. "! Total: " .. Shared.FarmState.killedCount) return
+            end
+            local distance = CombatService.GetDistanceToTarget(LocalPlayer, target)
+            if distance > Shared.Config.FarmReTeleportDistance then Shared.FarmState.fightState = "MOVING" return end
+            if (current - Shared.FarmState.lastLoopAt) > Shared.Config.FarmFightStateMaxAge then
+                Shared.FarmState.currentTarget = nil Shared.FarmState.fightState = "IDLE"
+                Shared.FarmState.errors += 1 farmAdvanceIndex()
+                ErrorHandler.Record("FARM_FIGHT_TIMEOUT", target.Name) return
+            end
+            farmSetStatus(string.format("Fighting %s (%.1f)", target.Name, distance))
+        else
+            Shared.FarmState.fightState = "IDLE" Shared.FarmState.currentTarget = nil
+        end
+    end
+
+    -- RaidsModule
+    local function raidsSetStatus(text)
+        UIModule.UpdateRaidsStatus(text, Shared.RaidsState.killsThisRaid, Shared.RaidsState.raidsCompleted)
+    end
+    local function raidsWaitForPlayerAlive(timeout)
+        local deadline = now() + (timeout or 30)
+        while now() < deadline do
+            local character = getCharacter()
+            local humanoid = getHumanoid(character)
+            local root = getRootPart(character)
+            if humanoid and humanoid.Health > 0 and root then return true end
+            task.wait(0.25)
+        end
+        return false
+    end
+    function RaidsModule._RefreshEnemies()
+        local state = Shared.RaidsState
+        local enemies, success = {}, false
+        for attempt = 1, Shared.Config.ScanMaxAttempts do
+            local ok, result = safePCall("RaidsRefreshEnemies", function()
+                MonsterTracker.SetMode("RAID")
+                MonsterTracker.RefreshRaidEnemies()
+                return MonsterTracker.GetAllMonsters("RAID")
+            end)
+            if ok and type(result) == "table" then enemies = result success = true break end
+            local action = ErrorHandler.Handle("RAID_SCAN", result, attempt, Shared.Config.ScanMaxAttempts)
+            if action == "STOP" then break end
+            task.wait(ErrorHandler.GetRetryDelay(attempt))
+        end
+        if success then
+            clearArray(state.enemiesList)
+            for i = 1, #enemies do state.enemiesList[i] = enemies[i] end
+            state.lastRefreshTime = now()
+            if #state.enemiesList > 0 then state.emptySince = 0 end
+        end
+        return state.enemiesList
+    end
+    function RaidsModule._OpenRaidWithRetry()
+        local state = Shared.RaidsState
+        if TeleportationService.IsInRaidMap() then
+            state.raidOpened = true state.lastOpenAt = now()
+            raidsSetStatus("Raid detected") return true
+        end
+        for attempt = 1, Shared.Config.RaidOpenMaxAttempts do
+            raidsSetStatus("Teleporting to raid")
+            local ok, result = TeleportationService.TeleportToRaid()
+            if ok then
+                state.raidOpened = true state.lastOpenAt = now()
+                state.emptySince = 0 state.lastRefreshTime = 0
+                raidsSetStatus("Raid opened") return true
+            end
+            local action = ErrorHandler.Handle("RAID_OPEN", result, attempt, Shared.Config.RaidOpenMaxAttempts)
+            if action == "STOP" then return false end
+            task.wait(Shared.Config.RaidOpenBackoff[math.min(attempt, #Shared.Config.RaidOpenBackoff)] or 1)
+        end
+        state.raidOpened = false return false
+    end
+    function RaidsModule._ProcessEnemy(enemy)
+        if not enemy or not enemy.Parent or not CombatService.IsAlive(enemy) then return false end
+        Shared.RaidsState.currentTarget = enemy
+        if not TeleportationService.IsInRaidMap() then
+            local entered, enterErr = TeleportationService.TeleportToRaid()
+            if not entered then ErrorHandler.Record("RAID_ENTER", enterErr) return false end
+        end
+        local teleported = false
+        for attempt = 1, Shared.Config.TeleportMaxAttempts do
+            if not raidsWaitForPlayerAlive(30) then
+                ErrorHandler.Record("RAID_PLAYER_DEAD", "RESPAWN_TIMEOUT")
+            else
+                local ok, err = TeleportationService.TeleportToMonster(enemy, Shared.Config.TeleportOffsets)
+                if ok then
+                    teleported = true Shared.RaidsState.lastTeleportTime = now() break
+                end
+                if err ~= "TELEPORT_COOLDOWN" then
+                    local action = ErrorHandler.Handle("RAID_TELEPORT", err, attempt, Shared.Config.TeleportMaxAttempts)
+                    if action == "STOP" then return false end
+                end
+            end
+            task.wait(ErrorHandler.GetRetryDelay(attempt))
+        end
+        if not teleported then return false end
+        raidsSetStatus("Fighting " .. tostring(enemy.Name))
+        local defeated = false
+        local deadline = now() + Shared.Config.TargetDeadTimeout
+        while now() < deadline do
+            if not enemy or not enemy.Parent or not CombatService.IsAlive(enemy) then defeated = true break end
+            if not raidsWaitForPlayerAlive(1) then task.wait(0.5) else task.wait(Shared.Config.WaitDeadPollInterval) end
+        end
+        if not defeated then ErrorHandler.Record("RAID_WAIT_DEAD", "TIMEOUT") defeated = true end
+        if defeated then
+            Shared.RaidsState.killsThisRaid += 1
+            Shared.RaidsState.currentTarget = nil
+            Shared.RaidsState.lastRefreshTime = 0
+            raidsSetStatus("Kills: " .. Shared.RaidsState.killsThisRaid)
+            return true
+        end
+        Shared.RaidsState.currentTarget = nil
+        return false
+    end
+    local function getCurrentRaidWave()
+        local ok, waveText = pcall(function()
+            local gui = LocalPlayer:WaitForChild("PlayerGui")
+            local label = gui:WaitForChild("Main"):WaitForChild("HUD"):WaitForChild("Dungeon"):WaitForChild("RaidsInfo"):WaitForChild("WavesFrame"):WaitForChild("Wave")
+            return label.Text or label.ContentText
+        end)
+        if not ok or type(waveText) ~= "string" then return nil end
+        local currentWave = string.match(waveText, "(%d+)%s*/%s*%d+")
+        return currentWave and tonumber(currentWave) or nil
+    end
+    function RaidsModule._RestartRaid()
+        clearArray(Shared.RaidsState.enemiesList)
+        Shared.RaidsState.currentTarget = nil Shared.RaidsState.killsThisRaid = 0
+        Shared.RaidsState.raidOpened = false Shared.RaidsState.emptySince = 0
+        local leaveOk, leaveErr = RemoteService.LeaveRaid()
+        if not leaveOk then ErrorHandler.Record("RAID_LEAVE", leaveErr) return false end
+        task.wait(1.5)
+        return RaidsModule._OpenRaidWithRetry()
+    end
+    function RaidsModule._CompleteRaid()
+        Shared.RaidsState.raidsCompleted += 1
+        Shared.RaidsState.currentTarget = nil Shared.RaidsState.raidOpened = false Shared.RaidsState.emptySince = 0
+        raidsSetStatus("Completed")
+        if Shared.RaidsState.autoRestart and (Shared.RaidsState.maxRaids == 0 or Shared.RaidsState.raidsCompleted < Shared.RaidsState.maxRaids) then
+            return RaidsModule._RestartRaid()
+        end
+        RaidsModule.StopRaiding(true) return true
+    end
+    function RaidsModule._Tick()
+        if not Shared.RaidsState.isRaiding or Shared.GlobalState.currentMode ~= "RAIDS" then return end
+        if StateManager.IsPaused() then return end
+        local currentWave = getCurrentRaidWave()
+        local restartWave = Shared.RaidsState.restartAtWave
+        if Shared.RaidsState.autoRestart and restartWave and restartWave > 0 then
+            if currentWave and currentWave >= restartWave then
+                raidsSetStatus("Restarting at wave " .. tostring(currentWave))
+                RaidsModule._RestartRaid() return
+            end
+        end
+        local fps = PerformanceMonitor.GetCurrentFPS()
+        if fps > 0 and fps < Shared.Config.MinAcceptableFPS then
+            StateManager.SetPaused(true, Shared.Config.LowFPSPauseSeconds)
+            raidsSetStatus("Paused: low FPS") return
+        end
+        if not Shared.RaidsState.raidOpened then
+            local opened = RaidsModule._OpenRaidWithRetry()
+            if not opened then RaidsModule.StopRaiding(true) end return
+        end
+        if not TeleportationService.IsInRaidMap() then
+            raidsSetStatus("Re-entering raid") TeleportationService.TeleportToRaid() return
+        end
+        if (now() - Shared.RaidsState.lastRefreshTime) >= Shared.Config.MonsterRefreshRaidInterval then
+            RaidsModule._RefreshEnemies()
+        end
+        if #Shared.RaidsState.enemiesList == 0 then
+            if Shared.RaidsState.emptySince == 0 then Shared.RaidsState.emptySince = now() end
+            if (now() - Shared.RaidsState.emptySince) < Shared.Config.RaidWaveWaitTimeout then
+                raidsSetStatus("Waiting for next wave") return
+            end
+            RaidsModule._CompleteRaid() return
+        end
+        Shared.RaidsState.emptySince = 0
+        local target = MonsterTracker.GetNearestMonster("RAID")
+        if not target then
+            local enemies = Shared.RaidsState.enemiesList
+            for i = 1, #enemies do
+                local enemy = enemies[i]
+                if enemy and enemy.Parent and CombatService.IsAlive(enemy) then target = enemy break end
+            end
+        end
+        if target then RaidsModule._ProcessEnemy(target) else raidsSetStatus("Waiting for target") Shared.RaidsState.lastRefreshTime = 0 end
+    end
+    function RaidsModule.StartRaiding(config)
+        config = type(config) == "table" and config or {}
+        if Shared.RaidsState.isRaiding then return true end
+        Shared.RaidsState.isRaiding = true Shared.RaidsState.raidOpened = false
+        Shared.RaidsState.currentTarget = nil Shared.RaidsState.killsThisRaid = 0
+        Shared.RaidsState.raidsCompleted = 0 Shared.RaidsState.autoRestart = config.autoRestart ~= false
+        Shared.RaidsState.maxRaids = math.max(0, math.floor(tonumber(config.maxRaids) or 0))
+        Shared.RaidsState.lastRefreshTime = 0 Shared.RaidsState.emptySince = 0
+        Shared.RaidsState.loopToken += 1 clearArray(Shared.RaidsState.enemiesList)
+        StateManager.SetMode("RAIDS") raidsSetStatus("Init")
+        local myToken = Shared.RaidsState.loopToken
+        task.spawn(function()
+            while Shared.GlobalState.initialized and Shared.RaidsState.isRaiding and Shared.RaidsState.loopToken == myToken do
+                local ok, err = pcall(RaidsModule._Tick)
+                if not ok then Shared.RaidsState.errorCount += 1 ErrorHandler.Record("RAID_TICK", err) end
+                task.wait(Shared.Config.RaidLoopInterval)
+            end
+        end)
+        return true
+    end
+    function RaidsModule.StopRaiding(resumeFarm)
+        Shared.RaidsState.isRaiding = false Shared.RaidsState.raidOpened = false
+        Shared.RaidsState.currentTarget = nil Shared.RaidsState.emptySince = 0
+        Shared.RaidsState.loopToken += 1 clearArray(Shared.RaidsState.enemiesList)
+        raidsSetStatus("Stopped")
+        if resumeFarm then task.spawn(function() pcall(function() CoreSystemManager.ResumePreviousMode() end) end)
+        else StateManager.SetMode("IDLE") end
+        return true
+    end
+
+    -- CoreSystemManager
+    function CoreSystemManager.SetMode(mode, options)
+        local ok, err = pcall(function()
+            if mode == "RAIDS" then
+                if Shared.RaidsState.isRaiding then return end
+                if Shared.FarmState.isRunning then
+                    Shared.GlobalState.lastMode = "FARM"
+                    AutoFarmModule.StopFarming()
+                    setToggleValue(Shared.UI.Components.FarmToggle, false)
+                end
+                RaidsModule.StartRaiding({ autoRestart = Shared.RaidsState.autoRestart, maxRaids = Shared.RaidsState.maxRaids })
+                setToggleValue(Shared.UI.Components.RaidsToggle, true)
+            elseif mode == "FARM" then
+                if Shared.RaidsState.isRaiding then
+                    RaidsModule.StopRaiding(false)
+                    setToggleValue(Shared.UI.Components.RaidsToggle, false)
+                end
+                local started = AutoFarmModule.StartFarming()
+                setToggleValue(Shared.UI.Components.FarmToggle, started)
+            elseif mode == "IDLE" then
+                if Shared.RaidsState.isRaiding then RaidsModule.StopRaiding(false) end
+                if Shared.FarmState.isRunning then AutoFarmModule.StopFarming() end
+                setToggleValue(Shared.UI.Components.FarmToggle, false)
+                setToggleValue(Shared.UI.Components.RaidsToggle, false)
+                StateManager.SetMode("IDLE")
+            end
+        end)
+        if not ok then
+            ErrorHandler.Record("SET_MODE_" .. tostring(mode), err)
+            notify("System", "Mode switch failed: " .. tostring(mode), 3)
+        end
+    end
+    function CoreSystemManager.ResumePreviousMode()
+        if Shared.GlobalState.lastMode == "FARM" then
+            CoreSystemManager.SetMode("FARM", { source = "ResumePreviousMode" })
+        else
+            CoreSystemManager.SetMode("IDLE", { source = "ResumePreviousMode" })
+        end
+    end
+    function CoreSystemManager.OnRaidsToggled(enabled)
+        if enabled then
+            CoreSystemManager.SetMode("RAIDS", { source = "RaidToggle" })
+        else
+            if Shared.RaidsState.isRaiding then RaidsModule.StopRaiding(true)
+            else CoreSystemManager.ResumePreviousMode() end
+            setToggleValue(Shared.UI.Components.RaidsToggle, false)
+        end
+    end
+
+    -- ════════════════════════════════
+    -- PLAYER TAB
+    -- ════════════════════════════════
+    local moveSection = PlayerTab:Section({ Title = "🏃 Movement", Box = true, BoxBorder = true })
+    moveSection:Slider({
+        Flag = "WalkSpeed", Title = "WalkSpeed", Step = 1,
+        Value = { Min = 16, Max = 250, Default = 16 },
+        Callback = function(val)
+            pcall(function()
+                local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                if hum then hum.WalkSpeed = val end
+            end)
+        end,
+    })
+    moveSection:Slider({
+        Flag = "JumpPower", Title = "JumpPower", Step = 1,
+        Value = { Min = 50, Max = 300, Default = 50 },
+        Callback = function(val)
+            pcall(function()
+                local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+                if hum then hum.JumpPower = val end
+            end)
+        end,
+    })
+
+    local utilGroup = PlayerTab:Group({})
+    local noclipEnabled = false
+    local infJumpEnabled = false
+
+    utilGroup:Toggle({ Flag = "Noclip", Title = "Noclip", Value = false, Callback = function(v) noclipEnabled = v end })
+    utilGroup:Toggle({ Flag = "InfJump", Title = "Infinite Jump", Value = false, Callback = function(v) infJumpEnabled = v end })
+
+    -- Anti-AFK
+    local antiAfkEnabled = false
+    local afkSection = PlayerTab:Section({ Title = "⚙️ Utilities", Box = true })
+    afkSection:Toggle({ Flag = "AntiAFK", Title = "Anti-AFK", Value = false, Callback = function(v) antiAfkEnabled = v end })
+    afkSection:Button({
+        Title = "🔄 Rejoin Server", Icon = "refresh-cw", Color = LightPurple,
+        Callback = function()
+            WindUI:Notify({ Title = "Rejoining...", Content = "กำลังเข้าเซิร์ฟเวอร์ใหม่", Duration = 2 })
+            game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+        end,
+    })
+    afkSection:Button({
+        Title = "🎲 Hop Server", Icon = "shuffle", Color = PurpleGlow,
+        Callback = function()
+            WindUI:Notify({ Title = "Server Hopping...", Content = "กำลังหาเซิร์ฟเวอร์ใหม่", Duration = 3 })
+            local HttpService = game:GetService("HttpService")
+            local TeleportService = game:GetService("TeleportService")
+            local success, response = pcall(function()
+                return game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+            end)
+            if success then
+                local data = HttpService:JSONDecode(response)
+                if data and data.data then
+                    for _, server in ipairs(data.data) do
+                        if server.playing < server.maxPlayers and server.id ~= game.JobId then
+                            TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
+                            return
+                        end
+                    end
+                end
+            end
+            WindUI:Notify({ Title = "No servers found", Content = "ลองอีกครั้งนะ", Duration = 3 })
+        end,
+    })
+
+    -- Runtime Connections
+    UserInputService.JumpRequest:Connect(function()
+        if infJumpEnabled then
+            pcall(function() LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping") end)
+        end
+    end)
+    RunService.Stepped:Connect(function()
+        if noclipEnabled then
+            pcall(function()
+                for _, p in LocalPlayer.Character:GetDescendants() do
+                    if p:IsA("BasePart") then p.CanCollide = false end
+                end
+            end)
+        end
+        if antiAfkEnabled then
+            pcall(function()
+                local VIM = game:GetService("VirtualInputManager")
+                VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+            end)
+        end
+    end)
+
+    -- ════════════════════════════════
+    -- SETTINGS TAB
+    -- ════════════════════════════════
+    SettingsTab:Section({ Title = "⌨️ Keybinds", Box = true, BoxBorder = true })
+    SettingsTab:Keybind({
+        Flag = "UIKeybind", Title = "Toggle UI", Value = "RightControl",
+        Callback = function(k) Window:SetToggleKey(Enum.KeyCode[k]) end,
+    })
+
+    local discordSection = SettingsTab:Section({ Title = "💜 Discord Community", Box = true, BoxBorder = true, Opened = true })
+    discordSection:Paragraph({
+        Title = "Join Discord",
+        Desc = "อัพเดทสคริปต์ใหม่ + แชร์ฟีเจอร์",
+        Image = "solar:users-group-two-rounded-bold-duotone",
+        ImageSize = 32,
+        Color = PurpleGlow,
+        Buttons = {
+            { Title = "📱 Copy Link", Icon = "copy", Callback = function()
+                setclipboard("https://discord.gg/k2wdyy8QMN")
+                WindUI:Notify({ Title = "Copied!", Content = "Discord Link Copied", Duration = 3 })
+            end },
+        },
+    })
+
+    -- Config Manager
+    local cfgSection = SettingsTab:Section({ Title = "💾 Config Manager", Box = true, BoxBorder = true, Opened = true })
+    local cfgMgr = Window.ConfigManager
+    local cfgName = "Default"
+
+    local cfgInput = cfgSection:Input({
+        Flag = "CfgName", Title = "Config Name", Value = "Default",
+        Placeholder = "กรอกชื่อ config...",
+        Callback = function(n) cfgName = (n ~= "" and n or "Default") end,
+    })
+
+    local cfgList = cfgSection:Dropdown({
+        Flag = "CfgList", Title = "📂 Saved Configs",
+        Values = cfgMgr:AllConfigs(), Value = nil,
+        Callback = function(n) if n then cfgName = n cfgInput:Set(n) end end,
+    })
+
+    local cfgActionGroup = cfgSection:Group({})
+    cfgActionGroup:Button({
+        Title = "💾 Save Config", Icon = "save", Color = Green,
+        Callback = function()
+            if cfgName == "" then WindUI:Notify({ Title = "⚠️ Error", Content = "กรุณาใส่ชื่อ config ก่อน", Duration = 3 }) return end
+            local cfg = cfgMgr:Config(cfgName)
+            if cfg:Save() then
+                WindUI:Notify({ Title = "✅ Saved!", Content = "บันทึก [" .. cfgName .. "] สำเร็จ", Duration = 3 })
+                cfgList:Refresh(cfgMgr:AllConfigs())
+            end
+        end,
+    })
+    cfgActionGroup:Space()
+    cfgActionGroup:Button({
+        Title = "📂 Load Config", Icon = "download", Color = Blue,
+        Callback = function()
+            if cfgName == "" then WindUI:Notify({ Title = "⚠️ Error", Content = "กรุณาเลือก config ก่อน", Duration = 3 }) return end
+            local cfg = cfgMgr:CreateConfig(cfgName)
+            if cfg:Load() then
+                WindUI:Notify({ Title = "✅ Loaded!", Content = "โหลด [" .. cfgName .. "] สำเร็จ", Duration = 3 })
+            else
+                WindUI:Notify({ Title = "❌ Failed", Content = "ไม่พบ config: " .. cfgName, Duration = 3 })
+            end
+        end,
+    })
+
+    -- Appearance
+    SettingsTab:Section({ Title = "🎨 Appearance", Box = true })
+    SettingsTab:Toggle({ Flag = "NoBG", Title = "No Panel BG", Callback = function(b) Window:SetPanelBackground(not b) end })
+
+    -- ════════════════════════════════
+    -- SYSTEM INIT
+    -- ════════════════════════════════
+    local function BackgroundTick()
+        if ErrorHandler.ShouldSoftStop() then
+            if Shared.RaidsState.isRaiding then RaidsModule.StopRaiding(false) end
+            if Shared.FarmState.isRunning then AutoFarmModule.StopFarming() end
+            StateManager.SetMode("IDLE")
+            notify("System", "Soft stop: too many errors", 4) return
+        end
+        local fps = PerformanceMonitor.GetCurrentFPS()
+        if fps > 0 and fps < Shared.Config.MinAcceptableFPS then StateManager.SetPaused(true, Shared.Config.LowFPSPauseSeconds) end
+        if Shared.GlobalState.isPaused and Shared.GlobalState.pauseUntil > 0 and now() >= Shared.GlobalState.pauseUntil then
+            Shared.GlobalState.isPaused = false Shared.GlobalState.pauseUntil = 0
+        end
+        updateEggStatusText(Shared.EggState.currentStatus)
+        updateFarmStatusText(Shared.FarmState.currentStatus)
+        updateRaidStatusText(Shared.RaidsState.status)
+    end
+
+    local ok, err = pcall(function()
+        PerformanceMonitor.Init()
+        MonsterTracker.RefreshFarmMonsters()
+        UIModule.Init()
+        Shared.GlobalState.initialized = true
+        Shared.GlobalState.mainLoopRunning = true
+        AutoEggModule.Loop()
+        task.spawn(function()
+            while Shared.GlobalState.initialized and Shared.GlobalState.mainLoopRunning do
+                local loopOk, loopErr = pcall(BackgroundTick)
+                if not loopOk then ErrorHandler.Record("MAIN_LOOP", loopErr) end
+                task.wait(Shared.Config.MainLoopInterval)
+            end
+        end)
+    end)
+
+    if not ok then
+        log("ERROR", "System.Init failed", err)
+        notify("System", "Initialization failed", 4)
+    end
+
+    -- Auto Load Config on Startup
+    task.spawn(function()
+        task.wait(0.5)
+        local startupCfg = cfgMgr:CreateConfig("Default")
+        if startupCfg:Load() then
+            WindUI:Notify({ Title = "⚡ Auto Loaded!", Content = "โหลด Default config สำเร็จ", Duration = 4 })
+        end
+    end)
+end
+
+WindUI:Notify({ Title = "✨ MoMoHub - Anime Leveling", Content = "WindUI Version โหลดสำเร็จ! 🚀", Icon = "solar:sparkles-bold", Duration = 5 })
