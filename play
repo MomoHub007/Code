@@ -1,0 +1,1821 @@
+-- Decompiled with Medal by YuBX
+
+local v_u_1 = game:GetService("ReplicatedStorage")
+local v_u_2 = game:GetService("Players").LocalPlayer
+local v_u_3 = game:GetService("TweenService")
+local v_u_4 = require(v_u_1.Modules.SoundCreate)
+local v_u_5 = require(v_u_1.UIS.Packages.Visual)
+local v_u_6 = require(v_u_1.Shared.GetData)
+local v_u_7 = v_u_6.GetData(v_u_2)
+local v_u_8 = require(v_u_1.Shared.GAMEPLAY_CONFIG)
+local v_u_9 = require(v_u_1.Modules.UI.RarityColor)
+require(v_u_1.UIS.Packages.NumberAnimation.SuffixService)
+require(v_u_1.Modules.Confe)
+local v10 = v_u_1.Shared.Info.GameWorld
+local v_u_11 = require(v_u_1.Shared.Info.Units)
+local v_u_12 = v_u_1.UIS.Crafting:FindFirstChild("ItemInfomation")
+local v_u_13 = require(v10.World)
+local v_u_14 = require(v10.Levels)
+local v_u_15 = require(v10.Waves)
+local v_u_16 = {}
+for _, v17 in v_u_1.GuruuSharedStorage.GameModeConfigs:GetChildren() do
+	if v17:IsA("ModuleScript") then
+		v_u_16[v17.Name] = require(v17)
+	end
+end
+local v_u_18 = workspace.CurrentCamera
+local v_u_19 = v_u_2:GetMouse()
+local v_u_20 = nil
+local v_u_21 = nil
+local v_u_22 = nil
+local v_u_23 = ""
+local v_u_24 = ""
+local v_u_25 = nil
+local v_u_26 = "All"
+local v_u_27 = "Story"
+local v_u_28 = ""
+local function v_u_30()
+	-- upvalues: (copy) v_u_2
+	for _, v29 in v_u_2.PlayerGui:GetChildren() do
+		if v29.Name == "PlayRoom" and v29:IsA("ScreenGui") then
+			return v29
+		end
+	end
+end
+local v_u_31 = "Story"
+local v_u_32 = nil
+local v_u_33 = nil
+local v_u_34 = ""
+local v_u_35 = {}
+local v_u_36 = {}
+local v_u_37 = v_u_1.Assets.PlayRoom
+local _ = game.Lighting.ClockTime
+function Format(p38)
+	return string.format("%02i", p38)
+end
+function convertToHMS(p39)
+	local v40 = (p39 - p39 % 60) / 60
+	local v41 = p39 - v40 * 60
+	local v42 = (v40 - v40 % 60) / 60
+	local v43 = v40 - v42 * 60
+	return Format(v42) .. ":" .. Format(v43) .. ":" .. Format(v41)
+end
+local function v_u_49(p44)
+	-- upvalues: (copy) v_u_7
+	if p44 == "SendaiColony" then
+		local v45 = v_u_7.Data:FindFirstChild("ColonyRush_SendaiUnlocked")
+		if v45 then
+			v45 = v45.Value == true
+		end
+		return v45
+	end
+	local v46 = v_u_7.Data:FindFirstChild("ColonyRush_Colony")
+	if v46 and v46.Value == p44 then
+		return true
+	end
+	local v47 = v_u_7:FindFirstChild("ColonyRush_Clears")
+	if v47 then
+		local v48 = v47:FindFirstChild("RuleMaker_" .. p44)
+		if v48 and v48.Value == true then
+			return true
+		end
+	end
+	return false
+end
+local function v_u_55(p50)
+	-- upvalues: (copy) v_u_13, (copy) v_u_7, (copy) v_u_49
+	local v51 = v_u_13[p50]
+	if v51 then
+		if v51.Mode == "ColonyRush" then
+			local v52
+			if v51.Requirements and v51.Requirements.Required_Levels then
+				local v53 = v51.Requirements.Required_Levels
+				v52 = not v53 and true or v_u_7.ChapterLevels:FindFirstChild(v53) ~= nil
+			else
+				v52 = true
+			end
+			if v52 then
+				v52 = v_u_49(p50)
+			end
+			return v52
+		else
+			if not v51.Requirements then
+				return true
+			end
+			local v54 = v51.Requirements.Required_Levels
+			return not v54 and true or v_u_7.ChapterLevels:FindFirstChild(v54) ~= nil
+		end
+	else
+		return true
+	end
+end
+local function v_u_61(p56, p57)
+	-- upvalues: (copy) v_u_55, (copy) v_u_14, (copy) v_u_7
+	if not v_u_55(p56) then
+		return false
+	end
+	local v58 = v_u_14[p56]
+	if v58 then
+		v58 = v_u_14[p56][p57]
+	end
+	if not (v58 and v58.Requirements) then
+		return true
+	end
+	local v59 = v58.Requirements.Required_Levels
+	if not (v59 and string.find(v59, "Act")) then
+		return not v59 and true or v_u_7.ChapterLevels:FindFirstChild(v59) ~= nil
+	end
+	if not v59 then
+		return true
+	end
+	local v60 = v_u_7:FindFirstChild("ColonyRush_Clears")
+	return v60 and v60:FindFirstChild(v59) and true or false
+end
+local function v_u_65(p62, p63)
+	-- upvalues: (ref) v_u_31, (copy) v_u_13
+	if not (p62 and p62:FindFirstChild("Mode")) then
+		return p63 and v_u_31 or "Story"
+	end
+	if p62.Mode.Value == "Calamity" then
+		return "Misc"
+	end
+	if p62.Mode.Value == "Invasion" then
+		return "Misc"
+	end
+	if p62.Mode.Value == "ColonyRush" then
+		return "Colony Rush"
+	end
+	if p62.Mode.Value ~= "Story" then
+		return nil
+	end
+	if not (p62:FindFirstChild("World") and v_u_13[p62.World.Value]) then
+		return (not p63 or v_u_31 ~= "Story" and v_u_31 ~= "Misc") and "Story" or v_u_31
+	end
+	local v64 = v_u_13[p62.World.Value]
+	return v64 and (v64.Category or "Story") or "Story"
+end
+local function v_u_69(p66, p67)
+	-- upvalues: (copy) v_u_16, (copy) v_u_65
+	if p66 and p66:FindFirstChild("Mode") then
+		local v68 = v_u_16[p66.Mode.Value]
+		if p66.Mode.Value == "Story" then
+			return v_u_65(p66, p67) .. " - Stage"
+		elseif string.find(p66.Mode.Value, " Stage") then
+			return string.split(p66.Mode.Value, " Stage")[1] .. " - Stage"
+		elseif v68 and v68.DisplayName then
+			return v68.DisplayName
+		else
+			return p66.Mode.Value
+		end
+	else
+		return "Story - Stage"
+	end
+end
+local function v_u_80(p70, p71, p72)
+	-- upvalues: (copy) v_u_16, (copy) v_u_14
+	if p70 then
+		p70 = v_u_16[p70]
+	end
+	if not p70 then
+		return nil
+	end
+	local v73 = not (v_u_14[p71] and p72 and v_u_14[p71][p72]) and p70.Chapters
+	if v73 then
+		if p72 then
+			v73 = p70.Chapters[p72]
+		else
+			v73 = p72
+		end
+	end
+	if not v73 then
+		return p70
+	end
+	local v74 = {}
+	for v75, v76 in pairs(p70) do
+		v74[v75] = v76
+	end
+	for v77, v78 in pairs(v73) do
+		v74[v77] = v78
+	end
+	if p70.UseModeDisplay then
+		v74.DisplayName = p70.DisplayName
+		v74.WorldName = p70.WorldName
+		v74.ChapterText = p70.ChapterText
+		v74.Image = p70.Image or v74.Image
+	end
+	local v79 = p70.Chapters
+	if v79 then
+		if p72 then
+			p72 = p70.Chapters[p72]
+		end
+	else
+		p72 = v79
+	end
+	if p72 and p72.ChapterText then
+		v74.ChapterText = p72.ChapterText
+	end
+	return v74
+end
+local function v_u_87(p81, p82, p83)
+	-- upvalues: (copy) v_u_80, (copy) v_u_13, (copy) v_u_14
+	local v84 = v_u_80(p81, p82, p83)
+	local v85 = v84 and v84.WorldName or (v_u_13[p82] and v_u_13[p82].Name or (p82 or ""))
+	local v86
+	if v84 then
+		v86 = v84.ChapterText
+	else
+		v86 = v84
+	end
+	return v84, v85, v86 == nil and (v_u_14[p82] and v_u_14[p82][p83] and v_u_14[p82][p83].Name or (p83 or "")) or v86
+end
+local function v_u_91(p88, p89)
+	-- upvalues: (copy) v_u_14
+	if p89 and p89 ~= "" then
+		return p89
+	end
+	local v90 = p88 and (v_u_14[p88.World.Value] and v_u_14[p88.World.Value][p88.Chapter.Value])
+	if v90 then
+		v90 = v_u_14[p88.World.Value][p88.Chapter.Value].ForcedDifficulty
+	end
+	return v90 or (not (p88 and p88:FindFirstChild("Difficulty")) and "Normal" or p88.Difficulty.Value)
+end
+local function v_u_96(p92)
+	-- upvalues: (copy) v_u_14, (copy) v_u_8
+	local v93 = p92 and (v_u_14[p92.World.Value] and v_u_14[p92.World.Value][p92.Chapter.Value])
+	if v93 then
+		v93 = v_u_14[p92.World.Value][p92.Chapter.Value].SupportedDifficulties
+	end
+	if not v93 then
+		return v_u_8.Difficulty.Active
+	end
+	local v94 = {}
+	for _, v95 in v93 do
+		v94[v95] = true
+	end
+	return v94
+end
+local function v_u_102(p97, p98, p99)
+	-- upvalues: (copy) v_u_14, (copy) v_u_80, (copy) v_u_13
+	local v100 = p97 and (p98 and v_u_14[p97])
+	if v100 then
+		v100 = v_u_14[p97][p98]
+	end
+	if v100 and (v100.Image and (v100.Image ~= "" and v100.Image ~= "rbxassetid://0")) then
+		return v100.Image
+	end
+	local v101 = v_u_80(p99, p97, p98)
+	if v101 and (v101.Image and (v101.Image ~= "" and v101.Image ~= "rbxassetid://0")) then
+		return v101.Image
+	end
+	if p97 then
+		p97 = v_u_13[p97]
+	end
+	return (not p97 or (not p97.Image or (p97.Image == "" or p97.Image == "rbxassetid://0"))) and "" or p97.Image
+end
+local function v_u_108(p103, p104)
+	-- upvalues: (copy) v_u_16
+	local v105 = v_u_16.Calamity
+	local v106 = v105 and v105.Chapters
+	if v106 then
+		v106 = v105.Chapters[p103]
+	end
+	local v107 = p104 == "Hard" and "ItemsHard" or (p104 == "Nightmare" and "ItemsNightmare" or "Items")
+	return not (v106 and v106[v107]) and (v105 and v105[v107] or {}) or v106[v107]
+end
+local function v_u_112(p109)
+	-- upvalues: (copy) v_u_6
+	if not (p109 and p109.Name) then
+		return false
+	end
+	if p109.Type == "Unit" then
+		local v110 = v_u_6.GetUnitStats(p109.Name)
+		if v110 then
+			v110 = v_u_6.GetUnitModel(p109.Name)
+		end
+		return v110
+	end
+	if p109.Type == "Gamepass" then
+		return true
+	end
+	local v111 = v_u_6.GetItemStats(p109.Name)
+	if v111 then
+		v111 = v_u_6.GetItemModel(p109.Name)
+	end
+	return v111
+end
+local function v_u_123(p113)
+	-- upvalues: (copy) v_u_7
+	local v114 = {}
+	local v115 = 0
+	local v116 = false
+	for _, v117 in pairs(p113 or {}) do
+		local v118 = v117.id
+		if v118 and string.find(v118, "Chapter") then
+			v114[v118] = true
+			v115 = v115 + 1
+		elseif v118 and string.find(v118, "Act") then
+			v114[v118] = true
+			v115 = v115 + 1
+			v116 = true
+		end
+	end
+	local v119 = 0
+	if v116 then
+		local v120 = v_u_7:FindFirstChild("ColonyRush_Clears")
+		if v120 then
+			for v121 in v114 do
+				if v120:FindFirstChild(v121) then
+					v119 = v119 + 1
+				end
+			end
+		end
+	else
+		for _, v122 in pairs(v_u_7.ChapterLevels:GetChildren()) do
+			if v114[v122.Name] then
+				v119 = v119 + 1
+			end
+		end
+	end
+	return v119, v115
+end
+local function v_u_158()
+	-- upvalues: (copy) v_u_30, (copy) v_u_2, (copy) v_u_1, (copy) v_u_14, (ref) v_u_31, (ref) v_u_23, (ref) v_u_24, (ref) v_u_27, (ref) v_u_28, (ref) v_u_34, (copy) v_u_35, (copy) v_u_36, (copy) v_u_5, (ref) v_u_32, (copy) v_u_3
+	local v_u_124 = v_u_30()
+	if v_u_124 then
+		local v_u_125 = v_u_124.Main.GameStage
+		v_u_124.Main.Game_Submit.Button.Leave.Activated:Connect(function()
+			-- upvalues: (ref) v_u_2, (copy) v_u_124, (ref) v_u_1
+			local v126 = v_u_2.PlayerGui:FindFirstChild("Visual")
+			if v126 then
+				v126 = v_u_2.PlayerGui.Visual:FindFirstChild("ConditionPopup")
+			end
+			if v126 then
+				v126:Destroy()
+			end
+			v_u_124.Main.GameStage.Visible = false
+			v_u_1.Remote.Server.PlayRoom.Event:FireServer("Leave")
+		end)
+		for _, v_u_127 in pairs(v_u_125.Main.Base.DifficultyButton:GetChildren()) do
+			if v_u_127:IsA("TextButton") then
+				v_u_127.Activated:Connect(function()
+					-- upvalues: (ref) v_u_2, (ref) v_u_14, (ref) v_u_1, (copy) v_u_127
+					local v_u_128 = FindPlayerRoom(v_u_2)
+					if v_u_128 then
+						if v_u_128 and (v_u_14[v_u_128.World.Value] and (v_u_14[v_u_128.World.Value][v_u_128.Chapter.Value] and v_u_14[v_u_128.World.Value][v_u_128.Chapter.Value].ForcedDifficulty ~= nil)) and true or false then
+							return
+						else
+							local v129 = v_u_128 and (v_u_14[v_u_128.World.Value] and v_u_14[v_u_128.World.Value][v_u_128.Chapter.Value])
+							if v129 then
+								v129 = v_u_14[v_u_128.World.Value][v_u_128.Chapter.Value].SupportedDifficulties
+							end
+							if v_u_128.Mode.Value ~= "Raids Stage" or v129 then
+								v_u_1.Remote.Server.PlayRoom.Event:FireServer("Change-Difficulty", {
+									["Difficulty"] = v_u_127.Name
+								})
+								if v_u_128.Mode.Value == "Calamity" then
+									task.delay(0.1, function()
+										-- upvalues: (copy) v_u_128, (ref) v_u_127
+										warn("CHANGNNENENE")
+										UpdateChapter(v_u_128.World.Value, v_u_128.Chapter.Value, v_u_128.Mode.Value, v_u_127.Name)
+									end)
+								end
+							end
+						end
+					else
+						return
+					end
+				end)
+			end
+		end
+		local v_u_130 = "Story"
+		local v_u_131 = nil
+		local v_u_132 = nil
+		v_u_125.Main.Stage_Select.Story.Activated:Connect(function()
+			-- upvalues: (ref) v_u_31, (copy) v_u_130, (ref) v_u_23, (ref) v_u_24, (ref) v_u_27, (ref) v_u_28, (ref) v_u_34, (ref) v_u_35, (ref) v_u_36, (copy) v_u_131, (copy) v_u_132, (ref) v_u_1, (ref) v_u_2
+			v_u_31 = v_u_130
+			v_u_23 = ""
+			v_u_24 = ""
+			v_u_27 = ""
+			v_u_28 = ""
+			v_u_34 = ""
+			table.clear(v_u_35)
+			table.clear(v_u_36)
+			local v133 = {
+				["Mode"] = v_u_131 or v_u_130
+			}
+			if not v_u_132 then
+				local v134 = v_u_1.PlayRoom:FindFirstChild(v_u_2.Name, true)
+				v133.KeepWorld = v134 and (v134.World and v134.World.Value) or nil
+			end
+			v_u_1.Remote.Server.PlayRoom.Event:FireServer("Change-Mode", v133)
+		end)
+		local v_u_135 = "Ranger Stage"
+		local v_u_136 = nil
+		local v_u_137 = nil
+		v_u_125.Main.Stage_Select.Ranger.Activated:Connect(function()
+			-- upvalues: (ref) v_u_31, (copy) v_u_135, (ref) v_u_23, (ref) v_u_24, (ref) v_u_27, (ref) v_u_28, (ref) v_u_34, (ref) v_u_35, (ref) v_u_36, (copy) v_u_136, (copy) v_u_137, (ref) v_u_1, (ref) v_u_2
+			v_u_31 = v_u_135
+			v_u_23 = ""
+			v_u_24 = ""
+			v_u_27 = ""
+			v_u_28 = ""
+			v_u_34 = ""
+			table.clear(v_u_35)
+			table.clear(v_u_36)
+			local v138 = {
+				["Mode"] = v_u_136 or v_u_135
+			}
+			if not v_u_137 then
+				local v139 = v_u_1.PlayRoom:FindFirstChild(v_u_2.Name, true)
+				v138.KeepWorld = v139 and (v139.World and v139.World.Value) or nil
+			end
+			v_u_1.Remote.Server.PlayRoom.Event:FireServer("Change-Mode", v138)
+		end)
+		local v_u_140 = "Misc"
+		local v_u_141 = "Calamity"
+		local v_u_142 = true
+		v_u_125.Main.Stage_Select.Misc.Activated:Connect(function()
+			-- upvalues: (ref) v_u_31, (copy) v_u_140, (ref) v_u_23, (ref) v_u_24, (ref) v_u_27, (ref) v_u_28, (ref) v_u_34, (ref) v_u_35, (ref) v_u_36, (copy) v_u_141, (copy) v_u_142, (ref) v_u_1, (ref) v_u_2
+			v_u_31 = v_u_140
+			v_u_23 = ""
+			v_u_24 = ""
+			v_u_27 = ""
+			v_u_28 = ""
+			v_u_34 = ""
+			table.clear(v_u_35)
+			table.clear(v_u_36)
+			local v143 = {
+				["Mode"] = v_u_141 or v_u_140
+			}
+			if not v_u_142 then
+				local v144 = v_u_1.PlayRoom:FindFirstChild(v_u_2.Name, true)
+				v143.KeepWorld = v144 and (v144.World and v144.World.Value) or nil
+			end
+			v_u_1.Remote.Server.PlayRoom.Event:FireServer("Change-Mode", v143)
+		end)
+		v_u_125.Main.Stage_Select.Raids.Activated:Connect(function()
+			-- upvalues: (ref) v_u_23, (ref) v_u_24, (ref) v_u_27, (ref) v_u_28, (ref) v_u_34, (ref) v_u_35, (ref) v_u_36, (ref) v_u_1, (ref) v_u_2
+			v_u_23 = ""
+			v_u_24 = ""
+			v_u_27 = ""
+			v_u_28 = ""
+			v_u_34 = ""
+			table.clear(v_u_35)
+			table.clear(v_u_36)
+			local v145 = v_u_1.PlayRoom:FindFirstChild(v_u_2.Name, true)
+			local v146 = v145 and (v145.World and v145.World.Value) or nil
+			v_u_1.Remote.Server.PlayRoom.Event:FireServer("Change-Mode", {
+				["Mode"] = "Raids Stage",
+				["KeepWorld"] = v146
+			})
+		end)
+		for _, v147 in pairs(v_u_125.Main.Stage_Select:GetChildren()) do
+			if v147:IsA("TextButton") then
+				v_u_5.CreateButtonAnim(v147, 1.25)
+			end
+		end
+		v_u_125.Main.Base.Button.Leave.Activated:Connect(function()
+			-- upvalues: (ref) v_u_1, (ref) v_u_2, (copy) v_u_125
+			if v_u_1.PlayRoom:FindFirstChild(v_u_2.Name, true) then
+				v_u_125.Visible = false
+				v_u_1.Remote.Server.PlayRoom.Event:FireServer("Remove")
+			end
+		end)
+		v_u_125.Main.Base.Button.Create.Activated:Connect(function()
+			-- upvalues: (ref) v_u_2, (ref) v_u_1
+			local v148 = v_u_2.PlayerGui:FindFirstChild("Visual")
+			if v148 then
+				v148 = v_u_2.PlayerGui.Visual:FindFirstChild("ConditionPopup")
+			end
+			if v148 then
+				v148:Destroy()
+			end
+			if v_u_1.PlayRoom:FindFirstChild(v_u_2.Name, true) then
+				v_u_1.Remote.Server.PlayRoom.Event:FireServer("Submit")
+			end
+		end)
+		v_u_125.Main.Base.Misc.FriendOnly.Activated:Connect(function()
+			-- upvalues: (ref) v_u_1, (ref) v_u_2
+			if v_u_1.PlayRoom:FindFirstChild(v_u_2.Name, true) then
+				v_u_1.Remote.Server.PlayRoom.Event:FireServer("Change-FriendOnly")
+			end
+		end)
+		v_u_124.Main.Game_Submit.Button.Start.Activated:Connect(function()
+			-- upvalues: (ref) v_u_2, (ref) v_u_1
+			local v149 = v_u_2.PlayerGui:FindFirstChild("Visual")
+			if v149 then
+				v149 = v_u_2.PlayerGui.Visual:FindFirstChild("ConditionPopup")
+			end
+			if v149 then
+				v149:Destroy()
+			end
+			if v_u_1.PlayRoom:FindFirstChild(v_u_2.Name, true) then
+				v_u_1.Remote.Server.PlayRoom.Event:FireServer("Start")
+			end
+		end)
+		v_u_1.Remote.Server.PlayRoom.Event.OnClientEvent:Connect(function(p150)
+			-- upvalues: (ref) v_u_2, (copy) v_u_125
+			if p150 == "Room-Submit/Success" then
+				local v151 = v_u_2.PlayerGui:FindFirstChild("Visual")
+				if v151 then
+					v151 = v_u_2.PlayerGui.Visual:FindFirstChild("ConditionPopup")
+				end
+				if v151 then
+					v151:Destroy()
+				end
+				v_u_125.Visible = false
+			end
+		end)
+		v_u_1.Remote.Server.PlayRoom.Event.OnClientEvent:Connect(function(p152)
+			-- upvalues: (copy) v_u_124, (ref) v_u_32, (ref) v_u_1, (ref) v_u_3, (ref) v_u_23, (ref) v_u_24, (ref) v_u_27, (ref) v_u_28, (ref) v_u_2, (ref) v_u_5
+			if p152 == "Room-Join/Success" then
+				v_u_124.Main.JoinRoom.Visible = false
+				v_u_32 = nil
+			elseif p152 == "Room-Submit/Teleport" then
+				local v153 = require(v_u_1.Modules.UI.SystemMessage):Create("Custom", {
+					["Message"] = "Teleporting..."
+				}).Message.Frame:FindFirstChild("Message", true)
+				if v153 then
+					v_u_3:Create(v153, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+						["TextTransparency"] = 1
+					}):Play()
+					if v153:FindFirstChildOfClass("UIStroke") then
+						v_u_3:Create(v153:FindFirstChildOfClass("UIStroke"), TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+							["Transparency"] = 1
+						}):Play()
+						return
+					end
+				end
+			elseif p152 == "Room-Create/Success" then
+				v_u_23 = ""
+				v_u_24 = ""
+				v_u_27 = ""
+				v_u_28 = ""
+				v_u_2.PlayerGui.PlayRoomSelection.Enabled = false
+				if v_u_2.PlayerGui:FindFirstChild("GhoulHunt") then
+					v_u_2.PlayerGui.GhoulHunt.Enabled = false
+				end
+				if v_u_2.PlayerGui:FindFirstChild("Fate Mode") then
+					v_u_2.PlayerGui["Fate Mode"].Enabled = false
+				end
+				v_u_124.Enabled = true
+				local v154 = v_u_2.PlayerGui:FindFirstChild("PlayRoomSelection")
+				local v155
+				if v154 and v154:FindFirstChild("Mode") then
+					v155 = v154.Mode.Value == "Challenge"
+				else
+					v155 = false
+				end
+				if not v155 then
+					local v156 = FindPlayerRoom(v_u_2)
+					v155 = v156 and v156.Mode.Value == "Challenge" and true or false
+				end
+				if v155 then
+					v_u_124.Main.GameStage.Visible = false
+					return
+				end
+				local v157 = v_u_124
+				v157.Main.GameStage.Visible = true
+				v_u_5.PopUp(v157.Main.GameStage.Main)
+			end
+		end)
+	end
+end
+local function v_u_162(p159)
+	-- upvalues: (copy) v_u_158, (copy) v_u_5
+	v_u_158()
+	for _, v160 in pairs(p159:GetDescendants()) do
+		if v160:IsA("TextButton") and v160:FindFirstChild("EnterStroke", true) then
+			v_u_5.CreateButtonAnim(v160, nil, nil, nil, v160:FindFirstChild("EnterStroke", true))
+		end
+	end
+	for _, v161 in pairs(p159.Main.GameStage.Main.Base.Misc:GetChildren()) do
+		if v161:IsA("TextButton") then
+			v_u_5.CreateButtonAnim(v161, 1.25)
+		end
+	end
+end
+function FindPlayerRoom(p163)
+	-- upvalues: (copy) v_u_1
+	for _, v164 in pairs(v_u_1.PlayRoom:GetChildren()) do
+		if v164:FindFirstChild("Players") then
+			for _, v165 in pairs(v164.Players:GetChildren()) do
+				if v165.Value == p163 then
+					return v164
+				end
+			end
+		end
+	end
+	return nil
+end
+local function v_u_168()
+	-- upvalues: (copy) v_u_1
+	local v166 = 0
+	for _, v167 in pairs(v_u_1.PlayRoom:GetChildren()) do
+		if v167:FindFirstChild("Submit") and v167.Submit.Value == true then
+			v166 = v166 + 1
+		end
+	end
+	return v166
+end
+local function v_u_191(p169)
+	-- upvalues: (copy) v_u_30, (copy) v_u_80, (copy) v_u_14, (copy) v_u_112, (copy) v_u_1
+	warn("UPDATE JOIN ROOM / " .. p169.Name)
+	if v_u_30() then
+		print(p169, p169:FindFirstChild("World"), p169:FindFirstChild("Chapter"))
+		for v170, v171 in pairs(p169:GetChildren()) do
+			print(v170, v171)
+		end
+		local v172 = v_u_30()
+		local v173 = p169.World.Value
+		local v174 = p169.Chapter.Value
+		local v175
+		if p169:FindFirstChild("GameRewards") then
+			v175 = {}
+			for v176, v177 in pairs(p169:FindFirstChild("GameRewards"):GetChildren()) do
+				v175[v176] = {}
+				v175[v176].Name = v177.Name
+				for v178, v179 in pairs(v177:GetAttributes()) do
+					v175[v176][v178] = v179
+				end
+			end
+		else
+			local v180 = v_u_80(p169.Mode.Value, v173, v174) or false
+			v175 = v180 and v180.Items or v_u_14[v173][v174].Items
+		end
+		for _, v181 in pairs(v172.Main.JoinRoom.Main.Base.RoomInfo.Rewards.ItemsList:GetChildren()) do
+			if v181:IsA("TextButton") then
+				v181:Destroy()
+			end
+		end
+		local v182 = 0
+		local v183 = pairs
+		local v184 = p169.Difficulty.Value
+		local v185 = next
+		if typeof(v185(v175)) == "string" then
+			v175 = v175[v184] or select(2, next(v175))
+		end
+		for _, v186 in v183(v175) do
+			local v187 = v186.Name
+			local v188 = v186.DropRate
+			local v189 = {
+				["Name"] = v187,
+				["MinDrop"] = v186.MinDrop,
+				["MaxDrop"] = v186.MaxDrop,
+				["DropRate"] = v188,
+				["Type"] = v186.Type
+			}
+			if not v_u_112(v189) then
+				v189 = table.clone(v189)
+				v189.Type = "Gamepass"
+			end
+			v182 = v182 + 1
+			local v190 = v_u_1.Assets.GUI.Template.ItemShow:Clone()
+			v190.Name = v187
+			v190.Size = UDim2.new(0.188, 0, 0.619, 0)
+			v190.Parent = v172.Main.JoinRoom.Main.Base.RoomInfo.Rewards.ItemsList
+			require(v_u_1.Modules.UI.CreateTemplate).ItemShow(v190, v189, script.Name)
+		end
+		if v182 >= 4 then
+			v172.Main.JoinRoom.Main.Base.RoomInfo.Rewards.ItemsList.UIGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		else
+			v172.Main.JoinRoom.Main.Base.RoomInfo.Rewards.ItemsList.UIGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		end
+	else
+		return
+	end
+end
+local function v_u_234(p192)
+	-- upvalues: (copy) v_u_30, (copy) v_u_65, (copy) v_u_13, (copy) v_u_123, (copy) v_u_1, (copy) v_u_5, (copy) v_u_55, (copy) v_u_14, (copy) v_u_9, (copy) v_u_61
+	local v193 = v_u_30()
+	local v194 = next
+	local v195, v196 = v193.Main.GameStage.Main.Base.Story.ScrollingFrame:GetChildren()
+	for _, v197 in v194, v195, v196 do
+		if v197:IsA("TextButton") then
+			v197:Destroy()
+		end
+	end
+	local v198 = next
+	local v199, v200 = v193.Main.GameStage.Main.Base.Chapter:GetChildren()
+	for _, v201 in v198, v199, v200 do
+		if v201:IsA("ScrollingFrame") then
+			v201:Destroy()
+		end
+	end
+	local v202 = p192.Mode.Value == "Raids Stage"
+	local v203 = p192.Mode.Value == "Ranger Stage"
+	local _ = p192.Mode.Value == "Infinite Stage"
+	local v204 = v_u_65(p192, false)
+	local v205 = (p192.Mode.Value == "Story" or (p192.Mode.Value == "Ranger Stage" or (p192.Mode.Value == "Raids Stage" or (p192.Mode.Value == "Calamity" or p192.Mode.Value == "Invasion")))) and true or p192.Mode.Value == "ColonyRush"
+	v193.Main.GameStage.Main.Base.Story.Visible = v205
+	v193.Main.GameStage.Main.Base.Chapter.Visible = v205
+	if not v205 then
+		return
+	end
+	for v_u_206, v207 in pairs(v_u_13) do
+		if v202 and v207.IsRaid then
+			local v208, v209 = v_u_123(v207.Levels)
+			local v210 = v207.Image
+			local v_u_211 = script.WorldTemplate:Clone()
+			v_u_211.LayoutOrder = v207.LayoutOrder
+			v_u_211.Name = v_u_206
+			v_u_211.Inner.Background.Image = v210
+			v_u_211.Inner.WorldName.Text = v207.Name
+			v_u_211.Inner.Clear.Text = "Acts Cleared " .. v208 .. "/" .. v209
+			if v209 <= v208 then
+				v_u_211.Inner.Clear.TextColor3 = Color3.new(0.439216, 1, 0.431373)
+			else
+				v_u_211.Inner.Clear.TextColor3 = Color3.new(1, 0.32549, 0.32549)
+			end
+			v_u_211.Parent = v193.Main.GameStage.Main.Base.Story.ScrollingFrame
+			v_u_211.Activated:Connect(function()
+				-- upvalues: (copy) v_u_211, (ref) v_u_1, (copy) v_u_206
+				if not v_u_211.Inner.Lock.Visible then
+					local v212 = {
+						["World"] = v_u_206
+					}
+					v_u_1.Remote.Server.PlayRoom.Event:FireServer("Change-World", v212)
+				end
+			end)
+			v_u_5.CreateButtonAnim(v_u_211, 1.15)
+			v_u_211.Inner.Lock.Visible = not v_u_55(v_u_206)
+			local v213 = script.ChapterScrollingFrame:Clone()
+			v213.Name = v_u_206
+			v213.Parent = v193.Main.GameStage.Main.Base.Chapter
+			v213.Visible = false
+			for v_u_214, v215 in pairs(v_u_14[v_u_206]) do
+				if string.find(v_u_214, "Chapter") or string.find(v_u_214, "RangerStage") then
+					local v216 = v_u_214:match("%d+")
+					if v215.LayoutOrder then
+						v216 = v215.LayoutOrder
+					end
+					local v_u_217 = script.ChapterTemplate:Clone()
+					v_u_217.Name = v_u_214
+					v_u_217.Inner.Label.Text = v215.Name
+					v_u_217.LayoutOrder = v216
+					v_u_217.Inner.Background.Image = v210
+					v_u_217.Parent = v213
+					v_u_5.CreateButtonAnim(v_u_217, 1.15)
+					if string.find(v_u_214, "RangerStage") then
+						v_u_9(v_u_217.Inner.Label, "Mythic", "Label").Rotation = 0
+						v_u_217.LayoutOrder = v_u_217.LayoutOrder + 10
+					else
+						v_u_217.Inner.RangerStageLock:Destroy()
+					end
+					v_u_217.Inner.Lock.Visible = not v_u_61(v_u_206, v_u_214)
+					v_u_217.Activated:Connect(function()
+						-- upvalues: (copy) v_u_217, (ref) v_u_1, (copy) v_u_214
+						if not v_u_217.Inner.Lock.Visible then
+							local v218 = {
+								["Chapter"] = v_u_214
+							}
+							v_u_1.Remote.Server.PlayRoom.Event:FireServer("Change-Chapter", v218)
+						end
+					end)
+				end
+			end
+		elseif v207.StoryAble and not (v202 or v207.IsRaid) then
+			if v204 then
+				local v219 = v_u_13[v_u_206]
+				if (v219 and (v219.Category or "Story") or "Story") == v204 then
+					goto l50
+				end
+			else
+				::l50::
+				local v220, v221 = v_u_123(v207.Levels)
+				local v222 = false
+				for v223, _ in pairs(v_u_14[v_u_206]) do
+					if string.find(v223, "RangerStage") then
+						v222 = true
+					end
+				end
+				local v224 = v207.Image
+				local v_u_225 = script.WorldTemplate:Clone()
+				v_u_225.LayoutOrder = v207.LayoutOrder
+				v_u_225.Name = v_u_206
+				v_u_225.Inner.Background.Image = v224
+				v_u_225.Inner.WorldName.Text = v207.Name
+				local v226 = v207.Mode == "ColonyRush" and "Act Clear " or "Chapter Clear "
+				v_u_225.Inner.Clear.Text = v226 .. v220 .. "/" .. v221
+				if not v222 and v203 then
+					v_u_225.Visible = false
+				end
+				if v221 <= v220 then
+					v_u_225.Inner.Clear.TextColor3 = Color3.new(0.439216, 1, 0.431373)
+				else
+					v_u_225.Inner.Clear.TextColor3 = Color3.new(1, 0.32549, 0.32549)
+				end
+				v_u_225.Parent = v193.Main.GameStage.Main.Base.Story.ScrollingFrame
+				v_u_225.Activated:Connect(function()
+					-- upvalues: (copy) v_u_225, (ref) v_u_1, (copy) v_u_206
+					if not v_u_225.Inner.Lock.Visible then
+						local v227 = {
+							["World"] = v_u_206
+						}
+						v_u_1.Remote.Server.PlayRoom.Event:FireServer("Change-World", v227)
+					end
+				end)
+				v_u_5.CreateButtonAnim(v_u_225, 1.15)
+				v_u_225.Inner.Lock.Visible = not v_u_55(v_u_206)
+				local v228 = script.ChapterScrollingFrame:Clone()
+				v228.Name = v_u_206
+				v228.Parent = v193.Main.GameStage.Main.Base.Chapter
+				v228.Visible = false
+				for v_u_229, v230 in pairs(v_u_14[v_u_206]) do
+					if string.find(v_u_229, "Chapter") or (string.find(v_u_229, "RangerStage") or string.find(v_u_229, "Act")) then
+						local v231 = v_u_229:match("%d+")
+						if v230.LayoutOrder then
+							v231 = v230.LayoutOrder
+						end
+						local v_u_232 = script.ChapterTemplate:Clone()
+						v_u_232.Name = v_u_229
+						v_u_232.Inner.Label.Text = v230.Name
+						v_u_232.LayoutOrder = v231
+						v_u_232.Inner.Background.Image = v224
+						v_u_232.Parent = v228
+						v_u_5.CreateButtonAnim(v_u_232, 1.15)
+						if string.find(v_u_229, "RangerStage") then
+							v_u_9(v_u_232.Inner.Label, "Mythic", "Label").Rotation = 0
+							v_u_232.LayoutOrder = v_u_232.LayoutOrder + 10
+						else
+							v_u_232.Inner.RangerStageLock:Destroy()
+						end
+						v_u_232.Inner.Lock.Visible = not v_u_61(v_u_206, v_u_229)
+						v_u_232.Activated:Connect(function()
+							-- upvalues: (copy) v_u_232, (ref) v_u_1, (copy) v_u_229
+							if not v_u_232.Inner.Lock.Visible then
+								local v233 = {
+									["Chapter"] = v_u_229
+								}
+								v_u_1.Remote.Server.PlayRoom.Event:FireServer("Change-Chapter", v233)
+							end
+						end)
+					end
+				end
+			end
+		end
+	end
+end
+function UpdateChapter(p235, p236, p237, p238)
+	-- upvalues: (copy) v_u_30, (copy) v_u_14, (copy) v_u_102, (ref) v_u_34, (copy) v_u_80, (copy) v_u_61, (copy) v_u_13, (copy) v_u_1, (copy) v_u_35, (copy) v_u_36, (copy) v_u_2, (copy) v_u_234, (copy) v_u_91, (copy) v_u_108, (copy) v_u_112, (copy) v_u_15, (copy) v_u_11, (copy) v_u_16, (copy) v_u_12, (copy) v_u_6, (copy) v_u_9
+	local v_u_239 = v_u_30()
+	local v240 = v_u_14[p235]
+	if v240 then
+		v240 = v240[p236]
+	end
+	local v241 = v_u_102(p235, p236, p237)
+	if v241 == "" and v_u_34 ~= "" then
+		v241 = v_u_34
+	end
+	if v241 ~= "" and v241 ~= v_u_34 then
+		v_u_239.Main.GameStage.Main.Base.StageInfo.BG.Image = v241
+		v_u_239.Main.Game_Submit.StageInfo.StageInfo.Main.BG.Image = v241
+		v_u_34 = v241
+	end
+	local v242 = v_u_80(p237, p235, p236) or false
+	if v242 or v240 then
+		if v242 or v_u_61(p235, p236) then
+			local v243 = "World"
+			local v244
+			if v242 then
+				v244 = v242.baseUnitName or v242.ShowUnit
+			else
+				v244 = v242
+			end
+			local v245 = p237 or "Story"
+			if v244 then
+				v242 = v244
+				v243 = "Mode"
+			else
+				if v242 then
+					v242 = v242.BossShow
+				end
+				if v242 then
+					v243 = "ModeBoss"
+				else
+					if v240 then
+						v242 = v240.BossShow
+					else
+						v242 = v240
+					end
+					if v242 then
+						v243 = "Level"
+					else
+						v242 = v_u_13[p235].BossShow
+					end
+				end
+			end
+			local v246
+			if v242 then
+				v246 = v_u_1.Assets.UnitModels:FindFirstChild(v242, true)
+			else
+				v246 = v242
+			end
+			require(v_u_1.Modules.ViewportModel):ClearFrameForMe(v_u_239.Main.GameStage.Main.Base.StageInfo.BossCharacter.Frame.UnitFrame.UnitProfile.Character)
+			require(v_u_1.Modules.ViewportModel):ClearFrameForMe(v_u_239.Main.Game_Submit.StageInfo.StageInfo.Main.BossCharacter.Frame.UnitFrame.UnitProfile.Character)
+			if v246 then
+				local v247 = v246:Clone()
+				local v248 = v_u_1.Assets.Animations.Packages.NormalIdle
+				require(v_u_1.Modules.ViewportModel):CreateFrameButHead(v247:Clone(), v248, v_u_239.Main.GameStage.Main.Base.StageInfo.BossCharacter.Frame.UnitFrame.UnitProfile.Character)
+				require(v_u_1.Modules.ViewportModel):CreateFrameButHead(v247:Clone(), v248, v_u_239.Main.Game_Submit.StageInfo.StageInfo.Main.BossCharacter.Frame.UnitFrame.UnitProfile.Character)
+				v_u_35[v245] = v242
+				v_u_36[v245] = v243
+			else
+				v_u_35[v245] = ""
+				v_u_36[v245] = ""
+			end
+			if p235 == "Calamity" and p238 then
+				for _, v249 in pairs(v_u_239.Main.GameStage.Main.Base.Rewards.ItemsList:GetChildren()) do
+					if v249:IsA("TextButton") then
+						v249:Destroy()
+					end
+				end
+				for _, v250 in pairs(v_u_239.Main.Game_Submit.StageInfo.StageInfo.Rewards.ItemsList:GetChildren()) do
+					if v250:IsA("TextButton") then
+						v250:Destroy()
+					end
+				end
+				local v251 = FindPlayerRoom(v_u_2)
+				if v251 then
+					task.spawn(v_u_234, v251)
+				end
+				local v252 = v_u_108(p236, (v_u_91(v251, p238)))
+				local v253 = 0
+				for _, v254 in pairs(v252) do
+					local v255 = v254.Name
+					local v256 = v254.DropRate
+					local v257 = {
+						["Name"] = v255,
+						["MinDrop"] = v254.MinDrop,
+						["MaxDrop"] = v254.MaxDrop,
+						["DropRate"] = v256,
+						["Type"] = v254.Type
+					}
+					if not v_u_112(v257) then
+						v257 = table.clone(v257)
+						v257.Type = "Gamepass"
+					end
+					v253 = v253 + 1
+					local v258 = v_u_1.Assets.GUI.Template.ItemShow:Clone()
+					v258.Parent = v_u_239.Main.GameStage.Main.Base.Rewards.ItemsList
+					v258.Name = v255
+					v258.Size = UDim2.new(0.188, 0, 0.619, 0)
+					require(v_u_1.Modules.UI.CreateTemplate).ItemShow(v258, v257, script.Name)
+					local v259 = v_u_1.Assets.GUI.Template.ItemShow:Clone()
+					v259.Parent = v_u_239.Main.Game_Submit.StageInfo.StageInfo.Rewards.ItemsList
+					v259.Name = v255
+					v259.Size = UDim2.new(0.211, 0, 0.955, 0)
+					require(v_u_1.Modules.UI.CreateTemplate).ItemShow(v259, v257, script.Name)
+				end
+				if v253 >= 4 then
+					v_u_239.Main.GameStage.Main.Base.Rewards.ItemsList.UIGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+				else
+					v_u_239.Main.GameStage.Main.Base.Rewards.ItemsList.UIGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+				end
+				if v253 >= 5 then
+					v_u_239.Main.Game_Submit.StageInfo.StageInfo.Rewards.ItemsList.UIGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+				else
+					v_u_239.Main.Game_Submit.StageInfo.StageInfo.Rewards.ItemsList.UIGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+				end
+			else
+				for _, v260 in pairs(v_u_239.Main.GameStage.Main.Base.RecommendedElements:GetChildren()) do
+					if v260:IsA("Frame") then
+						v260:Destroy()
+					end
+				end
+				if v_u_15[p236] then
+					for v261, _ in pairs(v_u_15[p236]) do
+						if v_u_11[v261] then
+							local _ = v_u_11[v261].Element
+						end
+					end
+				end
+				for _, v262 in pairs(v_u_239.Main.Game_Submit.StageInfo.StageInfo.Rewards.ItemsList:GetChildren()) do
+					if v262:IsA("TextButton") then
+						v262:Destroy()
+					end
+				end
+				for _, v263 in pairs(v_u_239.Main.GameStage.Main.Base.Rewards.ItemsList:GetChildren()) do
+					if v263:IsA("TextButton") then
+						v263:Destroy()
+					end
+				end
+				local v264 = FindPlayerRoom(v_u_2)
+				if not p238 then
+					local v265 = v264 and (v_u_14[v264.World.Value] and v_u_14[v264.World.Value][v264.Chapter.Value])
+					if v265 then
+						v265 = v_u_14[v264.World.Value][v264.Chapter.Value].ForcedDifficulty
+					end
+					p238 = v265 or (not (v264 and v264:FindFirstChild("Difficulty")) and "Normal" or v264.Difficulty.Value)
+				end
+				if v264 then
+					task.spawn(v_u_234, v264)
+				end
+				local v266
+				if v264 and v264:FindFirstChild("GameRewards") then
+					v266 = {}
+					for v267, v268 in pairs(v264:FindFirstChild("GameRewards"):GetChildren()) do
+						v266[v267] = {}
+						v266[v267].Name = v268.Name
+						for v269, v270 in pairs(v268:GetAttributes()) do
+							v266[v267][v269] = v270
+						end
+					end
+				else
+					if v264 then
+						v264 = v_u_16[v264.Mode.Value]
+					end
+					v266 = v240 and v240.Items or (v264 and v264.Items or {})
+				end
+				if p235 == "Calamity" then
+					v266 = v_u_108(p236, p238)
+				end
+				local v271 = 0
+				local v272 = pairs
+				local v273 = next
+				if typeof(v273(v266)) == "string" then
+					v266 = v266[p238] or select(2, next(v266))
+				end
+				for _, v274 in v272(v266) do
+					local v275 = v274.Name
+					local v276 = v274.DropRate
+					local v277 = {
+						["Name"] = v275,
+						["MinDrop"] = v274.MinDrop,
+						["MaxDrop"] = v274.MaxDrop,
+						["DropRate"] = v276,
+						["Type"] = v274.Type
+					}
+					if not v_u_112(v277) then
+						v277 = table.clone(v277)
+						v277.Type = "Gamepass"
+					end
+					v271 = v271 + 1
+					local v278 = v_u_1.Assets.GUI.Template.ItemShow:Clone()
+					v278.Parent = v_u_239.Main.GameStage.Main.Base.Rewards.ItemsList
+					v278.Name = v275
+					v278.Size = UDim2.new(0.188, 0, 0.619, 0)
+					require(v_u_1.Modules.UI.CreateTemplate).ItemShow(v278, v277, script.Name)
+					local v279 = v_u_1.Assets.GUI.Template.ItemShow:Clone()
+					v279.Parent = v_u_239.Main.Game_Submit.StageInfo.StageInfo.Rewards.ItemsList
+					v279.Name = v275
+					v279.Size = UDim2.new(0.211, 0, 0.955, 0)
+					require(v_u_1.Modules.UI.CreateTemplate).ItemShow(v279, v277, script.Name)
+					if v274.SpecialConditions and v_u_12 then
+						local v_u_280 = v274.SpecialConditions
+						local v_u_281 = v274.Name
+						local function v_u_308(p282)
+							-- upvalues: (ref) v_u_2, (ref) v_u_12, (ref) v_u_11, (copy) v_u_281, (ref) v_u_6, (ref) v_u_9, (copy) v_u_280, (copy) v_u_239
+							local v283 = v_u_2.PlayerGui.Visual:FindFirstChild("ConditionPopup")
+							if v283 then
+								v283:Destroy()
+							end
+							local v_u_284 = v_u_12:Clone()
+							v_u_284.Name = "ConditionPopup"
+							local v285 = v_u_11[v_u_281]
+							local v286 = v_u_6.GetItemStats(v_u_281)
+							local v287 = v285 and v285.DisplayName or (v286 and v286.DisplayName or v_u_281)
+							local v288 = v285 and v285.Rarity or (v286 and v286.Rarity or "Legendary")
+							v_u_284.Names.Text = v287
+							v_u_284.Rarity.Text = v288
+							v_u_9(v_u_284.Rarity, v288, "Item", nil, script.Name)
+							v_u_284.Des.Text = v_u_280
+							for _, v289 in v_u_284.ScrollingFrame:GetChildren() do
+								if v289:IsA("TextButton") or v289:IsA("Frame") then
+									v289:Destroy()
+								end
+							end
+							v_u_284.Parent = v_u_2.PlayerGui.Visual
+							local v_u_290 = {}
+							local v291 = v_u_239:GetPropertyChangedSignal("Enabled")
+							table.insert(v_u_290, v291:Connect(function()
+								-- upvalues: (copy) v_u_290, (copy) v_u_284
+								for _, v292 in v_u_290 do
+									v292:Disconnect()
+								end
+								if v_u_284 and v_u_284.Parent then
+									v_u_284:Destroy()
+								end
+								popupOpen = false
+							end))
+							local v293 = v_u_239.Main.GameStage:GetPropertyChangedSignal("Visible")
+							local function v295()
+								-- upvalues: (ref) v_u_239, (copy) v_u_290, (copy) v_u_284
+								if not v_u_239.Main.GameStage.Visible then
+									for _, v294 in v_u_290 do
+										v294:Disconnect()
+									end
+									if v_u_284 and v_u_284.Parent then
+										v_u_284:Destroy()
+									end
+									popupOpen = false
+								end
+							end
+							table.insert(v_u_290, v293:Connect(v295))
+							local v296 = v_u_2.PlayerGui.Visual
+							local v297 = workspace.CurrentCamera.ViewportSize
+							local v298 = v296.AbsolutePosition
+							local v299 = v296.AbsoluteSize
+							local v300 = v299.X * 0.106
+							local v301 = v300 / 0.75
+							local v302 = p282.AbsolutePosition
+							local v303 = p282.AbsoluteSize
+							local v304 = v302.Y + v303.Y / 2
+							local v305 = v302.X + v303.X + 5
+							local v306 = v304 - v301 / 2
+							if v305 + v300 > v297.X then
+								v305 = v302.X - v300 - 5
+							end
+							local v307 = v305 < 10 and 10 or v305
+							if v306 + v301 > v297.Y then
+								v306 = v297.Y - v301 - 10
+							end
+							if v306 < v298.Y + 10 then
+								v306 = v298.Y + 10
+							end
+							v_u_284.AnchorPoint = Vector2.new(0, 0)
+							v_u_284.Position = UDim2.new((v307 - v298.X) / v299.X, 0, (v306 - v298.Y) / v299.Y, 0)
+						end
+						local function v313(p_u_309)
+							-- upvalues: (copy) v_u_308, (ref) v_u_2
+							local v_u_310 = false
+							p_u_309.MouseEnter:Connect(function()
+								-- upvalues: (ref) v_u_310, (ref) v_u_308, (copy) p_u_309
+								if not v_u_310 then
+									v_u_308(p_u_309)
+								end
+							end)
+							p_u_309.MouseLeave:Connect(function()
+								-- upvalues: (ref) v_u_310, (ref) v_u_2
+								local v311 = not v_u_310 and v_u_2.PlayerGui.Visual:FindFirstChild("ConditionPopup")
+								if v311 then
+									v311:Destroy()
+								end
+							end)
+							p_u_309.Activated:Connect(function()
+								-- upvalues: (ref) v_u_310, (ref) v_u_308, (copy) p_u_309, (ref) v_u_2
+								v_u_310 = not v_u_310
+								if v_u_310 then
+									v_u_308(p_u_309)
+								else
+									local v312 = v_u_2.PlayerGui.Visual:FindFirstChild("ConditionPopup")
+									if v312 then
+										v312:Destroy()
+									end
+								end
+							end)
+						end
+						v313(v278)
+						v313(v279)
+					end
+				end
+				if v271 >= 4 then
+					v_u_239.Main.GameStage.Main.Base.Rewards.ItemsList.UIGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+				else
+					v_u_239.Main.GameStage.Main.Base.Rewards.ItemsList.UIGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+				end
+				if v271 >= 5 then
+					v_u_239.Main.Game_Submit.StageInfo.StageInfo.Rewards.ItemsList.UIGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+				else
+					v_u_239.Main.Game_Submit.StageInfo.StageInfo.Rewards.ItemsList.UIGridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+				end
+			end
+		else
+			return
+		end
+	else
+		return
+	end
+end
+return function(_)
+	-- upvalues: (copy) v_u_30, (copy) v_u_162, (copy) v_u_5, (copy) v_u_3, (ref) v_u_26, (copy) v_u_1, (copy) v_u_18, (copy) v_u_2, (ref) v_u_31, (ref) v_u_25, (ref) v_u_22, (copy) v_u_37, (copy) v_u_19, (ref) v_u_21, (ref) v_u_20, (copy) v_u_168, (copy) v_u_87, (copy) v_u_102, (copy) v_u_8, (copy) v_u_69, (ref) v_u_32, (copy) v_u_191, (ref) v_u_33, (ref) v_u_34, (copy) v_u_35, (copy) v_u_36, (copy) v_u_65, (ref) v_u_23, (ref) v_u_27, (ref) v_u_24, (ref) v_u_28, (copy) v_u_14, (copy) v_u_7, (copy) v_u_96, (copy) v_u_4
+	local v_u_314 = v_u_30()
+	v_u_162(v_u_314)
+	v_u_5.CreateButtonAnim(v_u_314.Main.JoinRoom.Main.TopBar.Close, nil, nil, nil, nil)
+	v_u_314.Main.JoinRoom.Main.TopBar.Close.Activated:Connect(function()
+		-- upvalues: (copy) v_u_314
+		v_u_314.Main.JoinRoom.Visible = false
+	end)
+	v_u_314.Main.Game_Submit:GetPropertyChangedSignal("Visible"):Connect(function()
+		-- upvalues: (copy) v_u_314, (ref) v_u_3
+		if v_u_314.Main.Game_Submit.Visible == true then
+			v_u_314.Main.Game_Submit.Button.Position = UDim2.new(0.5, 0, 1.5, 0)
+			v_u_314.Main.Game_Submit.StageInfo.Position = UDim2.new(-0.85, 0, 0.499, 0)
+			v_u_3:Create(v_u_314.Main.Game_Submit.Button, TweenInfo.new(0.5, Enum.EasingStyle.Back), {
+				["Position"] = UDim2.new(0.5, 0, 0.875, 0)
+			}):Play()
+			v_u_3:Create(v_u_314.Main.Game_Submit.StageInfo, TweenInfo.new(0.75, Enum.EasingStyle.Quint), {
+				["Position"] = UDim2.new(0.173, 0, 0.499, 0)
+			}):Play()
+		end
+	end)
+	v_u_314.Main.Button:GetPropertyChangedSignal("Visible"):Connect(function()
+		-- upvalues: (copy) v_u_314, (ref) v_u_3
+		if v_u_314.Main.Button.Visible == true then
+			v_u_314.Main.Button.Position = UDim2.new(-1, 0, 0.35, 0)
+			v_u_3:Create(v_u_314.Main.Button, TweenInfo.new(0.5, Enum.EasingStyle.Quint), {
+				["Position"] = UDim2.new(0.013, 0, 0.35, 0)
+			}):Play()
+		end
+	end)
+	for _, v_u_315 in pairs(v_u_314.Main.JoinRoom.Main.Base.RoomType.ScrollingFrame:GetChildren()) do
+		if v_u_315:IsA("TextButton") then
+			v_u_315.Activated:Connect(function()
+				-- upvalues: (ref) v_u_26, (copy) v_u_315
+				v_u_26 = v_u_315.Name
+			end)
+		end
+	end
+	v_u_1.Remote.Client.UI.PlayRoomUI.Event:Connect(function(...)
+		-- upvalues: (ref) v_u_26, (copy) v_u_314
+		if ... == "JoinRoom" then
+			local _, v316 = ...
+			v_u_26 = v316
+			v_u_314.Main.JoinRoom.Visible = true
+		end
+	end)
+	v_u_314.Main.Button.Leave.Activated:Connect(function()
+		-- upvalues: (ref) v_u_3, (ref) v_u_18, (ref) v_u_1, (copy) v_u_314, (ref) v_u_2
+		v_u_3:Create(v_u_18, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+			["FieldOfView"] = 0
+		}):Play()
+		require(v_u_1.UIS.Packages.Visual).Transition(0.5)
+		v_u_314.Enabled = false
+		v_u_3:Create(v_u_18, TweenInfo.new(1, Enum.EasingStyle.Quint), {
+			["FieldOfView"] = 70
+		}):Play()
+		if FindPlayerRoom(v_u_2) then
+			v_u_1.Remote.Server.PlayRoom.Event:FireServer("Remove")
+		end
+	end)
+	v_u_314.Main.Button.Create.Activated:Connect(function()
+		-- upvalues: (copy) v_u_314, (ref) v_u_1, (ref) v_u_2, (ref) v_u_5, (ref) v_u_31
+		if v_u_314.Main.GameStage.Visible == false then
+			if v_u_1.PlayRoom:FindFirstChild(v_u_2.Name, true) then
+				local v317 = v_u_314
+				v317.Main.GameStage.Visible = true
+				v_u_5.PopUp(v317.Main.GameStage.Main)
+			else
+				v_u_31 = "Story"
+				v_u_1.Remote.Server.PlayRoom.Event:FireServer("Create")
+			end
+		else
+			local v318 = v_u_2.PlayerGui:FindFirstChild("Visual")
+			if v318 then
+				v318 = v_u_2.PlayerGui.Visual:FindFirstChild("ConditionPopup")
+			end
+			if v318 then
+				v318:Destroy()
+			end
+			if v_u_1.PlayRoom:FindFirstChild(v_u_2.Name, true) then
+				v_u_1.Remote.Server.PlayRoom.Event:FireServer("Remove")
+			end
+			v_u_314.Main.GameStage.Visible = false
+			return
+		end
+	end)
+	v_u_314.Main.Button.Join.Activated:Connect(function()
+		-- upvalues: (copy) v_u_314, (ref) v_u_1, (ref) v_u_2, (ref) v_u_5
+		if v_u_314.Main.JoinRoom.Visible == false then
+			if not v_u_1.PlayRoom:FindFirstChild(v_u_2.Name, true) then
+				v_u_314.Main.JoinRoom.Visible = true
+				v_u_5.PopUp(v_u_314.Main.JoinRoom.Main)
+				return
+			end
+		else
+			v_u_314.Main.JoinRoom.Visible = false
+		end
+	end)
+	v_u_314.Main.JoinRoom.Main.Base.RoomInfo.Join.Activated:Connect(function()
+		-- upvalues: (ref) v_u_25, (ref) v_u_1
+		print("clciked joinroom ", v_u_25, "")
+		if v_u_25 then
+			local v319 = {
+				["Room"] = v_u_25
+			}
+			v_u_1.Remote.Server.PlayRoom.Event:FireServer("Join-Room", v319)
+		end
+	end)
+	v_u_22 = v_u_3:Create(v_u_314.Main.Head.Head.UIStroke.UIGradient, TweenInfo.new(10, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut, -1), {
+		["Rotation"] = -180
+	})
+	v_u_1.Values.Game.GameRunning.Changed:Connect(function()
+		-- upvalues: (ref) v_u_1, (copy) v_u_314
+		if v_u_1.Values.Game.GameRunning.Value == true and (v_u_1.Values.Game.OnTeleport.Value == true and v_u_314.Enabled) then
+			v_u_314.Enabled = false
+		end
+	end)
+	v_u_314:GetPropertyChangedSignal("Enabled"):Connect(function()
+		-- upvalues: (ref) v_u_2, (copy) v_u_314, (ref) v_u_37, (ref) v_u_22, (ref) v_u_5, (ref) v_u_18, (ref) v_u_3, (ref) v_u_19, (ref) v_u_21, (ref) v_u_20, (ref) v_u_168, (ref) v_u_26, (ref) v_u_1, (ref) v_u_87, (ref) v_u_102, (ref) v_u_8, (ref) v_u_69, (ref) v_u_32, (ref) v_u_25, (ref) v_u_191, (ref) v_u_33, (ref) v_u_34, (ref) v_u_35, (ref) v_u_36, (ref) v_u_31, (ref) v_u_65, (ref) v_u_23, (ref) v_u_27, (ref) v_u_24, (ref) v_u_30, (ref) v_u_28, (ref) v_u_14, (ref) v_u_7, (ref) v_u_96, (ref) v_u_4
+		local v320 = v_u_2.PlayerGui:FindFirstChild("Visual")
+		if v320 then
+			v320 = v_u_2.PlayerGui.Visual:FindFirstChild("ConditionPopup")
+		end
+		if v320 then
+			v320:Destroy()
+		end
+		if v_u_314.Enabled == true then
+			local v_u_321 = v_u_314.Main.Game_Submit.StageInfo.Players
+			task.spawn(function()
+				-- upvalues: (ref) v_u_37, (ref) v_u_22, (ref) v_u_5, (ref) v_u_314, (ref) v_u_18, (ref) v_u_3, (ref) v_u_19, (ref) v_u_21
+				if workspace:FindFirstChild("Lobby") and workspace.Lobby:FindFirstChild("PlayRoom") then
+					v_u_37.Parent = workspace.Lobby.PlayRoom
+				end
+				v_u_22:Play()
+				v_u_5.PopUp(v_u_314.Main)
+				local v_u_322 = workspace:FindFirstChild("Lobby")
+				if v_u_322 then
+					v_u_322 = v_u_322:FindFirstChild("PlayRoom")
+				end
+				if v_u_322 then
+					v_u_322 = v_u_322:FindFirstChild("CamPart")
+				end
+				if v_u_322 then
+					v_u_18.CameraType = Enum.CameraType.Scriptable
+					v_u_18.FieldOfView = 100
+					v_u_3:Create(v_u_18, TweenInfo.new(1, Enum.EasingStyle.Quint), {
+						["FieldOfView"] = 70
+					}):Play()
+					local v323 = v_u_18
+					local v324 = v_u_322.CFrame
+					local v325 = CFrame.Angles
+					local v326 = (v_u_19.Y - v_u_19.ViewSizeY / 2) / v_u_19.ViewSizeY * -5
+					local v327 = math.rad(v326)
+					local v328 = (v_u_19.X - v_u_19.ViewSizeX / 2) / v_u_19.ViewSizeX * -5
+					v323.CFrame = v324 * v325(v327, math.rad(v328), 0)
+					v_u_21 = v_u_19.Move:Connect(function()
+						-- upvalues: (ref) v_u_18, (copy) v_u_322, (ref) v_u_19
+						local v329 = v_u_18
+						local v330 = v_u_322.CFrame
+						local v331 = CFrame.Angles
+						local v332 = (v_u_19.Y - v_u_19.ViewSizeY / 2) / v_u_19.ViewSizeY * -5
+						local v333 = math.rad(v332)
+						local v334 = (v_u_19.X - v_u_19.ViewSizeX / 2) / v_u_19.ViewSizeX * -5
+						v329.CFrame = v330 * v331(v333, math.rad(v334), 0)
+					end)
+				end
+			end)
+			FindPlayerRoom(v_u_2)
+			v_u_20 = game:GetService("RunService").RenderStepped:Connect(function()
+				-- upvalues: (ref) v_u_2, (ref) v_u_168, (ref) v_u_314, (ref) v_u_26, (ref) v_u_1, (ref) v_u_87, (ref) v_u_102, (ref) v_u_8, (ref) v_u_69, (ref) v_u_5, (ref) v_u_32, (ref) v_u_25, (ref) v_u_191, (ref) v_u_33, (ref) v_u_34, (ref) v_u_35, (ref) v_u_36, (ref) v_u_31, (ref) v_u_65, (ref) v_u_23, (ref) v_u_27, (ref) v_u_24, (ref) v_u_30, (ref) v_u_28, (ref) v_u_14, (ref) v_u_7, (ref) v_u_96, (copy) v_u_321, (ref) v_u_4, (ref) v_u_3
+				local v_u_335 = FindPlayerRoom(v_u_2)
+				local v336 = v_u_168()
+				if v_u_314.Main.GameStage.Visible == false and v_u_314.Main.JoinRoom.Visible == false then
+					v_u_314.Main.Button.Visible = true
+				else
+					v_u_314.Main.Button.Visible = false
+				end
+				local v337 = 0
+				if v_u_314.Main.JoinRoom.Visible == true then
+					for _, v338 in pairs(v_u_314.Main.JoinRoom.Main.Base.RoomType.ScrollingFrame:GetChildren()) do
+						if v338:IsA("TextButton") then
+							if v_u_26 == v338.Name then
+								v338.Back.Off.Enabled = false
+								v338.Back.On.Enabled = true
+								v338.Back.UIStroke.Off.Enabled = false
+								v338.Back.UIStroke.On.Enabled = true
+							else
+								v338.Back.Off.Enabled = true
+								v338.Back.On.Enabled = false
+								v338.Back.UIStroke.Off.Enabled = true
+								v338.Back.UIStroke.On.Enabled = false
+							end
+						end
+					end
+					for _, v_u_339 in pairs(v_u_1.PlayRoom:GetChildren()) do
+						if v_u_339:FindFirstChild("Submit") and v_u_339.Submit.Value == true then
+							if v_u_314.Main.JoinRoom.Main.Base.RoomList.ScrollingFrame:FindFirstChild(v_u_339.Name) then
+								local v340, v341, v342 = v_u_87(v_u_339.Mode.Value, v_u_339.World.Value, v_u_339.Chapter.Value)
+								local v343 = v_u_314.Main.JoinRoom.Main.Base.RoomList.ScrollingFrame[v_u_339.Name]
+								v343.Inner.Players.Text = "Players: " .. #v_u_339.Players:GetChildren() .. "/" .. v_u_339.MaxPlayers.Value
+								v343.Inner.Background.Image = v_u_102(v_u_339.World.Value, v_u_339.Chapter.Value, v_u_339.Mode.Value)
+								v343.Inner.WorldName.Text = v341
+								v343.Inner.Chapter.Text = v342
+								v343.Inner.Chapter.Visible = v342 ~= ""
+								v343.Inner.Difficulty.Text = v_u_339.Difficulty.Value
+								v343.Inner.Difficulty.TextColor3 = v_u_8.Difficulty.Color[v_u_339.Difficulty.Value]
+								v343.Inner.Mode.Text = v340 and v340.DisplayName or v_u_69(v_u_339)
+								if v_u_339.Mode.Value == "Challenge" then
+									v343.Inner.Mode.Text = v_u_339.Mode.Value .. " - " .. v_u_1.Gameplay.Game.Challenge.ChallengeName.Value
+								end
+								v343.Inner.OnlyFriend.Visible = v_u_339.FriendOnly.Value == true
+							else
+								local v344 = script.RoomListTemplate:Clone()
+								v344.Name = v_u_339.Name
+								v344.Inner.HostName.Text = "@" .. v_u_339.Name
+								local v345, v346, v347 = v_u_87(v_u_339.Mode.Value, v_u_339.World.Value, v_u_339.Chapter.Value)
+								v344.Inner.Players.Text = "Players: " .. #v_u_339.Players:GetChildren() .. "/" .. v_u_339.MaxPlayers.Value
+								v344.Inner.Background.Image = v_u_102(v_u_339.World.Value, v_u_339.Chapter.Value, v_u_339.Mode.Value)
+								v344.Inner.WorldName.Text = v346
+								v344.Inner.Chapter.Text = v347
+								v344.Inner.Chapter.Visible = v347 ~= ""
+								v344.Inner.Difficulty.Text = v_u_339.Difficulty.Value
+								v344.Inner.Difficulty.TextColor3 = v_u_8.Difficulty.Color[v_u_339.Difficulty.Value]
+								v344.Inner.Mode.Text = v345 and v345.DisplayName or v_u_69(v_u_339)
+								if v_u_339.Mode.Value == "Challenge" then
+									v344.Inner.Mode.Text = v_u_339.Mode.Value .. " - " .. v_u_1.Gameplay.Game.Challenge.ChallengeName.Value
+								end
+								v344.Parent = v_u_314.Main.JoinRoom.Main.Base.RoomList.ScrollingFrame
+								if v_u_339.FriendOnly.Value == true then
+									v344.Inner.OnlyFriend.Visible = true
+								else
+									v344.Inner.OnlyFriend.Visible = false
+								end
+								v_u_5.CreateButtonAnim(v344, 1.05)
+								v344.Activated:Connect(function()
+									-- upvalues: (ref) v_u_32, (copy) v_u_339, (ref) v_u_25, (ref) v_u_191, (ref) v_u_87, (ref) v_u_314, (ref) v_u_69, (ref) v_u_1, (ref) v_u_8, (ref) v_u_102
+									if v_u_32 then
+										v_u_25 = nil
+										v_u_32 = nil
+									else
+										print("try to update the join thing now")
+										v_u_32 = v_u_339
+										if v_u_25 ~= v_u_339 then
+											v_u_25 = v_u_339
+											v_u_191(v_u_25)
+											local v348, v349, v350 = v_u_87(v_u_25.Mode.Value, v_u_25.World.Value, v_u_25.Chapter.Value)
+											v_u_314.Main.JoinRoom.Main.Base.RoomInfo.StageInfo.World.Text = v349
+											v_u_314.Main.JoinRoom.Main.Base.RoomInfo.StageInfo.Mode.Text = v348 and v348.DisplayName or v_u_69(v_u_25)
+											if v_u_25.Mode.Value == "Challenge" then
+												v_u_314.Main.JoinRoom.Main.Base.RoomInfo.StageInfo.Mode.Text = v_u_25.Mode.Value .. " - " .. v_u_1.Gameplay.Game.Challenge.ChallengeName.Value
+											end
+											v_u_314.Main.JoinRoom.Main.Base.RoomInfo.StageInfo.Chapter.Text = v350
+											v_u_314.Main.JoinRoom.Main.Base.RoomInfo.StageInfo.Chapter.Visible = v350 ~= ""
+											v_u_314.Main.JoinRoom.Main.Base.RoomInfo.StageInfo.Difficulty.Text = v_u_25.Difficulty.Value
+											v_u_314.Main.JoinRoom.Main.Base.RoomInfo.StageInfo.Difficulty.TextColor3 = v_u_8.Difficulty.Color[v_u_25.Difficulty.Value]
+											v_u_314.Main.JoinRoom.Main.Base.RoomInfo.StageInfo.Background.Image = v_u_102(v_u_25.World.Value, v_u_25.Chapter.Value, v_u_25.Mode.Value)
+											return
+										end
+									end
+								end)
+							end
+						end
+					end
+					for _, v351 in pairs(v_u_314.Main.JoinRoom.Main.Base.RoomList.ScrollingFrame:GetChildren()) do
+						if v351:IsA("TextButton") then
+							if v_u_1.PlayRoom:FindFirstChild(v351.Name) then
+								if v_u_26 == "All" then
+									v351.Visible = true
+								elseif v_u_1.PlayRoom:FindFirstChild(v351.Name).Mode.Value == v_u_26 then
+									v351.Visible = true
+								else
+									v351.Visible = false
+								end
+							else
+								v351:Destroy()
+								if v_u_32 == v351.Name then
+									v_u_32 = nil
+								end
+							end
+						end
+					end
+				end
+				for _, v352 in pairs(v_u_1.PlayRoom:GetChildren()) do
+					if v352:FindFirstChild("Submit") and v352.Submit.Value == true then
+						if v_u_26 == "All" then
+							v337 = v337 + 1
+						elseif v352.Mode.Value == v_u_26 then
+							v337 = v337 + 1
+						end
+					end
+				end
+				v_u_314.Main.JoinRoom.Main.Base.Description.Text = v_u_26 .. " Available Matches: " .. v337
+				v_u_314.Main.JoinRoom.Main.Base.RoomList.LOCK.Visible = v337 <= 0
+				v_u_314.Main.JoinRoom.Main.Base.RoomInfo_Disabled.Visible = not v_u_32
+				v_u_314.Main.JoinRoom.Main.Base.RoomInfo.Visible = v_u_32
+				if not v_u_335 then
+					v_u_314.Main.Head.RoomActive.Label.Text = "There are <font color=\"rgb(189,255,144)\">" .. v336 .. "</font> active matches"
+					v_u_314.Main.Button.Visible = true
+					v_u_314.Main.Game_Submit.Visible = false
+					v_u_23 = ""
+					v_u_24 = ""
+					v_u_27 = "Story"
+					v_u_28 = ""
+					if workspace:FindFirstChild("Lobby") and (workspace.Lobby:FindFirstChild("PlayRoom") and (workspace.Lobby.PlayRoom:FindFirstChild("PlayersModels") and workspace.Lobby.PlayRoom.PlayersModels:GetChildren()[1])) then
+						workspace.Lobby.PlayRoom.PlayersModels:ClearAllChildren()
+					end
+					for _, v353 in pairs(v_u_321.PlayersList:GetChildren()) do
+						if v353:IsA("ImageLabel") then
+							v353:Destroy()
+						end
+					end
+					return
+				end
+				if v_u_335 ~= v_u_33 then
+					v_u_33 = v_u_335
+					v_u_34 = ""
+					table.clear(v_u_35)
+					table.clear(v_u_36)
+				end
+				if not (v_u_335:FindFirstChild("Mode") and (v_u_335:FindFirstChild("World") and (v_u_335:FindFirstChild("Difficulty") and v_u_335:FindFirstChild("Chapter")))) then
+					return
+				end
+				if v_u_335 and v_u_335:FindFirstChild("Mode") then
+					v_u_31 = v_u_65(v_u_335, false) or v_u_335.Mode.Value
+				else
+					v_u_31 = "Story"
+				end
+				local v354 = v_u_335:WaitForChild("Players")
+				local v355
+				if v_u_23 == v_u_335.Chapter.Value then
+					v355 = false
+				else
+					v_u_23 = v_u_335.Chapter.Value
+					v355 = true
+				end
+				if v_u_27 ~= v_u_335.Mode.Value then
+					v_u_27 = v_u_335.Mode.Value
+					v355 = true
+				end
+				if v_u_24 ~= v_u_335.World.Value then
+					v_u_24 = v_u_335.World.Value
+					local v356 = v_u_335.World.Value
+					local v357 = v_u_335.Chapter.Value
+					local v358 = v_u_335.Mode.Value
+					v_u_30().Main.GameStage.Main.Base.StageInfo.BG.Image = v_u_102(v356, v357, v358)
+					v355 = true
+				end
+				if v_u_28 ~= v_u_335.Difficulty.Value then
+					v_u_28 = v_u_335.Difficulty.Value
+					v355 = true
+				end
+				if v355 then
+					UpdateChapter(v_u_335.World.Value, v_u_335.Chapter.Value, v_u_335.Mode.Value, v_u_335.Difficulty.Value)
+				end
+				local v359 = v_u_69(v_u_335, false)
+				v_u_314.Main.GameStage.Main.Base.Title.Text = v359
+				v_u_314.Main.GameStage.Main.Base.Title.Title.Text = v359
+				local v360, v361, v362 = v_u_87(v_u_335.Mode.Value, v_u_335.World.Value, v_u_335.Chapter.Value)
+				if v_u_335.Submit.Value == true then
+					v_u_314.Main.Button.Visible = false
+					v_u_314.Main.Game_Submit.Visible = true
+					if v_u_335.OnTeleport.Value then
+						v_u_314.Main.Game_Submit.Button.Start.Visible = false
+						v_u_314.Main.Game_Submit.Button.Leave.Visible = false
+					else
+						v_u_314.Main.Game_Submit.Button.Leave.Visible = true
+						if v_u_335.Name == v_u_2.Name then
+							v_u_314.Main.Game_Submit.Button.Start.Visible = true
+						else
+							v_u_314.Main.Game_Submit.Button.Start.Visible = false
+						end
+					end
+					v_u_314.Main.Game_Submit.StageInfo.StageInfo.Main.World.Text = v361
+					v_u_314.Main.Game_Submit.StageInfo.StageInfo.Main.Mode.Text = v360 and v360.DisplayName or v_u_69(v_u_335, false)
+					if v_u_335.Mode.Value == "Challenge" then
+						v_u_314.Main.Game_Submit.StageInfo.StageInfo.Main.Mode.Text = v_u_335.Mode.Value .. " - " .. v_u_1.Gameplay.Game.Challenge.ChallengeName.Value
+					end
+					v_u_314.Main.Game_Submit.StageInfo.StageInfo.Main.Chapter.Text = v362
+					v_u_314.Main.Game_Submit.StageInfo.StageInfo.Main.Chapter.Visible = v362 ~= ""
+					v_u_314.Main.Game_Submit.StageInfo.StageInfo.Main.Difficulty.Text = v_u_335.Difficulty.Value
+					v_u_314.Main.Game_Submit.StageInfo.StageInfo.Main.Difficulty.TextColor3 = v_u_8.Difficulty.Color[v_u_335.Difficulty.Value]
+					v_u_314.Main.Game_Submit.StageInfo.StageInfo.Main.BG.Image = v_u_102(v_u_335.World.Value, v_u_335.Chapter.Value, v_u_335.Mode.Value)
+				else
+					if not v_u_314.Main.GameStage.Visible then
+						v_u_314.Main.Button.Visible = true
+					end
+					v_u_314.Main.Game_Submit.Visible = false
+				end
+				for _, v363 in pairs(v_u_335:GetChildren()) do
+					if v_u_314.Main.GameStage.Main.Base.Misc:FindFirstChild(v363.Name) then
+						if v363.Value == true then
+							v_u_314.Main.GameStage.Main.Base.Misc[v363.Name].Inner.Black["Check Hilight"].Color.Visible = true
+						else
+							v_u_314.Main.GameStage.Main.Base.Misc[v363.Name].Inner.Black["Check Hilight"].Color.Visible = false
+						end
+					end
+				end
+				v_u_314.Main.GameStage.Main.Base.StageInfo.World.Text = v361
+				local v364 = v_u_14[v_u_335.World.Value]
+				if v364 then
+					v364 = v_u_14[v_u_335.World.Value][v_u_335.Chapter.Value]
+				end
+				if not (v360 or v364) then
+					return
+				end
+				v_u_314.Main.GameStage.Main.Base.StageInfo.Chapter.Text = v362
+				v_u_314.Main.GameStage.Main.Base.StageInfo.Chapter.Visible = v362 ~= ""
+				v_u_314.Main.GameStage.Main.Base.StageInfo.Difficulty.Text = v_u_335.Difficulty.Value
+				v_u_314.Main.GameStage.Main.Base.StageInfo.Difficulty.TextColor3 = v_u_8.Difficulty.Color[v_u_335.Difficulty.Value]
+				if v_u_7.ChapterLevels:FindFirstChild(v_u_335.Chapter.Value) then
+					v_u_314.Main.GameStage.Main.Base.StageInfo.ClearTime.Text = "Clear Time: " .. convertToHMS(v_u_7.ChapterLevels:FindFirstChild(v_u_335.Chapter.Value).BestTime.Value)
+				else
+					v_u_314.Main.GameStage.Main.Base.StageInfo.ClearTime.Text = "Clear Time: --:--:--"
+				end
+				local v365 = v_u_14[v_u_335.World.Value] and v_u_14[v_u_335.World.Value][v_u_335.Chapter.Value]
+				if v365 then
+					v365 = v_u_14[v_u_335.World.Value][v_u_335.Chapter.Value].SupportedDifficulties
+				end
+				local v366 = v_u_335.Mode.Value == "Ranger Stage" or (v_u_335 and (v_u_14[v_u_335.World.Value] and (v_u_14[v_u_335.World.Value][v_u_335.Chapter.Value] and v_u_14[v_u_335.World.Value][v_u_335.Chapter.Value].ForcedDifficulty ~= nil)) and true or false)
+				if not v366 then
+					if v_u_335.Mode.Value == "Raids Stage" then
+						v366 = not v365
+					else
+						v366 = false
+					end
+				end
+				if v366 then
+					v_u_314.Main.GameStage.Main.Base.DifficultyButton.Visible = false
+				else
+					v_u_314.Main.GameStage.Main.Base.DifficultyButton.Visible = true
+				end
+				local v367 = v_u_96(v_u_335)
+				for _, v368 in v_u_314.Main.GameStage.Main.Base.DifficultyButton:GetChildren() do
+					if v368:IsA("TextButton") then
+						v368.Visible = v367[v368.Name]
+					end
+				end
+				local v369 = (v_u_335.Mode.Value == "Story" or (v_u_335.Mode.Value == "Ranger Stage" or (v_u_335.Mode.Value == "Raids Stage" or (v_u_335.Mode.Value == "Calamity" or v_u_335.Mode.Value == "Invasion")))) and true or v_u_335.Mode.Value == "ColonyRush"
+				v_u_314.Main.GameStage.Main.Base.Story.Visible = v369
+				v_u_314.Main.GameStage.Main.Base.Chapter.Visible = v369
+				v_u_314.Main.GameStage.Main.Base.Line.Visible = v369
+				v_u_314.Main.GameStage.Main.Base["Chapter Title"].Visible = v369
+				v_u_314.Main.GameStage.Main.Stage_Select.Visible = v369
+				if v369 then
+					for _, v370 in pairs(v_u_314.Main.GameStage.Main.Base.Story.ScrollingFrame:GetChildren()) do
+						if v370:IsA("TextButton") then
+							if v_u_335.Mode.Value == "Ranger Stage" then
+								v370.Inner.Clear.Visible = false
+							else
+								v370.Inner.Clear.Visible = true
+							end
+							if v370.Name == v_u_335.World.Value then
+								v370.Inner.mark.Visible = true
+							else
+								v370.Inner.mark.Visible = false
+							end
+						end
+					end
+					for _, v371 in pairs(v_u_314.Main.GameStage.Main.Base.Chapter:GetChildren()) do
+						if v371:IsA("ScrollingFrame") then
+							if v371.Name == v_u_335.World.Value then
+								v371.Visible = true
+								for _, v372 in pairs(v371:GetChildren()) do
+									if v372:IsA("TextButton") then
+										if string.find(v372.Name, "Chapter") and (v_u_335.Mode.Value == "Story" or (v_u_335.Mode.Value == "Calamity" or v_u_335.Mode.Value == "Invasion")) then
+											v372.Visible = true
+										elseif string.find(v372.Name, "Act") and v_u_335.Mode.Value == "ColonyRush" then
+											v372.Visible = true
+										elseif string.find(v372.Name, "RangerStage") and v_u_335.Mode.Value == "Ranger Stage" then
+											v372.Visible = true
+											v372.Inner.RangerStageLock.Visible = false
+										elseif v_u_335.Mode.Value ~= "Raids Stage" then
+											v372.Visible = false
+										end
+										if v_u_335.Chapter.Value == v372.Name then
+											v372.Inner.BackgroundColor3 = Color3.new(0, 0.666667, 1)
+										else
+											v372.Inner.BackgroundColor3 = Color3.new(0.67451, 0.67451, 0.67451)
+										end
+									end
+								end
+							else
+								v371.Visible = false
+							end
+						end
+					end
+				else
+					for _, v373 in pairs(v_u_314.Main.GameStage.Main.Base.Chapter:GetChildren()) do
+						if v373:IsA("ScrollingFrame") then
+							v373.Visible = false
+						end
+					end
+				end
+				if not (workspace:FindFirstChild("Lobby") and (workspace.Lobby:FindFirstChild("PlayRoom") and workspace.Lobby.PlayRoom:FindFirstChild("PlayersModels"))) then
+					return
+				end
+				for _, v374 in pairs(workspace.Lobby.PlayRoom.PlayersModels:GetChildren()) do
+					local v375 = v374:GetAttribute("PlayerName")
+					local v376 = false
+					for _, v377 in pairs(v354:GetChildren()) do
+						if v377.Value.Name == v375 then
+							v376 = true
+							break
+						end
+					end
+					if not v376 then
+						if v_u_321.PlayersList:FindFirstChild(v375) then
+							v_u_321.PlayersList:FindFirstChild(v375):Destroy()
+						end
+						v374:Destroy()
+					end
+				end
+				if v_u_335.Submit.Value == true then
+					v_u_314.Main.Head.RoomActive.Label.Text = "Players <font color=\"rgb(189,255,144)\">" .. #v354:GetChildren() .. "/" .. v_u_335.MaxPlayers.Value .. "</font>"
+					for _, v_u_378 in pairs(v354:GetChildren()) do
+						if not (script:GetAttribute("Create_Model_CD") or workspace.Lobby.PlayRoom.PlayersModels:FindFirstChild(v_u_378.Name)) then
+							script:SetAttribute("Create_Model_CD", true)
+							local v379 = false
+							local v380 = 0
+							while not v379 and v380 < 3 do
+								v380 = v380 + 1
+								local v381
+								v379, v381 = pcall(function()
+									-- upvalues: (copy) v_u_378, (ref) v_u_4, (ref) v_u_3, (ref) v_u_321, (ref) v_u_1, (copy) v_u_335
+									local v_u_382 = v_u_378.Value.UserId
+									local v383 = game.Players:GetHumanoidDescriptionFromUserIdAsync(v_u_382)
+									local v384 = game.Players:CreateHumanoidModelFromDescriptionAsync(v383, Enum.HumanoidRigType.R6)
+									v384:ScaleTo(0.704)
+									v384:WaitForChild("HumanoidRootPart").Anchored = true
+									v384.HumanoidRootPart.CFrame = workspace.Lobby.PlayRoom.PlayersPos[v_u_378.Name].HumanoidRootPart.CFrame
+									v384.Name = v_u_378.Name
+									v_u_4:Creare(script.Sound, v384:GetPivot())
+									local v385 = Instance.new("Highlight", v384)
+									v385.OutlineColor = Color3.new(1, 1, 1)
+									v385.FillColor = Color3.new(1, 1, 1)
+									v385.FillTransparency = 0
+									v385.OutlineTransparency = 0
+									v_u_3:Create(v385, TweenInfo.new(0.5), {
+										["FillTransparency"] = 1
+									}):Play()
+									v384.Parent = workspace.Lobby.PlayRoom.PlayersModels
+									v384:WaitForChild("Humanoid"):LoadAnimation(workspace.Lobby.PlayRoom.PlayersPos[v_u_378.Name].Idle):Play(0)
+									v384:SetAttribute("PlayerName", v_u_378.Value.Name)
+									local v386 = v_u_378.Value.Character:WaitForChild("Head"):FindFirstChild("PlayerHeadGui"):Clone()
+									v386.Size = UDim2.new(15.65, 0, 1, 0)
+									v386.Parent = v384:WaitForChild("Head")
+									local v_u_387 = Enum.ThumbnailType.HeadShot
+									local v_u_388 = Enum.ThumbnailSize.Size420x420
+									local v_u_389 = "rbxassetid://0"
+									local v_u_390 = false
+									local v393, v394 = pcall(function()
+										-- upvalues: (ref) v_u_389, (ref) v_u_390, (copy) v_u_382, (copy) v_u_387, (copy) v_u_388
+										local v391, v392 = game:GetService("Players"):GetUserThumbnailAsync(v_u_382, v_u_387, v_u_388)
+										v_u_389 = v391
+										v_u_390 = v392
+									end)
+									if not (v393 and v_u_390) then
+										warn("Failed to get profile image for " .. v_u_378.Value.Name .. ": " .. (v394 or "Thumbnail not ready"))
+										v_u_389 = "rbxassetid://0"
+									end
+									local v395 = script.PlayerImage:Clone()
+									v395.Image = v_u_389
+									v395.Name = v_u_378.Value.Name
+									v395.Parent = v_u_321.PlayersList
+									local v396 = v_u_1.Assets.Effects.Blue_Effect:Clone()
+									v396.Parent = workspace.Visual
+									v396.CFrame = v384.HumanoidRootPart.CFrame
+									game.Debris:AddItem(v396, 3)
+									for _, v397 in pairs(v396:GetDescendants()) do
+										if v397:IsA("ParticleEmitter") then
+											local v398 = v397:GetAttribute("EmitCount") * 1.5
+											v397:Emit((math.floor(v398)))
+										end
+									end
+									if v_u_335.Name == v_u_378.Value.Name then
+										v395.HostShow.Visible = true
+									else
+										v395.HostShow.Visible = false
+									end
+								end)
+								if v379 then
+									print("create players")
+								else
+									warn("Error creating player model (Attempt " .. v380 .. "): " .. v381)
+									task.wait(1)
+								end
+							end
+							if not v379 then
+								warn("Failed to create player model after " .. 3 .. " attempts!")
+							end
+							script:SetAttribute("Create_Model_CD", nil)
+						end
+						task.wait()
+					end
+				else
+					v_u_314.Main.Head.RoomActive.Label.Text = "There are <font color=\"rgb(189,255,144)\">" .. v336 .. "</font> active matches"
+				end
+			end)
+		else
+			v_u_37.Parent = v_u_1.Assets
+			if v_u_20 then
+				v_u_20:Disconnect()
+			end
+			if v_u_21 then
+				v_u_21:Disconnect()
+			end
+			v_u_22:Pause()
+			v_u_33 = nil
+			v_u_34 = ""
+			table.clear(v_u_35)
+			table.clear(v_u_36)
+			v_u_23 = ""
+			v_u_24 = ""
+			v_u_27 = ""
+			v_u_28 = ""
+			local v399 = v_u_2.PlayerGui:FindFirstChild("Visual")
+			if v399 then
+				v399 = v_u_2.PlayerGui.Visual:FindFirstChild("ConditionPopup")
+			end
+			if v399 then
+				v399:Destroy()
+			end
+			v_u_314.Main.GameStage.Visible = false
+			v_u_314.Main.JoinRoom.Visible = false
+			repeat
+				wait()
+				v_u_18.CameraType = Enum.CameraType.Custom
+			until v_u_18.CameraType == Enum.CameraType.Custom
+		end
+	end)
+end
