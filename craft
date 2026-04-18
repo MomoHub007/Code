@@ -1,1143 +1,400 @@
--- Decompiled with Medal by YuBX
-
-return function()
-	local v1 = game.Players
-	local v_u_2 = game.ReplicatedStorage
-	local v_u_3 = game.TweenService
-	local v_u_4 = v1.LocalPlayer
-	v_u_4:WaitForChild("DataLoaded", 320)
-	local v_u_5 = require(v_u_2.Shared.Info.Items)
-	local v_u_6 = require(v_u_2.Shared.Info.CraftingRecipes)
-	local v_u_7 = require(v_u_2.Modules.UI.RarityColor)
-	local v_u_8 = require(v_u_2.UIS.Packages.Visual)
-	local v_u_9 = require(v_u_2.Shared.GetData)
-	local v_u_10 = require(v_u_2.Modules.UI.Inspect)
-	local v_u_11 = require(v_u_2.Shared.Info.GameWorld.Levels)
-	local v_u_12 = require(v_u_2.Shared.Info.GameWorld.World)
-	local v_u_13 = require(v_u_2.UIS.Packages.Comma)
-	local v_u_14 = require(script.SoulUpgradeModule)
-	require(v_u_2.Shared.Info.SoulTiers)
-	local v_u_15 = false
-	local v_u_16 = v_u_4.PlayerGui.Crafting.Main
-	local v_u_17 = v_u_16.Requirements.ScrollingFrame
-	local v_u_18 = v_u_16.Main.Result.Frame.ItemFrame
-	local v_u_19 = v_u_18.ViewPort
-	local v_u_20 = v_u_16.Main.Names
-	local v_u_21 = v_u_16.Main.Description
-	local v_u_22 = v_u_16.Price.Numbers
-	local v_u_23 = v_u_16.Main.Amount_Frame.TextBox
-	local v_u_24 = v_u_16.RightSide.InScrolling.ScrollingFrame
-	local v25 = v_u_16.Type:GetChildren()
-	local v26 = v_u_16.Crafting
-	local v27 = v_u_16.Base.TopBar.Close
-	local v_u_28 = v_u_16.Track
-	local v_u_29 = script.ItemInfomation
-	local v_u_30 = script.ChapterTemplate
-	local v_u_31 = script.InFilters
-	local v_u_32 = script.MultiAmount
-	local v_u_33 = script.InSelect
-	local v_u_34 = v_u_2.Remote.Server.PlayRoom.Event
-	local v_u_35 = v_u_9.GetData(v_u_4)
-	local v_u_36 = nil
-	local v_u_37 = {
-		["Exclusive"] = -4,
-		["Limited"] = -3,
-		["Secret"] = -2,
-		["Mythic"] = -1,
-		["Legendary"] = 1,
-		["Epic"] = 2,
-		["Rare"] = 3,
-		["Uncommon"] = 4,
-		["Common"] = 5
-	}
-	local function v_u_40()
-		-- upvalues: (ref) v_u_36, (copy) v_u_35, (copy) v_u_28
-		local v38
-		if v_u_36 and v_u_36 ~= "" then
-			local v39 = v_u_35:FindFirstChild("PinnedCraftingQuests")
-			v38 = v39 and v39:FindFirstChild(v_u_36) ~= nil and true or false
-		else
-			v38 = false
-		end
-		v_u_28.Back.BackgroundColor3 = v38 and Color3.new(0, 1, 0) or Color3.fromRGB(85, 85, 255)
-		v_u_28.Back.UIStroke.Color = v38 and Color3.new(0, 1, 0) or Color3.fromRGB(85, 85, 255)
-	end
-	local function v_u_42()
-		-- upvalues: (copy) v_u_17
-		for _, v41 in ipairs(v_u_17:GetChildren()) do
-			if v41:IsA("TextButton") then
-				v41:Destroy()
-			end
-		end
-		task.wait()
-	end
-	local function v_u_46(p43)
-		for _, v44 in ipairs(p43:GetDescendants()) do
-			if v44:IsA("Model") or v44:IsA("Camera") then
-				v44:Destroy()
-			end
-		end
-		local v45 = Instance.new("WorldModel")
-		v45.Parent = p43
-		v45.Name = "Rig"
-	end
-	local function v_u_48()
-		-- upvalues: (copy) v_u_19, (copy) v_u_20, (copy) v_u_21, (copy) v_u_46, (copy) v_u_22, (copy) v_u_23, (copy) v_u_16, (copy) v_u_18, (copy) v_u_42
-		v_u_19.ImageColor3 = Color3.new(0.219608, 0.219608, 0.219608)
-		v_u_20.Text = "None"
-		v_u_21.Text = "Please select item(s) you want to craft."
-		v_u_46(v_u_19)
-		v_u_22.Text = "0"
-		v_u_23.Text = "1"
-		for _, v47 in ipairs(v_u_16.Main.Result:GetDescendants()) do
-			if v47:IsA("UIGradient") then
-				v47:Destroy()
-			end
-		end
-		script.Folders.Common:Clone().Parent = v_u_18
-		v_u_42()
-	end
-	local function v_u_55(p49)
-		-- upvalues: (copy) v_u_9, (copy) v_u_46, (copy) v_u_19, (copy) v_u_7, (copy) v_u_18, (copy) v_u_21, (copy) v_u_2, (copy) v_u_20, (copy) v_u_22, (copy) v_u_13, (copy) v_u_6
-		local v50 = v_u_9.GetItemModel(p49) or v_u_9.GetUnitModel(p49)
-		if not v50 then
-			warn(("Model to %q is missing!"):format(p49))
-		end
-		if v50 then
-			v50 = v50:Clone()
-		end
-		local v51 = v_u_9.GetItemStats(p49) or v_u_9.GetUnitStats(p49)
-		local v52 = v51.Rarity
-		v_u_46(v_u_19)
-		if v50 then
-			local v53 = Instance.new("Camera")
-			v53.Parent = v_u_19
-			v_u_19.CurrentCamera = v53
-			v50.Parent = v_u_19:FindFirstChildOfClass("WorldModel")
-			v53.CFrame = v50.PrimaryPart.CFrame * CFrame.new(0, 0, 2.5)
-			v50:SetPrimaryPartCFrame(CFrame.lookAt(v50.PrimaryPart.Position, v53.CFrame.Position))
-			if v50:FindFirstChild("Humanoid", true) then
-				local v54 = v50:FindFirstChild("Humanoid", true)
-				if v54.Parent.Animations and v54.Parent.Animations:FindFirstChild("Idle") then
-					v54:LoadAnimation(v54.Parent.Animations:FindFirstChild("Idle")):Play()
-				end
-			end
-		end
-		v_u_7(v_u_18["Glowing | Special"], v52, "Item", nil, script.Name)
-		v_u_7(v_u_18, v52, "Item", nil, script.Name)
-		v_u_19.ImageColor3 = Color3.new(1, 1, 1)
-		if v51.Type == "Gear" then
-			v_u_21.Text = require(v_u_2.Modules.UI.CreateTemplate).GearStatsText(v51.Gear.Stats, true)
-			v_u_20.Text = v51.DisplayName .. "<font color=\"rgb(0,140,255)\"> (" .. v51.Gear.Type:gsub("([a-z])([A-Z])", "%1 %2") .. ")</font>"
-		else
-			v_u_21.Text = v51.Description
-			v_u_20.Text = v51.DisplayName
-		end
-		v_u_22.Text = v_u_13(v_u_6[p49].Cost)
-	end
-	local v_u_56 = game:GetService("UserInputService")
-	local v_u_57 = nil
-	local v_u_58 = nil
-	local v_u_59 = nil
-	local v_u_60 = v_u_4.PlayerGui.Visual
-	local v_u_61 = false
-	local v_u_62 = nil
-	local function v_u_65()
-		-- upvalues: (copy) v_u_17, (copy) v_u_8
-		for _, v63 in v_u_17:GetChildren() do
-			if v63:IsA("TextButton") and v63:GetAttribute("Locked") then
-				v63:SetAttribute("Locked", nil)
-				local v64 = v63.Frame
-				if v64 then
-					v64 = v63.Frame:FindFirstChild("UIStroke")
-				end
-				if v64 then
-					v64.Enabled = false
-				end
-				v_u_8.Leave(v63.Frame, 1.15)
-			end
-		end
-	end
-	local function v_u_78(p66, p67, p68)
-		-- upvalues: (copy) v_u_60
-		local v69 = workspace.CurrentCamera.ViewportSize
-		local v70 = v69.X * 0.106
-		local v71 = v69.X * 0.106 / 0.75
-		local v72 = p66 + p68
-		local v73 = p67 - v71 * 0.45
-		if v72 + v70 > v69.X then
-			v72 = p66 - v70 - p68
-		end
-		local v74 = v72 < 10 and 10 or v72
-		if v73 + v71 > v69.Y then
-			v73 = v69.Y - v71 - 10
-		end
-		local v75 = v73 < 10 and 10 or v73
-		local v76 = v_u_60.AbsolutePosition
-		local v77 = v_u_60.AbsoluteSize
-		return UDim2.new((v74 - v76.X) / v77.X, 0, (v75 - v76.Y) / v77.Y, 0)
-	end
-	local function v_u_82(p79)
-		-- upvalues: (copy) v_u_4
-		for _, v80 in v_u_4.PlayerGui.Visual:GetChildren() do
-			local v81 = v80:GetAttribute("CraftPopupLevel")
-			if v81 and p79 <= v81 then
-				v80:Destroy()
-			end
-		end
-	end
-	v_u_62 = function()
-		-- upvalues: (ref) v_u_57, (copy) v_u_4
-		if v_u_57 then
-			v_u_57:Disconnect()
-			v_u_57 = nil
-		end
-		for _, v83 in v_u_4.PlayerGui.Visual:GetChildren() do
-			if v83:GetAttribute("CraftPopupLevel") then
-				v83:Destroy()
-			end
-		end
-	end
-	local function v_u_104(p84, p85, p86)
-		-- upvalues: (copy) v_u_60
-		local v87 = workspace.CurrentCamera.ViewportSize
-		local v88 = v_u_60.AbsolutePosition
-		local v89 = v_u_60.AbsoluteSize
-		local v90 = v89.X * 0.106
-		local v91 = v90 / 0.75
-		local v92 = p84.AbsolutePosition
-		local v93 = p84.AbsoluteSize
-		local v94 = v92.X + v93.X + 5
-		local v95 = v92.Y + 30
-		local v96
-		if v94 + v90 > v87.X then
-			v94 = v92.X - v90 - 5
-			v96 = true
-		else
-			v96 = false
-		end
-		local v97 = v94 < 10 and 10 or v94
-		if v96 and v92.X <= v97 then
-			v96 = false
-		end
-		if v95 + v91 > v87.Y then
-			v95 = v87.Y - v91 - 10
-		end
-		if v95 < v88.Y + 10 then
-			v95 = v88.Y + 10
-		end
-		local v98 = p86 and p86.AbsolutePosition.Y + p86.AbsoluteSize.Y / 2 or v95 + v91 / 2
-		local v99 = (v98 - v95) / v91
-		local v100 = math.clamp(v99, 0.05, 0.95)
-		local v101 = v96 and (v97 + v90 - v88.X) / v89.X or (v97 - v88.X) / v89.X
-		p85.AnchorPoint = Vector2.new(v96 and 1 or 0, v100)
-		p85.Position = UDim2.new(v101, 0, (v98 - v88.Y) / v89.Y, 0)
-		p85:SetAttribute("OrigPosXScale", v101)
-		p85:SetAttribute("OrigPosYScale", (v98 - v88.Y) / v89.Y)
-		local v102 = p85:FindFirstChild("Arrow")
-		if v102 and p86 then
-			local v103 = v102:FindFirstChild("UIStroke")
-			if v103 then
-				v103 = v102.UIStroke:FindFirstChild("UIGradient")
-			end
-			if v96 then
-				v102.AnchorPoint = Vector2.new(1, 0.5)
-				v102.Position = UDim2.new(1.06, 0, v100, 0)
-				v102.Rotation = -45
-				if v103 then
-					v103.Rotation = 45
-					return
-				end
-			else
-				v102.AnchorPoint = Vector2.new(0, 0.5)
-				v102.Position = UDim2.new(-0.06, 0, v100, 0)
-				v102.Rotation = 45
-				if v103 then
-					v103.Rotation = 135
-				end
-			end
-		end
-	end
-	local function v_u_129(p_u_105, _, p106, p_u_107)
-		-- upvalues: (copy) v_u_104, (copy) v_u_60, (copy) v_u_3, (ref) v_u_57, (copy) v_u_82, (copy) v_u_78, (copy) v_u_4
-		if p106 then
-			v_u_104(p106, p_u_105, p_u_107)
-		else
-			local v108 = workspace.CurrentCamera.ViewportSize
-			local v109 = v_u_60.AbsolutePosition
-			local v110 = v_u_60.AbsoluteSize
-			local v111 = v110.X * 0.106
-			local v112 = v111 / 0.75
-			local v113 = false
-			if p_u_107 then
-				local v114 = p_u_107.AbsolutePosition
-				local v115 = p_u_107.AbsoluteSize
-				local v116 = v114.Y + v115.Y / 2
-				local v117 = v114.X + v115.X + 10
-				local v118 = v116 - v112 / 2
-				if v117 + v111 > v108.X then
-					v117 = v114.X - v111 - 10
-					v113 = true
-				end
-				local v119 = v117 < 10 and 10 or v117
-				if v113 and v114.X <= v119 then
-					v113 = false
-				end
-				if v118 + v112 > v108.Y then
-					v118 = v108.Y - v112 - 10
-				end
-				if v118 < v109.Y + 10 then
-					v118 = v109.Y + 10
-				end
-				local v120 = (v116 - v118) / v112
-				local v121 = math.clamp(v120, 0.05, 0.95)
-				local v122 = v113 and (v119 + v111 - v109.X) / v110.X or (v119 - v109.X) / v110.X
-				p_u_105.AnchorPoint = Vector2.new(v113 and 1 or 0, v121)
-				p_u_105.Position = UDim2.new(v122, 0, (v116 - v109.Y) / v110.Y, 0)
-				local v123 = p_u_105:FindFirstChild("Arrow")
-				if v123 then
-					local v124 = v123:FindFirstChild("UIStroke")
-					if v124 then
-						v124 = v123.UIStroke:FindFirstChild("UIGradient")
-					end
-					if v113 then
-						v123.AnchorPoint = Vector2.new(1, 0.5)
-						v123.Position = UDim2.new(1.06, 0, v121, 0)
-						v123.Rotation = -45
-						if v124 then
-							v124.Rotation = 45
-						end
-					else
-						v123.AnchorPoint = Vector2.new(0, 0.5)
-						v123.Position = UDim2.new(-0.06, 0, v121, 0)
-						v123.Rotation = 45
-						if v124 then
-							v124.Rotation = 135
-						end
-					end
-				end
-				p_u_105.UIScale.Scale = 0.5
-				v_u_3:Create(p_u_105.UIScale, TweenInfo.new(0.25, Enum.EasingStyle.Back), {
-					["Scale"] = 1
-				}):Play()
-				local v125 = p_u_107:FindFirstAncestorOfClass("ScrollingFrame")
-				if v125 then
-					if v_u_57 then
-						v_u_57:Disconnect()
-					end
-					v_u_57 = v125:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-						-- upvalues: (copy) p_u_105, (ref) v_u_57, (ref) v_u_82, (ref) v_u_60, (copy) p_u_107
-						if p_u_105.Parent then
-							v_u_82(1)
-							local v126 = v_u_60.AbsolutePosition
-							local v127 = v_u_60.AbsoluteSize
-							local v128 = p_u_107.AbsolutePosition.Y + p_u_107.AbsoluteSize.Y / 2
-							p_u_105.Position = UDim2.new(p_u_105.Position.X.Scale, 0, (v128 - v126.Y) / v127.Y, 0)
-						else
-							v_u_57:Disconnect()
-							v_u_57 = nil
-						end
-					end)
-				end
-			else
-				p_u_105.AnchorPoint = Vector2.new(0, 0)
-				p_u_105.Position = v_u_78(v_u_4:GetMouse().X, v_u_4:GetMouse().Y, 30)
-			end
-			p_u_105:SetAttribute("OrigPosXScale", p_u_105.Position.X.Scale)
-			p_u_105:SetAttribute("OrigPosYScale", p_u_105.Position.Y.Scale)
-		end
-		if p106 then
-			p_u_105.UIScale.Scale = 0.5
-			v_u_3:Create(p_u_105.UIScale, TweenInfo.new(0.25, Enum.EasingStyle.Back), {
-				["Scale"] = 1
-			}):Play()
-		end
-	end
-	local function v_u_172(p130, p131, p132)
-		-- upvalues: (copy) v_u_29, (copy) v_u_4, (copy) v_u_11, (copy) v_u_30, (copy) v_u_12, (copy) v_u_9, (copy) v_u_2, (copy) v_u_34, (copy) v_u_6, (copy) v_u_9, (ref) v_u_61, (copy) v_u_82, (copy) v_u_172, (copy) v_u_129, (copy) v_u_7
-		local v_u_133 = v_u_29:Clone()
-		v_u_133.Name = "CraftPopup_" .. p132
-		v_u_133:SetAttribute("CraftPopupLevel", p132)
-		v_u_133:SetAttribute("SourceItem", p131)
-		v_u_133.Names.Text = p130.DisplayName
-		v_u_133.Rarity.Text = p130.Rarity
-		v_u_133.ScrollingFrame.Des.Text = p130.Description or ""
-		v_u_133.Parent = v_u_4.PlayerGui.Visual
-		for _, v134 in ipairs(v_u_133.ScrollingFrame:GetChildren()) do
-			if v134:IsA("TextButton") then
-				v134:Destroy()
-			end
-		end
-		for v_u_135, v_u_136 in pairs(v_u_11) do
-			for v_u_137, v138 in pairs(v_u_136) do
-				if v138.Items then
-					for _, v139 in ipairs(v138.Items) do
-						if v139.Name == p131 then
-							local v140 = v_u_30:Clone()
-							v140.Inner.Background.Image = v_u_12[v_u_135].Image
-							v140.Inner.World.Text = v_u_12[v_u_135].Name
-							v140.Inner.Level.Text = v138.Name
-							v140.LayoutOrder = (v_u_12[v_u_135] and (v_u_12[v_u_135].LayoutOrder or 0) or 0) + (v_u_136 and (v_u_136.LayoutOrder or 0) or 0)
-							v140.Parent = v_u_133.ScrollingFrame
-							v140.Active = true
-							v140.Activated:Connect(function()
-								-- upvalues: (copy) v_u_137, (copy) v_u_136, (copy) v_u_135, (ref) v_u_12, (ref) v_u_9, (ref) v_u_4, (ref) v_u_2, (ref) v_u_34
-								local v141 = v_u_137
-								local v142 = v_u_136
-								local v143 = v_u_135
-								local v144 = v_u_12[v143]
-								local v_u_145 = v144 and v144.IsRaid and "Raids Stage" or (v142.IsRaid and "Raids Stage" or (v143 == "Calamity" and "Calamity" or (v143 == "Invasion" and "Invasion" or (v141:find("RangerStage") and "Ranger Stage" or (v144 and v144.StoryAble and "Story" or (v142.StoryAble and "Story" or nil))))))
-								if v_u_145 then
-									if v_u_9.CanAccessLevel(v_u_4, v_u_135, v_u_137) then
-										local v_u_146 = require(v_u_2.Modules.UI.SystemMessage):Create("Custom", {
-											["Message"] = "Would you like to teleport to that stage?",
-											["Button"] = {
-												["Sure"] = {
-													["Text"] = "Sure",
-													["Color"] = "Green",
-													["Order"] = 1
-												},
-												["Back"] = {
-													["Text"] = "Back",
-													["Color"] = "Gray",
-													["Order"] = 2
-												}
-											}
-										})
-										v_u_146.Message.Frame.ButtonFrame.Sure.Activated:Once(function()
-											-- upvalues: (copy) v_u_146, (ref) v_u_34, (copy) v_u_145, (ref) v_u_135, (ref) v_u_137
-											v_u_146:Destroy()
-											v_u_34:FireServer("Create")
-											v_u_34:FireServer("Change-Mode", {
-												["Mode"] = v_u_145
-											})
-											v_u_34:FireServer("Change-World", {
-												["World"] = v_u_135
-											})
-											v_u_34:FireServer("Change-Chapter", {
-												["Chapter"] = v_u_137
-											})
-											v_u_34:FireServer("Submit")
-										end)
-										v_u_146.Message.Frame.ButtonFrame.Back.Activated:Once(function()
-											-- upvalues: (copy) v_u_146
-											v_u_146:Destroy()
-										end)
-									else
-										v_u_2.Remote.Client.Notification:FireServer("TextBarBottom", "You haven\'t unlocked this Chapter yet.", Color3.new(1, 0, 0), nil, 3)
-									end
-								else
-									return
-								end
-							end)
-						end
-					end
-				end
-			end
-		end
-		local v147 = v_u_6[p131]
-		if v147 and v147.Requirement then
-			local v148 = p130.DisplayName or p131
-			v_u_133.ScrollingFrame.Des.Text = v148 .. " Is A Craftable Item.\nTo Craft " .. v148 .. " The Items You Need Are:"
-			for v_u_149, v150 in pairs(v147.Requirement) do
-				local v_u_151 = v_u_9.GetItemStats(v_u_149)
-				local v152 = v_u_9.GetUnitStats(v_u_149)
-				if not v_u_151 or (type(v_u_151) ~= "table" or not v_u_151) then
-					if v152 then
-						if type(v152) == "table" then
-							v_u_151 = v152
-						else
-							v_u_151 = false
-						end
-					else
-						v_u_151 = v152
-					end
-				end
-				local v153
-				if v_u_151 then
-					v153 = v_u_151.DisplayName or v_u_149
-				else
-					v153 = v_u_149
-				end
-				if v152 then
-					v152 = type(v152) == "table"
-				end
-				local v_u_154 = v_u_2.Assets.GUI.Template.ItemShow:Clone()
-				v_u_154.Name = v_u_149
-				v_u_154.LayoutOrder = 101
-				v_u_154.Parent = v_u_133.ScrollingFrame
-				require(v_u_2.Modules.UI.CreateTemplate).ItemShow(v_u_154, {
-					["Name"] = v_u_149,
-					["IgnoreSetInfo"] = true,
-					["Type"] = v152 and "Unit" or "Item"
-				}, script.Name)
-				local v155 = v_u_154.Frame.ItemFrame:FindFirstChild("Info")
-				if v155 then
-					if v155:FindFirstChild("ItemsNames") then
-						v155.ItemsNames.Text = v153
-					end
-					if v155:FindFirstChild("DropAmonut") then
-						local v156 = v_u_2.Player_Data[v_u_4.Name].Items
-						local v157 = not v156:FindFirstChild(v_u_149) and 0 or v156[v_u_149].Amount.Value
-						v155.DropAmonut.Text = v157 .. "/" .. v150
-						v155.DropAmonut.Visible = true
-						v155.DropAmonut.TextColor3 = v150 <= v157 and Color3.new(0, 1, 0) or Color3.new(1, 0, 0)
-					end
-					if v155:FindFirstChild("DropRate") then
-						local v158 = 0
-						for _, v159 in pairs(v_u_11) do
-							for _, v160 in pairs(v159) do
-								if v160.Items then
-									for _, v161 in ipairs(v160.Items) do
-										if v161.Name == v_u_149 and (v161.DropRate and v158 < v161.DropRate) then
-											v158 = v161.DropRate
-										end
-									end
-								end
-							end
-						end
-						if v158 > 0 then
-							v155.DropRate.Text = v158 .. "%"
-							v155.DropRate.Visible = true
-						else
-							v155.DropRate.Visible = false
-						end
-					end
-				end
-				local v_u_162 = p132 + 1
-				v_u_154.Active = true
-				local function v164()
-					-- upvalues: (ref) v_u_61, (copy) v_u_133, (copy) v_u_149, (ref) v_u_82, (copy) v_u_162, (copy) v_u_151, (ref) v_u_172, (ref) v_u_129, (copy) v_u_154
-					v_u_61 = true
-					if v_u_133:GetAttribute("LockedSub") == v_u_149 then
-						v_u_82(v_u_162)
-						v_u_133:SetAttribute("LockedSub", nil)
-					else
-						v_u_82(v_u_162)
-						v_u_133:SetAttribute("LockedSub", v_u_149)
-						local v163 = v_u_151 and v_u_172(v_u_151, v_u_149, v_u_162)
-						if v163 then
-							v_u_129(v163, v_u_162, v_u_133, v_u_154)
-						end
-					end
-				end
-				local function v166()
-					-- upvalues: (copy) v_u_133, (ref) v_u_82, (copy) v_u_162, (copy) v_u_151, (ref) v_u_172, (copy) v_u_149, (ref) v_u_129, (copy) v_u_154
-					if not v_u_133:GetAttribute("LockedSub") then
-						v_u_82(v_u_162)
-						local v165 = v_u_151 and v_u_172(v_u_151, v_u_149, v_u_162)
-						if v165 then
-							v_u_129(v165, v_u_162, v_u_133, v_u_154)
-						end
-					end
-				end
-				local function v167()
-					-- upvalues: (copy) v_u_133, (ref) v_u_82, (copy) v_u_162
-					if not v_u_133:GetAttribute("LockedSub") then
-						v_u_82(v_u_162)
-					end
-				end
-				v_u_154.Activated:Connect(v164)
-				v_u_154.MouseEnter:Connect(v166)
-				v_u_154.MouseLeave:Connect(v167)
-				local v168 = Instance.new("TextButton")
-				v168.Text = ""
-				v168.BackgroundTransparency = 1
-				v168.Size = UDim2.new(1, 0, 1, 0)
-				v168.ZIndex = 10
-				v168.Parent = v_u_154
-				v168.Activated:Connect(v164)
-				v168.MouseEnter:Connect(v166)
-				v168.MouseLeave:Connect(v167)
-			end
-			local v_u_169 = v_u_133.ScrollingFrame
-			local v_u_170 = v_u_169:FindFirstChildOfClass("UIListLayout")
-			if v_u_170 then
-				v_u_169.AutomaticCanvasSize = Enum.AutomaticSize.None
-				local function v171()
-					-- upvalues: (copy) v_u_169, (copy) v_u_170
-					v_u_169.CanvasSize = UDim2.new(0, 0, 0, v_u_170.AbsoluteContentSize.Y)
-				end
-				v_u_170:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(v171)
-				task.defer(v171)
-			end
-		end
-		v_u_7(v_u_133.Rarity, p130.Rarity, "Item", nil, script.Name)
-		return v_u_133
-	end
-	local function v_u_205(p173)
-		-- upvalues: (copy) v_u_2, (copy) v_u_4, (copy) v_u_42, (copy) v_u_6, (copy) v_u_17, (copy) v_u_8, (copy) v_u_9, (ref) v_u_62, (copy) v_u_172, (copy) v_u_129, (ref) v_u_58, (ref) v_u_61, (copy) v_u_65, (copy) v_u_3, (copy) v_u_37, (copy) v_u_7, (copy) v_u_5
-		local v174 = v_u_2.Player_Data[v_u_4.Name].Items
-		local v175 = v_u_2.Player_Data[v_u_4.Name].Collection
-		v_u_42()
-		for v_u_176, v177 in pairs(v_u_6[p173].Requirement) do
-			local v_u_178 = script.Folders.Requirement:Clone()
-			v_u_178.Parent = v_u_17
-			v_u_178.Requirement.Value = v177
-			v_u_178.Name = v_u_176
-			v_u_8.CreateButtonAnim(v_u_178, 1.15, nil, "Unit", v_u_178.Frame.UIStroke)
-			if v174:FindFirstChild(v_u_176) or v175:FindFirstChild(v_u_176) then
-				local v_u_179 = v_u_9.GetItemStats(v_u_176) or v_u_9.GetUnitStats(v_u_176)
-				local v180 = v_u_179.Rarity
-				local v181 = v174:FindFirstChild(v_u_176) ~= nil
-				local v182 = not v181
-				if v182 then
-					v182 = v175:FindFirstChild(v_u_176) ~= nil
-				end
-				local v183 = v181 and v174[v_u_176]
-				if not v183 then
-					if v182 then
-						v183 = v175[v_u_176] or nil
-					else
-						v183 = nil
-					end
-				end
-				local v184 = v181 and v183.Amount.Value or 1
-				v_u_178.MouseEnter:Connect(function()
-					-- upvalues: (ref) v_u_58, (ref) v_u_62, (copy) v_u_178, (ref) v_u_172, (copy) v_u_179, (copy) v_u_176, (ref) v_u_129
-					if not v_u_58 then
-						v_u_62()
-						v_u_178:SetAttribute("OnClick", true)
-						local v185 = v_u_172(v_u_179, v_u_176, 0)
-						if v185 then
-							v_u_129(v185, 0, nil, v_u_178)
-						end
-					end
-				end)
-				v_u_178.MouseLeave:Connect(function()
-					-- upvalues: (ref) v_u_58, (copy) v_u_178, (ref) v_u_62, (ref) v_u_8
-					if not v_u_58 then
-						v_u_178:SetAttribute("OnClick", nil)
-						v_u_62()
-					end
-					if v_u_178:GetAttribute("Locked") then
-						task.defer(function()
-							-- upvalues: (ref) v_u_8, (ref) v_u_178
-							v_u_8.Enter(v_u_178.Frame, 1.15)
-							local v186 = v_u_178.Frame:FindFirstChild("UIStroke")
-							if v186 then
-								v186.Enabled = true
-							end
-						end)
-					end
-				end)
-				v_u_178.Activated:Connect(function()
-					-- upvalues: (ref) v_u_61, (ref) v_u_58, (copy) v_u_176, (copy) v_u_178, (ref) v_u_62, (ref) v_u_65, (ref) v_u_4, (ref) v_u_3, (ref) v_u_172, (copy) v_u_179, (ref) v_u_129
-					v_u_61 = true
-					if v_u_58 == v_u_176 then
-						v_u_58 = nil
-						v_u_178:SetAttribute("OnClick", nil)
-						v_u_62()
-						v_u_65()
-						return
-					else
-						v_u_58 = v_u_176
-						v_u_65()
-						v_u_178:SetAttribute("Locked", true)
-						local v187 = v_u_4.PlayerGui.Visual:FindFirstChild("CraftPopup_0")
-						if v187 and v187:GetAttribute("SourceItem") == v_u_176 then
-							local v188 = v187:FindFirstChild("UIScale")
-							if v188 then
-								v188.Scale = 0.9
-								v_u_3:Create(v188, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
-									["Scale"] = 1
-								}):Play()
-							end
-						else
-							v_u_62()
-							v_u_178:SetAttribute("OnClick", true)
-							local v189 = v_u_172(v_u_179, v_u_176, 0)
-							if v189 then
-								v_u_129(v189, 0, nil, v_u_178)
-							end
-						end
-					end
-				end)
-				v_u_178.Frame.ItemFrame.Info.Names.Text = v_u_176
-				v_u_178.LayoutOrder = v_u_37[v180]
-				v_u_178.Frame.ItemFrame.Info.Amonut.Text = v184 .. " / " .. v177
-				if v177 <= v184 then
-					v_u_178.Frame.ItemFrame.ViewPort.ImageColor3 = Color3.new(1, 1, 1)
-					v_u_178.Frame.ItemFrame.Info.Amonut.Yellow.Enabled = true
-					v_u_178.Frame.ItemFrame.Info.Amonut.Red.Enabled = false
-				else
-					v_u_178.Frame.ItemFrame.ViewPort.ImageColor3 = Color3.new(0.168627, 0.168627, 0.168627)
-					v_u_178.Frame.ItemFrame.Info.Amonut.Yellow.Enabled = false
-					v_u_178.Frame.ItemFrame.Info.Amonut.Red.Enabled = true
-				end
-				local v190 = v181 and v_u_9.GetItemModel(v_u_176)
-				if not v190 then
-					if v182 then
-						v190 = v_u_9.GetUnitModel(v_u_176)
-					else
-						v190 = v182
-					end
-				end
-				local v191 = v_u_178.Frame.ItemFrame.ViewPort
-				local v192 = Instance.new("Camera")
-				v192.Parent = v191
-				v191.CurrentCamera = v192
-				v190.Parent = v191:FindFirstChildOfClass("WorldModel")
-				v192.CFrame = v190.PrimaryPart.CFrame * CFrame.new(0, 0, 2.5)
-				v190:SetPrimaryPartCFrame(CFrame.lookAt(v190.PrimaryPart.Position, v192.CFrame.Position))
-				local v193 = v190:FindFirstChild("Humanoid", true)
-				if v193 and (v193.Parent.Animations and v193.Parent.Animations:FindFirstChild("Idle")) then
-					v193:LoadAnimation(v193.Parent.Animations:FindFirstChild("Idle")):Play()
-				end
-				v_u_7(v_u_178.Frame.ItemFrame["Glowing | Special"], v180, v182 and "Unit" or "Item", nil, script.Name)
-				v_u_7(v_u_178.Frame.ItemFrame, v180, v182 and "Unit" or "Item", nil, script.Name)
-			else
-				local v_u_194 = v_u_9.GetItemStats(v_u_176) or v_u_9.GetUnitStats(v_u_176)
-				local v195 = v_u_5[v_u_176] and v_u_5[v_u_176].Rarity or v_u_194.Rarity
-				v_u_178.Frame.ItemFrame.Info.Names.Text = v_u_176
-				v_u_178.LayoutOrder = v_u_37[v195]
-				v_u_7(v_u_178.Frame.ItemFrame["Glowing | Special"], v195, "Item", nil, script.Name)
-				v_u_7(v_u_178.Frame.ItemFrame, v195, "Item", nil, script.Name)
-				v_u_178.Frame.ItemFrame.Info.Amonut.Text = "0 / " .. v177
-				local v196 = (v_u_9.GetItemModel(v_u_176) or v_u_9.GetUnitModel(v_u_176)):Clone()
-				local v197 = v_u_178.Frame.ItemFrame.ViewPort
-				local v198 = Instance.new("Camera")
-				v198.Parent = v197
-				v197.CurrentCamera = v198
-				v196.Parent = v197:FindFirstChildOfClass("WorldModel")
-				v198.CFrame = v196.PrimaryPart.CFrame * CFrame.new(0, 0, 2.5)
-				v196:SetPrimaryPartCFrame(CFrame.lookAt(v196.PrimaryPart.Position, v198.CFrame.Position))
-				if v196:FindFirstChild("Humanoid", true) then
-					local v199 = v196:FindFirstChild("Humanoid", true)
-					if v199.Parent.Animations and v199.Parent.Animations:FindFirstChild("Idle") then
-						v199:LoadAnimation(v199.Parent.Animations:FindFirstChild("Idle")):Play()
-					end
-				end
-				task.spawn(function()
-					-- upvalues: (copy) v_u_178
-					v_u_178.Frame.ItemFrame.ViewPort.ImageColor3 = Color3.new(0.168627, 0.168627, 0.168627)
-					v_u_178.Frame.ItemFrame.Info.Amonut.Yellow.Enabled = false
-					v_u_178.Frame.ItemFrame.Info.Amonut.Red.Enabled = true
-				end)
-				v_u_178.MouseEnter:Connect(function()
-					-- upvalues: (ref) v_u_58, (ref) v_u_62, (copy) v_u_178, (ref) v_u_172, (copy) v_u_194, (copy) v_u_176, (ref) v_u_129
-					if not v_u_58 then
-						v_u_62()
-						v_u_178:SetAttribute("OnClick", true)
-						local v200 = v_u_172(v_u_194, v_u_176, 0)
-						if v200 then
-							v_u_129(v200, 0, nil, v_u_178)
-						end
-					end
-				end)
-				v_u_178.MouseLeave:Connect(function()
-					-- upvalues: (ref) v_u_58, (copy) v_u_178, (ref) v_u_62, (ref) v_u_8
-					if not v_u_58 then
-						v_u_178:SetAttribute("OnClick", nil)
-						v_u_62()
-					end
-					if v_u_178:GetAttribute("Locked") then
-						task.defer(function()
-							-- upvalues: (ref) v_u_8, (ref) v_u_178
-							v_u_8.Enter(v_u_178.Frame, 1.15)
-							local v201 = v_u_178.Frame:FindFirstChild("UIStroke")
-							if v201 then
-								v201.Enabled = true
-							end
-						end)
-					end
-				end)
-				v_u_178.Activated:Connect(function()
-					-- upvalues: (ref) v_u_61, (ref) v_u_58, (copy) v_u_176, (copy) v_u_178, (ref) v_u_62, (ref) v_u_65, (ref) v_u_4, (ref) v_u_3, (ref) v_u_172, (copy) v_u_194, (ref) v_u_129
-					v_u_61 = true
-					if v_u_58 == v_u_176 then
-						v_u_58 = nil
-						v_u_178:SetAttribute("OnClick", nil)
-						v_u_62()
-						v_u_65()
-						return
-					else
-						v_u_58 = v_u_176
-						v_u_65()
-						v_u_178:SetAttribute("Locked", true)
-						local v202 = v_u_4.PlayerGui.Visual:FindFirstChild("CraftPopup_0")
-						if v202 and v202:GetAttribute("SourceItem") == v_u_176 then
-							local v203 = v202:FindFirstChild("UIScale")
-							if v203 then
-								v203.Scale = 0.9
-								v_u_3:Create(v203, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
-									["Scale"] = 1
-								}):Play()
-							end
-						else
-							v_u_62()
-							v_u_178:SetAttribute("OnClick", true)
-							local v204 = v_u_172(v_u_194, v_u_176, 0)
-							if v204 then
-								v_u_129(v204, 0, nil, v_u_178)
-							end
-						end
-					end
-				end)
-			end
-		end
-		task.wait()
-	end
-	local function v_u_208(p206)
-		-- upvalues: (copy) v_u_24
-		for _, v207 in ipairs(v_u_24:GetChildren()) do
-			if v207:IsA("TextButton") and v207.Name ~= p206 then
-				v207.Frame.ItemFrame.ViewPort.ImageColor3 = Color3.new(0.184314, 0.184314, 0.184314)
-			end
-		end
-	end
-	local function v_u_217()
-		-- upvalues: (copy) v_u_5, (copy) v_u_9, (copy) v_u_24, (copy) v_u_8, (copy) v_u_37, (copy) v_u_7, (copy) v_u_17, (ref) v_u_58, (ref) v_u_62, (copy) v_u_33, (ref) v_u_36, (copy) v_u_40, (copy) v_u_208, (copy) v_u_16, (copy) v_u_55, (copy) v_u_205
-		for v_u_209, v210 in pairs(v_u_5) do
-			if v210.Iscraft or v210.Type == "Gear" and v210.Iscraft or v210.Type == "Soul" and v210.Iscraft then
-				local v211 = v_u_9.GetItemModel(v_u_209)
-				if not v211 then
-					warn(("Model to %q is missing"):format(v_u_209))
-				end
-				local v_u_212 = script.Folders.Selecting:Clone()
-				v_u_212.Parent = v_u_24
-				v_u_212.Frame.ItemFrame.Info.Names.Text = v210.DisplayName
-				v_u_212.Name = v_u_209
-				v_u_8.CreateButtonAnim(v_u_212, 1.15, nil, "Unit", v_u_212.Frame.UIStroke)
-				v_u_212.LayoutOrder = v_u_37[v210.Rarity]
-				v_u_7(v_u_212.Frame.ItemFrame["Glowing | Special"], v210.Rarity, "Item", nil, script.Name)
-				v_u_7(v_u_212.Frame.ItemFrame, v210.Rarity, "Item", nil, script.Name)
-				if v211 then
-					local v213 = v_u_212.Frame.ItemFrame.ViewPort
-					local v214 = Instance.new("Camera")
-					v214.Parent = v213
-					v213.CurrentCamera = v214
-					v211.Parent = v213:FindFirstChildOfClass("WorldModel")
-					v214.CFrame = v211.PrimaryPart.CFrame * CFrame.new(0, 0, 2.5)
-					v211:SetPrimaryPartCFrame(CFrame.lookAt(v211.PrimaryPart.Position, v214.CFrame.Position))
-					local v215 = v211:FindFirstChild("Humanoid", true)
-					if v215 and (v215.Parent.Animations and v215.Parent.Animations:FindFirstChild("Idle")) then
-						v215:LoadAnimation(v215.Parent.Animations:FindFirstChild("Idle")):Play()
-					end
-				end
-				v_u_212.Activated:Connect(function()
-					-- upvalues: (ref) v_u_17, (ref) v_u_58, (ref) v_u_62, (copy) v_u_212, (ref) v_u_33, (copy) v_u_209, (ref) v_u_36, (ref) v_u_40, (ref) v_u_208, (ref) v_u_16, (ref) v_u_55, (ref) v_u_205
-					for _, v216 in ipairs(v_u_17:GetChildren()) do
-						if v216:IsA("TextButton") then
-							v216:SetAttribute("OnClick", nil)
-						end
-					end
-					v_u_58 = nil
-					v_u_62()
-					v_u_212.Frame.ItemFrame.ViewPort.ImageColor3 = Color3.new(1, 1, 1)
-					v_u_33.Value = v_u_209
-					v_u_36 = v_u_209
-					v_u_40()
-					v_u_208(v_u_209)
-					if v_u_33.Value ~= "" then
-						v_u_16.Requirements.Empty.Visible = false
-						v_u_55(v_u_33.Value)
-						v_u_205(v_u_33.Value)
-					end
-				end)
-				task.wait()
-			end
-		end
-		v_u_208()
-	end
-	v_u_16.Parent:GetPropertyChangedSignal("Enabled"):Connect(function()
-		-- upvalues: (copy) v_u_16, (copy) v_u_8, (copy) v_u_42, (copy) v_u_48, (copy) v_u_208, (copy) v_u_40, (ref) v_u_59, (copy) v_u_56, (ref) v_u_61, (ref) v_u_58, (ref) v_u_62, (copy) v_u_65, (copy) v_u_17, (copy) v_u_33, (ref) v_u_36, (ref) v_u_15, (copy) v_u_14, (copy) v_u_24
-		if v_u_16.Parent.Enabled then
-			v_u_16.Requirements.Empty.Visible = true
-			v_u_8.PopUp(v_u_16)
-			v_u_42()
-			v_u_48()
-			v_u_208()
-			v_u_40()
-			if v_u_59 then
-				v_u_59:Disconnect()
-				v_u_59 = nil
-			end
-			v_u_59 = v_u_56.InputEnded:Connect(function(p218)
-				-- upvalues: (ref) v_u_61, (ref) v_u_58, (ref) v_u_62, (ref) v_u_65, (ref) v_u_17
-				if p218.UserInputType == Enum.UserInputType.Touch or p218.UserInputType == Enum.UserInputType.MouseButton1 then
-					task.delay(0.05, function()
-						-- upvalues: (ref) v_u_61, (ref) v_u_58, (ref) v_u_62, (ref) v_u_65, (ref) v_u_17
-						if v_u_61 then
-							v_u_61 = false
-						elseif v_u_58 then
-							v_u_58 = nil
-							v_u_62()
-							v_u_65()
-							for _, v219 in v_u_17:GetChildren() do
-								if v219:IsA("TextButton") then
-									v219:SetAttribute("OnClick", nil)
-								end
-							end
-						end
-					end)
-				end
-			end)
-		else
-			v_u_58 = nil
-			v_u_62()
-			v_u_33.Value = ""
-			v_u_36 = nil
-			v_u_40()
-			if v_u_15 then
-				local v220 = v_u_16.Main:FindFirstChild("DescriptionScroll")
-				local v221 = v220 and v220:FindFirstChild("Description") or v_u_16.Main:FindFirstChild("Description")
-				if v221 then
-					v221.Parent = v_u_16.Main
-					v221.Size = UDim2.new(0.612, 0, 0.191, 0)
-					v221.Position = UDim2.new(0.276, 0, 0.201, 0)
-					v221.TextScaled = true
-					v221.AutomaticSize = Enum.AutomaticSize.None
-				end
-				if v220 then
-					v220.Visible = false
-				end
-			end
-			v_u_15 = false
-			v_u_14.SetSelectedSoul(nil)
-			v_u_14.ClearGrid(v_u_24)
-			if v_u_59 then
-				v_u_59:Disconnect()
-				v_u_59 = nil
-			end
-		end
-	end)
-	v_u_23:GetPropertyChangedSignal("Text"):Connect(function()
-		-- upvalues: (copy) v_u_33, (copy) v_u_23, (copy) v_u_32
-		if v_u_33.Value ~= "" and v_u_23.Text ~= "" then
-			local v222 = v_u_23.Text
-			if string.gsub(v222, "%D+", "") ~= nil then
-				local v223 = v_u_23.Text
-				local v224 = string.gsub(v223, "%D+", "")
-				local v225 = tonumber(v224) <= 0 and 1 or v224
-				if v225 and (v225 ~= "" and v225 ~= " ") then
-					v_u_32.Value = tonumber(v225)
-				end
-			end
-		end
-	end)
-	v_u_32:GetPropertyChangedSignal("Value"):Connect(function()
-		-- upvalues: (copy) v_u_22, (copy) v_u_13, (copy) v_u_6, (copy) v_u_33, (copy) v_u_32, (copy) v_u_2, (copy) v_u_4, (copy) v_u_17
-		v_u_22.Text = v_u_13(v_u_6[v_u_33.Value].Cost * v_u_32.Value)
-		local v226 = v_u_2.Player_Data[v_u_4.Name].Items
-		for _, v227 in ipairs(v_u_17:GetChildren()) do
-			if v227:IsA("TextButton") then
-				if v226:FindFirstChild(v227.Name) then
-					v227.Amount.Text = v226[v227.Name].Amount.Value .. " / " .. v227.Requirement.Value * v_u_32.Value
-					if v226[v227.Name].Amount.Value >= v227.Requirement.Value * v_u_32.Value then
-						v227.Frame.ItemFrame.ViewPort.ImageColor3 = Color3.new(1, 1, 1)
-					else
-						v227.Frame.ItemFrame.ViewPort.ImageColor3 = Color3.new(0.168627, 0.168627, 0.168627)
-					end
-				else
-					v227.Frame.ItemFrame.Info.Amonut.Text = "0 / " .. v227.Requirement.Value * v_u_32.Value
-				end
-			end
-		end
-		task.wait()
-	end)
-	local function v_u_231()
-		-- upvalues: (ref) v_u_15, (copy) v_u_14, (copy) v_u_24, (copy) v_u_16, (copy) v_u_48, (copy) v_u_42, (ref) v_u_36, (copy) v_u_40
-		if v_u_15 then
-			v_u_15 = false
-			v_u_14.SetSelectedSoul(nil)
-			v_u_14.ClearGrid(v_u_24)
-			local v228 = v_u_16.Main:FindFirstChild("DescriptionScroll")
-			local v229 = v228 and v228:FindFirstChild("Description") or v_u_16.Main:FindFirstChild("Description")
-			if v229 then
-				v229.Parent = v_u_16.Main
-				v229.Size = UDim2.new(0.612, 0, 0.191, 0)
-				v229.Position = UDim2.new(0.276, 0, 0.201, 0)
-				v229.AnchorPoint = Vector2.new(0, 0)
-				v229.TextScaled = true
-				v229.AutomaticSize = Enum.AutomaticSize.None
-			end
-			if v228 then
-				v228.Visible = false
-			end
-			v_u_48()
-			v_u_42()
-			v_u_16.Main.Visible = true
-			for _, v230 in v_u_24:GetChildren() do
-				if v230:IsA("TextButton") then
-					v230.Visible = false
-				end
-			end
-			v_u_36 = nil
-			v_u_40()
-		end
-	end
-	local v_u_240 = {
-		["onRecipeHover"] = function(p232, p233, p234)
-			-- upvalues: (ref) v_u_58, (ref) v_u_62, (copy) v_u_172, (copy) v_u_129
-			if not v_u_58 then
-				v_u_62()
-				local v235 = v_u_172(p234, p233, 0)
-				if v235 then
-					v_u_129(v235, 0, nil, p232)
-				end
-			end
-		end,
-		["onRecipeLeave"] = function(_, _)
-			-- upvalues: (ref) v_u_58, (ref) v_u_62
-			if not v_u_58 then
-				v_u_62()
-			end
-		end,
-		["onRecipeClick"] = function(p236, p237, p238)
-			-- upvalues: (ref) v_u_61, (ref) v_u_58, (ref) v_u_62, (copy) v_u_65, (copy) v_u_172, (copy) v_u_129
-			v_u_61 = true
-			if v_u_58 == p237 then
-				v_u_58 = nil
-				v_u_62()
-				v_u_65()
-			else
-				v_u_58 = p237
-				v_u_65()
-				v_u_62()
-				local v239 = v_u_172(p238, p237, 0)
-				if v239 then
-					v_u_129(v239, 0, nil, p236)
-				end
-			end
-		end
-	}
-	local function v_u_243()
-		-- upvalues: (ref) v_u_15, (copy) v_u_33, (ref) v_u_36, (copy) v_u_40, (copy) v_u_208, (copy) v_u_48, (copy) v_u_42, (copy) v_u_24, (copy) v_u_14, (copy) v_u_16, (copy) v_u_240, (copy) v_u_22
-		v_u_15 = true
-		v_u_33.Value = ""
-		v_u_36 = nil
-		v_u_40()
-		v_u_208()
-		v_u_48()
-		v_u_42()
-		for _, v241 in v_u_24:GetChildren() do
-			if v241:IsA("TextButton") and not v241:GetAttribute("SoulEntry") then
-				v241.Visible = false
-			end
-		end
-		v_u_14.PopulateGrid(v_u_24, function(p242)
-			-- upvalues: (ref) v_u_14, (ref) v_u_16, (ref) v_u_240, (ref) v_u_22
-			v_u_14.SetSelectedSoul(p242)
-			v_u_16.Requirements.Empty.Visible = false
-			v_u_14.ShowUpgradeInfo(v_u_16.Main, v_u_16.Requirements, p242, v_u_240)
-			v_u_22.Text = "0"
-		end)
-	end
-	v_u_31:GetPropertyChangedSignal("Value"):Connect(function()
-		-- upvalues: (copy) v_u_31, (copy) v_u_243, (copy) v_u_231, (copy) v_u_24, (copy) v_u_9
-		if v_u_31.Value == "Soul" then
-			v_u_243()
-		else
-			v_u_231()
-			for _, v244 in v_u_24:GetChildren() do
-				if v244:IsA("TextButton") then
-					local v245 = v_u_9.GetItemStats(v244.Name)
-					local v246
-					if v245 then
-						v246 = v245.Type
-					else
-						v246 = nil
-					end
-					v244.Visible = v246 == v_u_31.Value
-				end
-			end
-		end
-	end)
-	local v_u_247 = v_u_36
-	local v_u_248 = v_u_15
-	for _, v_u_249 in ipairs(v25) do
-		if v_u_249:IsA("TextButton") then
-			v_u_249.Activated:Connect(function()
-				-- upvalues: (copy) v_u_31, (copy) v_u_249
-				if v_u_31.Value == v_u_249.Name then
-					v_u_31.Value = ""
-					task.wait()
-				end
-				v_u_31.Value = v_u_249.Name
-			end)
-		end
-		task.wait()
-	end
-	v_u_28.Activated:Connect(function()
-		-- upvalues: (ref) v_u_248, (ref) v_u_247, (copy) v_u_2
-		if v_u_248 then
-			return
-		elseif v_u_247 and v_u_247 ~= "" then
-			v_u_2.Remote.Server.Gameplay.PinCraftingQuest:FireServer(v_u_247)
-		end
-	end)
-	local v250 = v_u_35:FindFirstChild("PinnedCraftingQuests")
-	if v250 then
-		v250.ChildAdded:Connect(function(p251)
-			-- upvalues: (ref) v_u_247, (copy) v_u_40
-			if p251.Name == v_u_247 then
-				v_u_40()
-			end
-		end)
-		v250.ChildRemoved:Connect(function(p252)
-			-- upvalues: (ref) v_u_247, (copy) v_u_40
-			if p252.Name == v_u_247 then
-				v_u_40()
-			end
-		end)
-	end
-	v26.Activated:Connect(function()
-		-- upvalues: (ref) v_u_248, (copy) v_u_14, (copy) v_u_2, (copy) v_u_33, (copy) v_u_32
-		if v_u_248 then
-			local v253 = v_u_14.GetSelectedSoulInfo()
-			if v253 then
-				v_u_2.Remote.Server.Crafting.SoulUpgrade:FireServer(v253.Name)
-			else
-				v_u_2.Remote.Client.Notification:FireServer("TextBarBottom", "Select a soul to upgrade.", Color3.new(1, 0, 0), nil, 3)
-			end
-		else
-			v_u_2.Remote.Server.Crafting.Event:FireServer(v_u_33.Value, v_u_32.Value, v_u_32.Value)
-			return
-		end
-	end)
-	v_u_2.Remote.Server.Crafting.SoulUpgrade.OnClientEvent:Connect(function(p254, p255)
-		-- upvalues: (copy) v_u_2, (copy) v_u_4, (copy) v_u_10, (copy) v_u_16
-		if p254 == "Success" then
-			local v256 = v_u_2.Player_Data[v_u_4.Name]
-			local v257 = v256.Items:FindFirstChild(p255)
-			if not v257 then
-				task.wait(0.5)
-				v257 = v256.Items:FindFirstChild(p255)
-			end
-			if v257 then
-				v_u_10.Dual_Inspect(v_u_4, { v257 }, "Multi - 1")
-			end
-			v_u_16.Parent.Enabled = false
-		end
-	end)
-	v_u_2.Remote.Server.Crafting.Event.OnClientEvent:Connect(function(p258)
-		-- upvalues: (copy) v_u_2, (copy) v_u_4, (copy) v_u_33, (copy) v_u_10, (copy) v_u_16, (copy) v_u_205
-		if p258 == "Success" then
-			local v259 = v_u_2.Player_Data[v_u_4.Name]
-			local v260 = v259.Items:FindFirstChild(v_u_33.Value) or v259.Collection:FindFirstChild(v_u_33.Value)
-			v_u_10.Dual_Inspect(v_u_4, { v260 }, "Multi - 1")
-			v_u_16.Parent.Enabled = false
-		else
-			v_u_205(v_u_33.Value)
-		end
-	end)
-	local v_u_261 = nil
-	v_u_261 = v_u_16.Parent:GetPropertyChangedSignal("Enabled"):Connect(function()
-		-- upvalues: (copy) v_u_217, (copy) v_u_31, (ref) v_u_261
-		v_u_217()
-		task.wait()
-		v_u_31.Value = "Material"
-		v_u_261:Disconnect()
-	end)
-	v_u_8.CreateButtonAnim(v27, nil, nil, nil, nil)
-	v27.Activated:Connect(function()
-		-- upvalues: (copy) v_u_16
-		v_u_16.Parent.Enabled = false
-	end)
-	for _, v262 in ipairs(v_u_16.Parent:GetDescendants()) do
-		if v262:IsA("TextButton") and v262:FindFirstChild("EnterStroke", true) then
-			v_u_8.CreateButtonAnim(v262, nil, nil, nil, v262:FindFirstChild("EnterStroke", true))
-		end
-	end
-end
+[21:33:03]
+=== Frozen Fang Daggers ===
+[21:33:03]
+- Smoke Orb x4
+[21:33:03]
+- Ancient Power Core x5
+[21:33:03]
+=== Flame-Touched Gauntlets ===
+[21:33:03]
+- Ancient Power Core x3
+[21:33:03]
+- Obsidian Plate x2
+[21:33:03]
+- Smoke Orb x2
+[21:33:03]
+=== Lucky Ticket ===
+[21:33:03]
+- Little Frog x6
+[21:33:03]
+- Soul Core x15
+[21:33:03]
+- Cursed Core x20
+[21:33:03]
+=== Infernal Blade ===
+[21:33:03]
+- Kunai Shards x4
+[21:33:03]
+- Obsidian Plate x4
+[21:33:03]
+- Core of Silence x3
+[21:33:03]
+=== Golden Handhook ===
+[21:33:03]
+- Marine Tech Chip x5
+[21:33:03]
+- Obsidian Plate x5
+[21:33:03]
+- Mystic Kelp x5
+[21:33:03]
+- Rubber Fruit x45
+[21:33:03]
+- Sea Gem Fragment x50
+[21:33:03]
+- Ranger Crystal x15
+[21:33:03]
+=== Celestial Crown ===
+[21:33:03]
+- Energy Vial x7
+[21:33:03]
+- Core of Silence x5
+[21:33:03]
+=== Silver-Edged Saber ===
+[21:33:03]
+- Kunai Shards x3
+[21:33:03]
+- Marine Tech Chip x1
+[21:33:03]
+- Ghost Lens x2
+[21:33:03]
+=== Crown of Eternity ===
+[21:33:03]
+- Enhanced Optical Lens x14
+[21:33:03]
+- Combat Fluid x13
+[21:33:03]
+=== Golden Cloud ===
+[21:33:03]
+- Narmekian Crystal x4
+[21:33:03]
+- Green Bean x20
+[21:33:03]
+- Power Core x10
+[21:33:03]
+- Narmekian Ore x15
+[21:33:03]
+- Energy Vial x1
+[21:33:03]
+- Ranger Crystal x5
+[21:33:03]
+=== Dragon Orb ===
+[21:33:03]
+- Nano Fiber Wire x1
+[21:33:03]
+- Green Bean x50
+[21:33:03]
+- Dracoscale Shard x15
+[21:33:03]
+- Power Core x10
+[21:33:03]
+- Narmekian Crystal x4
+[21:33:03]
+- Ranger Crystal x3
+[21:33:03]
+=== Stormbreaker Shield ===
+[21:33:03]
+- Phantom Alloy x1
+[21:33:03]
+- Smoke Orb x1
+[21:33:03]
+=== Wings of the Valkyrie ===
+[21:33:03]
+- Micro Circuit Board x7
+[21:33:03]
+- Enhanced Optical Lens x6
+[21:33:03]
+=== West Blue Fish ===
+[21:33:03]
+- Marine Tech Chip x5
+[21:33:03]
+- Obsidian Plate x5
+[21:33:03]
+- Will Core x5
+[21:33:03]
+- Soul Shard x50
+[21:33:03]
+- Rubber Fruit x45
+[21:33:03]
+- Void Pearl x3
+[21:33:03]
+- Ranger Crystal x15
+[21:33:03]
+=== Shinobi Mask ===
+[21:33:03]
+- Shadow Fiber x50
+[21:33:03]
+- Ramen x69
+[21:33:03]
+- Ancient Talisman x3
+[21:33:03]
+- Ranger Crystal x10
+[21:33:03]
+- Chakra Shard x10
+[21:33:03]
+- Core of Silence x1
+[21:33:03]
+=== Cursed Mark ===
+[21:33:03]
+- Storm Flake Crystal x20
+[21:33:03]
+- Ramen x30
+[21:33:03]
+- Smoke Orb x1
+[21:33:03]
+- Kunai Shards x1
+[21:33:03]
+- Chakra Shard x5
+[21:33:03]
+- Ranger Crystal x5
+[21:33:03]
+=== Blacklight Reaver ===
+[21:33:03]
+- Green Crystalite x30
+[21:33:03]
+- Red Crystalite x15
+[21:33:03]
+- Blue Crystalite x15
+[21:33:03]
+- Black Crystalite x15
+[21:33:03]
+=== Piercing Longbow ===
+[21:33:03]
+- Kunai Shards x1
+[21:33:03]
+- Nano Fiber Wire x2
+[21:33:03]
+=== Phoenix Cloak ===
+[21:33:03]
+- Kunai Shards x6
+[21:33:03]
+- Obsidian Plate x6
+[21:33:03]
+- Marine Tech Chip x8
+[21:33:03]
+=== Blacklight Reaver Helmet ===
+[21:33:03]
+- Green Crystalite x15
+[21:33:03]
+- Red Crystalite x15
+[21:33:03]
+- Blue Crystalite x15
+[21:33:03]
+- Black Crystalite x30
+[21:33:03]
+=== Scroll Of Sage ===
+[21:33:03]
+- Storm Flake Crystal x20
+[21:33:03]
+- Ramen x60
+[21:33:03]
+- Scroll of Focus x1
+[21:33:03]
+- Ancient Talisman x1
+[21:33:03]
+- Chakra Shard x5
+[21:33:03]
+- Ranger Crystal x5
+[21:33:03]
+=== Blacklight Reaver Boots ===
+[21:33:03]
+- Green Crystalite x15
+[21:33:03]
+- Red Crystalite x30
+[21:33:03]
+- Blue Crystalite x15
+[21:33:03]
+- Black Crystalite x15
+[21:33:03]
+=== Chaostic Sword ===
+[21:33:03]
+- Ancient Power Core x2
+[21:33:03]
+- Obsidian Plate x7
+[21:33:03]
+- Ranger Crystal x12
+[21:33:03]
+=== Anger Of The Owl ===
+[21:33:03]
+- Gourmet Meal x120
+[21:33:03]
+- Kakuja Mask Shard x50
+[21:33:03]
+- Biaiku Scale x75
+[21:33:03]
+- One-Eyed Fragment x5
+[21:33:03]
+- CGGG Investigator's Badge x8
+[21:33:03]
+- Centipede Husk x18
+[21:33:03]
+- Yoshimarun's Mask Fragment x6
+[21:33:03]
+- Owl Fragment x1
+[21:33:03]
+=== Dragonfang Blade ===
+[21:33:03]
+- Kunai Shards x8
+[21:33:03]
+- Ghost Lens x7
+[21:33:03]
+- Core of Silence x7
+[21:33:03]
+=== Jason 14's ===
+[21:33:03]
+- Kakuja Mask Shard x7
+[21:33:03]
+- Death Shard x1
+[21:33:03]
+- Arata Armor Piece x3
+[21:33:03]
+- Gourmet Meal x100
+[21:33:03]
+- Ujaku Feather x35
+[21:33:03]
+- Ribe's RC Cells x35
+[21:33:03]
+- Centipede Husk x7
+[21:33:03]
+- CGGG Investigator's Badge x5
+[21:33:03]
+- Ranger Crystal x10
+[21:33:03]
+=== Assassin's Spear ===
+[21:33:03]
+- Little Frog x12
+[21:33:03]
+- Soul Core x15
+[21:33:03]
+- Cursed Core x15
+[21:33:03]
+=== Scorpion Mask ===
+[21:33:03]
+- Kakuja Mask Shard x40
+[21:33:03]
+- Gourmet Meal x120
+[21:33:03]
+- One-Eyed Fragment x5
+[21:33:03]
+- Yoshimarun's Mask Fragment x5
+[21:33:03]
+- Centipede Husk x20
+[21:33:03]
+- Biaiku Scale x50
+[21:33:03]
+- Ranger Crystal x10
+[21:33:03]
+=== Earthshatter Maul ===
+[21:33:03]
+- Core of Silence x6
+[21:33:03]
+=== Ghoul Mask ===
+[21:33:03]
+- Kakuja Mask Shard x7
+[21:33:03]
+- Gourmet Meal x60
+[21:33:03]
+- One-Eyed Fragment x1
+[21:33:03]
+- Yoshimarun's Mask Fragment x2
+[21:33:03]
+- Ujaku Feather x35
+[21:33:03]
+- Biaiku Scale x35
+[21:33:03]
+- Ranger Crystal x10
+[21:33:03]
+=== Gilded Dagger ===
+[21:33:03]
+- Nano Fiber Wire x1
+[21:33:03]
+- Scroll of Focus x1
+[21:33:03]
+- Core of Silence x2
+[21:33:03]
+=== Runebound Chestplate ===
+[21:33:03]
+- Micro Circuit Board x3
+[21:33:03]
+- Combat Fluid x5
+[21:33:03]
+- Energy Vial x4
+[21:33:03]
+=== Starfire Bow ===
+[21:33:03]
+- Kunai Shards x4
+[21:33:03]
+- Marine Tech Chip x5
+[21:33:03]
+- Enhanced Optical Lens x3
+[21:33:03]
+=== Eclipse Edge ===
+[21:33:03]
+- Phantom Alloy x15
+[21:33:03]
+- Obsidian Plate x13
+[21:33:03]
+- Ghost Lens x12
+[21:33:03]
+=== Ainz ===
+[21:33:03]
+- Shalltear x1
+[21:33:03]
+- Overlords Staff x1
+[21:33:03]
+- Ring of Mana x1
+[21:33:03]
+- Demiurge x1
+[21:33:03]
+- Ring of Death x1
+[21:33:03]
+- Ring of Life x1
+[21:33:03]
+- Albedo x1
+[21:33:03]
+=== Shalltear ===
+[21:33:03]
+- Blood Vial x1
+[21:33:03]
+=== Leather Armor ===
+[21:33:03]
+- Smoke Orb x3
+[21:33:03]
+- Ancient Power Core x1
+[21:33:03]
+=== Aetherial Lance ===
+[21:33:03]
+- Nano Fiber Wire x13
+[21:33:03]
+- Ancient Power Core x14
+[21:33:03]
+=== Shadowsteel Helm ===
+[21:33:03]
+- Kunai Shards x4
+[21:33:03]
+- Nano Fiber Wire x3
+[21:33:03]
+=== Blacklight Reaver Wings ===
+[21:33:03]
+- Green Crystalite x15
+[21:33:03]
+- Red Crystalite x15
+[21:33:03]
+- Blue Crystalite x30
+[21:33:03]
+- Black Crystalite x15
+[21:33:03]
+=== Emperor Crown ===
+[21:33:03]
+- Narmekian Crystal x7
+[21:33:03]
+- Green Bean x100
+[21:33:03]
+- Enhanced Optical Lens x2
+[21:33:03]
+- Power Core x35
+[21:33:03]
+- Narmekian Ore x35
+[21:33:03]
+- Phantom Alloy x1
+[21:33:03]
+- Ranger Crystal x10
