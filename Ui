@@ -1,0 +1,474 @@
+-- // MoMoHub - PRO Template (FIXED STRUCTURE)
+-- // Purple Theme • WindUI Corrected Version
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local cloneref = cloneref or clonereference or function(v) return v end
+
+-- Load WindUI
+do
+    local ok, result = pcall(function() return require("./src/Init") end)
+    if ok then
+        WindUI = result
+    else
+        if cloneref(game:GetService("RunService")):IsStudio() then
+            WindUI = require(cloneref(ReplicatedStorage):WaitForChild("WindUI"):WaitForChild("Init"))
+        else
+            WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+        end
+    end
+end
+WindUI:SetFont("rbxasset://fonts/families/Balthazar.json")
+-- Purple Theme Colors
+local PrimaryPurple  = Color3.fromHex("#8B5CF6")
+local DarkPurple     = Color3.fromHex("#7C3AED") 
+local LightPurple    = Color3.fromHex("#A78BFA")
+local PurpleGlow     = Color3.fromHex("#C084FC")
+local DeepPurple     = Color3.fromHex("#6D28D9")
+local PurpleGradient = ColorSequence.new(PrimaryPurple, PurpleGlow)
+
+local Green  = Color3.fromHex("#34D399")
+local Red    = Color3.fromHex("#F87171")
+local Blue   = Color3.fromHex("#60A5FA")
+local Yellow = Color3.fromHex("#FCD34D")
+local Grey   = Color3.fromHex("#9CA3AF")
+
+-- ✅ Create Window
+local Window = WindUI:CreateWindow({
+    Title = "MoMoHub",
+    Folder = "MoMoHub",
+    Icon = "solar:sparkles-bold",
+    HideSearchBar = false,
+    NewElements = true,
+    Size = UDim2.fromOffset(650, 520),
+    ToggleTransparency = true,
+
+    OpenButton = {
+        Title = "Open Ui Script",
+        CornerRadius = UDim.new(1, 0),
+        StrokeThickness = 3,
+        Enabled = false,
+        Draggable = true,
+        OnlyMobile = false,
+        Scale = 0.6,
+        Color = PurpleGradient,
+    },
+
+    User = {
+    Enabled = true,
+    Anonymous = true,
+    Callback = function()
+        print("clicked")
+    end,
+    },
+
+    Topbar = { Height = 44, ButtonsType = "Mac" },
+})
+
+Window:SetUIScale(1.0)
+
+--Window:SetBackgroundImage("rbxassetid://142073810745738")
+--Window:SetBackgroundImageTransparency(0.5)
+--Window:ToggleTransparency(true)
+task.wait(0.2)
+
+Window:Tag({
+    Title = "Version 1.0",
+    Icon = "crown",
+    Color = DeepPurple,
+    Border = true,
+})
+
+-- Shared State
+getgenv().MoMoHub = {
+    AutoFarm = false, AutoRaids = false, AutoEgg = false,
+    Noclip = false, InfJump = false,
+    ESP = { Player = false, Mob = false, Chest = false },
+    ESPColor = PrimaryPurple,
+    FarmKey = Enum.KeyCode.F,
+    ToggleKey = Enum.KeyCode.LeftControl,
+}
+
+-- ════════════════════════════════════════
+-- // TABS CREATION
+-- ════════════════════════════════════════
+
+-- Dashboard Tab
+local DashboardTab = Window:Tab({
+    Title = "🏠 Dashboard",
+    Icon = "solar:home-2-bold",
+    IconColor = PrimaryPurple,
+    IconShape = "Square",
+    Border = true,
+})
+
+DashboardTab:Section({ Title = "MoMoHub Status ✅", TextSize = 24, FontWeight = Enum.FontWeight.Bold })
+DashboardTab:Paragraph({
+    Title = "Status: Ready 🚀",
+    Desc = "Universal template for all Roblox games\nEasy to use and fast to configure",
+    Image = "solar:sparkles-bold",
+    ImageSize = 32,
+    Color = PurpleGlow,
+})
+
+local quickActions = DashboardTab:Group({})
+quickActions:Button({
+    Title = "🔄 Rejoin Server", Icon = "refresh-cw", Color = LightPurple,
+    Callback = function()
+        WindUI:Notify({ Title = "Rejoining...", Content = "Rejoining the server...", Duration = 2 })
+        game:GetService("TeleportService"):Teleport(game.PlaceId, LocalPlayer)
+    end,
+})
+quickActions:Space()
+quickActions:Button({
+    Title = "🎲 Hop Server", Icon = "shuffle", Color = PurpleGlow,
+    Callback = function()
+        -- Server Hop Logic
+        WindUI:Notify({ Title = "Server Hopping...", Content = "Looking for a new server...", Duration = 3 })
+        local HttpService = game:GetService("HttpService")
+        local TeleportService = game:GetService("TeleportService")
+        local serversUrl = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+        local success, response = pcall(function() return game:HttpGet(serversUrl) end)
+        if success then
+            local data = HttpService:JSONDecode(response)
+            if data and data.data then
+                for _, server in ipairs(data.data) do
+                    if server.playing < server.maxPlayers and server.id ~= game.JobId then
+                        TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, LocalPlayer)
+                        return
+                    end
+                end
+            end
+        end
+        WindUI:Notify({ Title = "No servers found", Content = "Please try again.", Duration = 3 })
+    end,
+})
+
+-- Discord Section
+local discordSection = DashboardTab:Section({ Title = "💜 Discord Community", Box = true, BoxBorder = true, Opened = true})
+local discordGroup = discordSection:Group({})
+discordGroup:Paragraph({
+    Title = "Join our Discord",
+    Desc = "New script updates + share features",
+    Image = "solar:users-group-two-rounded-bold-duotone",
+    ImageSize = 32,
+    Color = PurpleGlow,
+    Buttons = {
+        { Title = "📱 Copy Link", Icon = "copy", Callback = function() setclipboard("https://discord.gg/k2wdyy8QMN") WindUI:Notify({Title="Copied!",Content="Discord Link",Duration=3}) end },
+        { Title = "🚀 Join Now", Icon = "external-link", Color = PurpleGlow, Callback = function() setclipboard("https://discord.gg/k2wdyy8QMN") WindUI:Notify({Title="Copied!",Content="Open Discord and paste it",Duration=4}) end },
+    },
+})
+
+-- Farm Tab
+local FarmTab = Window:Tab({ Title = "Farm", Icon = "pickaxe", IconColor = Green, Border = true , IconShape = "Square"})
+local FarmSection = FarmTab:Section({ Title = "🎯 Auto Farm Settings", Box = true, BoxBorder = true, Opened = true})
+FarmSection:Toggle({  Flag = "AutoFarm", Title = "Enable Auto Farm",  Type = "Checkbox", Value = false, Callback = function(v) getgenv().MoMoHub.AutoFarm = v end })
+FarmSection:Dropdown({ Flag = "TargetMob", Title = "Target Mob", Values = {"All", "Bandit", "Brute", "Boss"}, Value = "All", Callback = function(v) getgenv().MoMoHub.TargetMob = v end })
+FarmSection:Slider({ Flag = "FarmRange", Title = "Farm Range", Step = 5, Value = {Min=10, Max=500, Default=100}, Callback = function(v) getgenv().MoMoHub.FarmRange = v end })
+FarmSection:Button({ Title = "🔄 Refresh Mobs", Icon = "refresh-cw", Color = Blue, Callback = function() WindUI:Notify({Title="Refreshed!",Duration=2}) end })
+
+-- Raid Tab  
+local RaidTab = Window:Tab({ Title = "Raids", Icon = "shield", IconColor = Red, Border = true , IconShape = "Square"})
+local RaidSection = RaidTab:Section({ Title = "🏰 Raid Control", Box = true, BoxBorder = true, Opened = true})
+RaidSection:Toggle({  Flag = "AutoRaid", Title = "Auto Raid Bosses",  Type = "Checkbox", Value = false, Callback = function(v) getgenv().MoMoHub.AutoRaids = v end })
+RaidSection:Input({ Flag = "RaidName", Title = "Raid Code", Value = "", Placeholder = "Raid code...", Callback = function(v) getgenv().MoMoHub.RaidCode = v end })
+
+-- Teleport Tab
+local TeleportTab = Window:Tab({ Title = "Teleport", Icon = "map-pin", IconColor = Yellow, Border = true , IconShape = "Square"})
+local TeleportSection = TeleportTab:Section({ Title = "📍 Popular Teleports", Box = true, BoxBorder = true, Opened = true })
+local tpLocations = {"Spawn", "Shop", "Quest", "Boss", "Farm Zone", "Safe Zone"}
+TeleportTab:Dropdown({ Flag = "TPSelect", Title = "Select Location", Values = tpLocations, Value = "Spawn", Callback = function(v) end })
+TeleportTab:Button({ Title = "🚀 Teleport", Icon = "zap", Color = PrimaryPurple, Callback = function() WindUI:Notify({Title="Teleporting...",Duration=3}) end })
+
+-- Player Tab
+local PlayerTab = Window:Tab({ Title = "Player", Icon = "user", IconColor = Blue, Border = true , IconShape = "Square"})
+local moveSection = PlayerTab:Section({ Title = "🏃 Movement", Box = true, BoxBorder = true })
+moveSection:Slider({ Flag = "WalkSpeed", Title = "WalkSpeed", Step = 1, Value = {Min=16, Max=200, Default=16}, Callback = function(v) local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") if hum then hum.WalkSpeed = v end end })
+moveSection:Slider({ Flag = "JumpPower", Title = "JumpPower", Step = 1, Value = {Min=50, Max=300, Default=50}, Callback = function(v) local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") if hum then hum.JumpPower = v end end })
+
+local utilGroup = PlayerTab:Group({})
+utilGroup:Toggle({ Flag = "Noclip", Title = "Noclip", Value = false,  Type = "Checkbox", Callback = function(v) getgenv().MoMoHub.Noclip = v end })
+utilGroup:Toggle({ Flag = "InfJump", Title = "Infinite Jump", Value = false, Type = "Checkbox", Callback = function(v) getgenv().MoMoHub.InfJump = v end })
+
+-- ════════════════════════════════════════
+-- //  SETTINGS TAB (FULL CONFIG FEATURES)
+-- ════════════════════════════════════════
+
+local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings", IconColor = Grey, Border = true , IconShape = "Square"})
+
+-- ⌨️ Keybinds
+SettingsTab:Section({ Title = "⌨️ Keybinds", Box = true, BoxBorder = true })
+SettingsTab:Keybind({ Flag = "UIKeybind", Title = "Toggle UI", Value = "LeftControl", Callback = function(k) 
+    getgenv().MoMoHub.ToggleKey = Enum.KeyCode[k]
+    Window:SetToggleKey(Enum.KeyCode[k]) 
+end })
+-- ════════════════════════════════════════
+-- //  💾 CONFIG MANAGER (FIXED AUTO LOAD & MEMORY)
+-- ════════════════════════════════════════
+local cfgSection = SettingsTab:Section({ Title = "💾 Config Manager", Box = true, BoxBorder = true, Opened = true })
+
+local cfgMgr = Window.ConfigManager
+local cfgName = "Default"
+local isAutoLoadEnabled = false
+
+-- 1. อ่านค่าจากไฟล์ในเครื่องก่อนสร้าง UI เพื่อดูว่าเคยเปิด Auto Load ไว้ไหม
+if isfile and readfile and isfile("MoMoHub_AutoLoad.txt") then
+    pcall(function() 
+        local content = readfile("MoMoHub_AutoLoad.txt")
+        if content and content ~= "" then
+            isAutoLoadEnabled = true
+            cfgName = content -- จำชื่อ Config สุดท้ายที่ใช้
+        end
+    end)
+end
+
+-- Config Name Input
+local cfgInput = cfgSection:Input({
+    Flag = "CfgName",
+    Title = "Config Name",
+    Value = cfgName, -- แสดงชื่อ Config ที่จำไว้ทันที
+    Placeholder = "Enter config name...",
+    Callback = function(n)
+        cfgName = (n ~= "" and n or "Default")
+        -- อัปเดตความจำทันที ถ้าผู้เล่นเปลี่ยนชื่อ Config ระหว่างที่ Auto Load เปิดอยู่
+        if getgenv().MoMoHub.AutoLoad and writefile then
+            pcall(function() writefile("MoMoHub_AutoLoad.txt", cfgName) end)
+        end
+    end,
+})
+
+-- Config List Dropdown
+local cfgList = cfgSection:Dropdown({
+    Flag = "CfgList",
+    Title = "📂 Saved Configs",
+    Values = cfgMgr:AllConfigs(),
+    Value = cfgName,
+    Callback = function(n)
+        if n then
+            cfgName = n
+            cfgInput:Set(n)
+            -- อัปเดตความจำทันที ถ้าเลือก Config จาก Dropdown 
+            if getgenv().MoMoHub.AutoLoad and writefile then
+                pcall(function() writefile("MoMoHub_AutoLoad.txt", cfgName) end)
+            end
+        end
+    end,
+})
+
+cfgSection:Space()
+
+-- ✅ Auto Load Config Toggle (จำสถานะของตัวเองได้แล้ว!)
+cfgSection:Toggle({
+    Flag    = "AutoLoadCfg",
+    Title   = "⚡ Auto Load Config on Start",
+    Desc    = "Automatically load config when script starts",
+    Type    = "Checkbox",
+    Value   = isAutoLoadEnabled, -- ดึงสถานะที่จำไว้มาเปิด/ปิดให้ทันที
+    Callback = function(v)
+        getgenv().MoMoHub.AutoLoad = v
+        if v then
+            -- สร้างไฟล์ฝังเครื่อง
+            if writefile then
+                pcall(function() writefile("MoMoHub_AutoLoad.txt", cfgName) end)
+            end
+            pcall(function()
+                WindUI:Notify({ Title = "Auto Load ON", Content = "Will auto-load [" .. cfgName .. "]", Duration = 3 })
+            end)
+        else
+            -- ลบข้อมูลถ้าปิด
+            if writefile then
+                pcall(function() writefile("MoMoHub_AutoLoad.txt", "") end)
+            end
+            pcall(function()
+                WindUI:Notify({ Title = "Auto Load OFF", Content = "Auto-load disabled", Duration = 3 })
+            end)
+        end
+    end,
+})
+
+cfgSection:Space()
+
+-- Save / Load Buttons Group
+local cfgActionGroup = cfgSection:Group({})
+
+cfgActionGroup:Button({
+    Title = "💾 Save Config",
+    Icon  = "save",
+    Color = Green,
+    Justify = "Center",
+    Callback = function()
+        if cfgName == "" then return end
+        local cfg = cfgMgr:Config(cfgName)
+        if cfg:Save() then
+            pcall(function()
+                WindUI:Notify({ Title = "✅ Saved!", Content = "Saved [" .. cfgName .. "] successfully", Duration = 3 })
+            end)
+            cfgList:Refresh(cfgMgr:AllConfigs())
+        end
+    end,
+})
+
+cfgActionGroup:Space()
+
+cfgActionGroup:Button({
+    Title = "📂 Load Config",
+    Icon  = "download",
+    Color = Blue,
+    Justify = "Center",
+    Callback = function()
+        if cfgName == "" then return end
+        local cfg = cfgMgr:CreateConfig(cfgName)
+        if cfg:Load() then
+            pcall(function()
+                WindUI:Notify({ Title = "✅ Loaded!", Content = "Loaded [" .. cfgName .. "] successfully", Duration = 3 })
+            end)
+        end
+    end,
+})
+
+cfgSection:Space()
+
+-- Delete / Refresh Buttons Group
+local cfgManageGroup = cfgSection:Group({})
+
+cfgManageGroup:Button({
+    Title = "🗑️ Delete Config",
+    Icon  = "trash-2",
+    Color = Red,
+    Justify = "Center",
+    Callback = function()
+        if cfgName == "" or cfgName == "Default" then return end
+        local cfg = cfgMgr:Config(cfgName)
+        if cfg:Delete() then
+            pcall(function()
+                WindUI:Notify({ Title = "🗑️ Deleted", Content = "Deleted [" .. cfgName .. "] successfully", Duration = 3 })
+            end)
+            
+            -- ปิด Auto Load ให้ด้วยถ้า Config ที่เลือกลบหายไปแล้ว
+            if writefile then pcall(function() writefile("MoMoHub_AutoLoad.txt", "") end) end 
+            
+            cfgName = "Default"
+            cfgInput:Set("Default")
+            cfgList:Refresh(cfgMgr:AllConfigs())
+        end
+    end,
+})
+
+cfgManageGroup:Space()
+
+cfgManageGroup:Button({
+    Title = "🔄 Refresh List",
+    Icon  = "refresh-cw",
+    Color = Yellow,
+    Justify = "Center",
+    Callback = function()
+        local configs = cfgMgr:AllConfigs()
+        cfgList:Refresh(configs)
+        pcall(function() WindUI:Notify({ Title = "🔄 Refreshed!", Content = "Found " .. #configs .. " configs", Duration = 3 }) end)
+    end,
+})
+
+-- ════════════════════════════════════════
+-- //  AUTO LOAD ON STARTUP ⚡ (FINAL FIX)
+-- ════════════════════════════════════════
+
+task.spawn(function()
+    task.wait(1) -- รอ UI และระบบ ConfigManager โหลดเสร็จชัวร์ๆ
+    
+    -- ถ้าเคยเปิด Auto Load ไว้ และมีชื่อ Config บันทึกอยู่
+    if isAutoLoadEnabled and cfgName ~= "" then
+        local startupCfg = cfgMgr:CreateConfig(cfgName)
+        
+        if startupCfg:Load() then
+            pcall(function()
+                WindUI:Notify({
+                    Title   = "⚡ Auto Loaded!",
+                    Content = "Loaded [" .. cfgName .. "] successfully",
+                    Duration = 4,
+                })
+            end)
+            
+            -- ป้องกันบัค! เขียนทับสถานะ Auto Load อีกรอบ เผื่อไฟล์ JSON ที่โหลดมาดันจำค่าปุ่มเป็นปิด
+            task.wait(0.5)
+            getgenv().MoMoHub.AutoLoad = true
+            if writefile then
+                pcall(function() writefile("MoMoHub_AutoLoad.txt", cfgName) end)
+            end
+        end
+    end
+end)
+
+-- 🎨 Appearance
+SettingsTab:Section({ Title = "🎨 Appearance", Box = true })
+SettingsTab:Toggle({ Flag = "NoBG", Title = "No Panel BG", Callback = function(b) Window:SetPanelBackground(not b) end })
+
+-- Runtime Features
+UserInputService.JumpRequest:Connect(function()
+    if getgenv().MoMoHub.InfJump then
+        pcall(function() LocalPlayer.Character:FindFirstChildOfClass("Humanoid"):ChangeState("Jumping") end)
+    end
+end)
+
+RunService.Stepped:Connect(function()
+    if getgenv().MoMoHub.Noclip then
+        pcall(function()
+            for _, p in LocalPlayer.Character:GetDescendants() do
+                if p:IsA("BasePart") then p.CanCollide = false end
+            end
+        end)
+    end
+end)
+
+-- Welcome
+WindUI:Notify({ Title = "✨ MoMoHub PRO Ready!", Content = "All tabs and features loaded 🚀", Icon = "solar:sparkles-bold", Duration = 5 })
+
+-- ==========================================
+-- 📌 Mobile UI Toggle Button (Custom Logo)
+-- ==========================================
+local targetGui = (gethui and gethui()) or game:GetService("CoreGui") or Players.LocalPlayer:WaitForChild("PlayerGui")
+local CustomGui = Instance.new("ScreenGui")
+CustomGui.Name = "MoMoHubToggleUI"
+CustomGui.ResetOnSpawn = false
+CustomGui.Parent = targetGui
+
+local MoMoLogo = "rbxthumb://type=Asset&id=121052363208302&w=150&h=150"
+
+local ToggleBtn = Instance.new("ImageButton")
+ToggleBtn.Name = "MoMoHubToggle"
+ToggleBtn.Parent = CustomGui
+ToggleBtn.Position = UDim2.new(0.5, -25, 0, 5) 
+ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
+ToggleBtn.BackgroundTransparency = 1
+ToggleBtn.Image = MoMoLogo
+
+local dragging, dragInput, dragStart, startPos
+ToggleBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = ToggleBtn.Position
+        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+    end
+end)
+ToggleBtn.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        ToggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+local vim = game:GetService("VirtualInputManager")
+local isClicking = false
+ToggleBtn.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isClicking = true end end)
+ToggleBtn.InputChanged:Connect(function(input) if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then isClicking = false end end)
+ToggleBtn.InputEnded:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and isClicking then
+        pcall(function() vim:SendKeyEvent(true, getgenv().MoMoHub.ToggleKey, false, game); task.wait(0.05); vim:SendKeyEvent(false, getgenv().MoMoHub.ToggleKey, false, game) end)
+    end
+end)
