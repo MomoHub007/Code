@@ -38,6 +38,34 @@ local Blue   = Color3.fromHex("#60A5FA")
 local Yellow = Color3.fromHex("#FCD34D")
 local Grey   = Color3.fromHex("#9CA3AF")
 
+-- ข้อมูล World และ Chapter IDs จาก Spy Report
+local worldChapters = {
+    ["OnePiece"] = {"OnePiece_Chapter1", "OnePiece_Chapter2", "OnePiece_Chapter3", "OnePiece_Chapter4", "OnePiece_Chapter5", "OnePiece_RangerStage1", "OnePiece_RangerStage2", "OnePiece_RangerStage3"},
+    ["SAO"] = {"SAO_Chapter1", "SAO_Chapter2", "SAO_Chapter3", "SAO_Chapter4", "SAO_Chapter5", "SAO_RangerStage1", "SAO_RangerStage2", "SAO_RangerStage3"},
+    ["Namek"] = {"Namek_Chapter1", "Namek_Chapter2", "Namek_Chapter3", "Namek_Chapter4", "Namek_Chapter5", "Namek_RangerStage1", "Namek_RangerStage2", "Namek_RangerStage3"},
+    ["Naruto"] = {"Naruto_Chapter1", "Naruto_Chapter2", "Naruto_Chapter3", "Naruto_Chapter4", "Naruto_Chapter5", "Naruto_RangerStage1", "Naruto_RangerStage2", "Naruto_RangerStage3"},
+    ["KageColony"] = {"Kage_Act1", "Kage_Act2", "Kage_Act3"},
+    ["Invasion"] = {"Invasion_Chapter1"},
+    ["Dungeon"] = {"Dungeon_Level"},
+    ["BattleArena"] = {"BattleArena_BossAttack"},
+    ["KurumiBossEvent"] = {"KurumiBossEvent"},
+    ["Calamity"] = {"Calamity_Chapter1", "Calamity_Chapter2"},
+    ["SurotaColony"] = {"Surota_Act1", "Surota_Act2", "Surota_Act3"},
+    ["SendaiColony"] = {"Sendai_Act1", "Sendai_Act2", "Sendai_Act3"},
+    ["GochuColony"] = {"Gochu_Act1", "Gochu_Act2", "Gochu_Act3"},
+    ["BossRush"] = {"BossRush_Level"},
+    ["TokyoGhoul"] = {"TokyoGhoul_Chapter1", "TokyoGhoul_Chapter2", "TokyoGhoul_Chapter3", "TokyoGhoul_Chapter4", "TokyoGhoul_Chapter5", "TokyoGhoul_RangerStage1", "TokyoGhoul_RangerStage2", "TokyoGhoul_RangerStage3"},
+    ["EsperRaid"] = {"Esper_Raid_Chapter1"},
+    ["JJK"] = {"JJK_Chapter1", "JJK_Chapter2", "JJK_Chapter3", "JJK_Chapter4", "JJK_Chapter5", "JJK_RangerStage1", "JJK_RangerStage2", "JJK_RangerStage3", "JJK_RangerStage4"},
+    ["BossAttackMob25"] = {"BossAttackMob25_Chapter1"},
+    ["JJKRaid"] = {"JJK_Raid_Chapter1", "JJK_Raid_Chapter2"}
+}
+
+-- รายชื่อ World สำหรับ Dropdown แรก
+local worldList = {}
+for k, v in pairs(worldChapters) do table.insert(worldList, k) end
+table.sort(worldList)
+
 -- ✅ Create Window
 local Window = WindUI:CreateWindow({
     Title = "MoMoHub",
@@ -87,6 +115,15 @@ Window:Tag({
 -- Shared State
 getgenv().MoMoHub = {
     AutoFarm = false, AutoRaids = false, AutoEgg = false,
+    AutoCheckEvolve = false,
+    -- เพิ่มส่วนนี้สำหรับ Auto Create Room
+    AutoCreateRoom = false,
+    RoomConfig = {
+        Mode = "Story",
+        World = "SendaiColony",
+        Chapter = "Chapter 1",
+        Difficulty = "Normal"
+    },
     Noclip = false, InfJump = false,
     ESP = { Player = false, Mob = false, Chest = false },
     ESPColor = PrimaryPurple,
@@ -172,11 +209,60 @@ FarmSection:Dropdown({ Flag = "TargetMob", Title = "Target Mob", Values = {"All"
 FarmSection:Slider({ Flag = "FarmRange", Title = "Farm Range", Step = 5, Value = {Min=10, Max=500, Default=100}, Callback = function(v) getgenv().MoMoHub.FarmRange = v end })
 FarmSection:Button({ Title = "🔄 Refresh Mobs", Icon = "refresh-cw", Color = Blue, Callback = function() WindUI:Notify({Title="Refreshed!",Duration=2}) end })
 
--- Raid Tab  
-local RaidTab = Window:Tab({ Title = "Raids", Icon = "shield", IconColor = Red, Border = true , IconShape = "Square"})
-local RaidSection = RaidTab:Section({ Title = "🏰 Raid Control", Box = true, BoxBorder = true, Opened = true})
-RaidSection:Toggle({  Flag = "AutoRaid", Title = "Auto Raid Bosses",  Type = "Checkbox", Value = false, Callback = function(v) getgenv().MoMoHub.AutoRaids = v end })
-RaidSection:Input({ Flag = "RaidName", Title = "Raid Code", Value = "", Placeholder = "Raid code...", Callback = function(v) getgenv().MoMoHub.RaidCode = v end })
+-- ── Raid Tab ──────────────────────────────────────────
+local RaidTab = Window:Tab({ Title = "Raids", Icon = "shield", IconColor = Color3.fromHex("#EF4444"), Border = true })
+local RoomSection = RaidTab:Section({ Title = "🚪 Auto Create Room", Box = true, BoxBorder = true, Opened = true})
+
+-- 1. ต้องประกาศตัวแปรนี้ไว้ข้างบนสุดของ Section ก่อนเริ่มสร้าง UI
+local chapterDropdown 
+
+RoomSection:Toggle({
+    Flag = "AutoCreateRoom",
+    Title = "Enable Auto Create & Start",
+    Value = false,
+    Callback = function(v) getgenv().MoMoHub.AutoCreateRoom = v end
+})
+
+RoomSection:Dropdown({
+    Title = "Select Mode",
+    Values = {"Story", "ColonyRush", "Raids Stage", "Calamity", "Invasion", "BossRush"},
+    Value = "Story",
+    Callback = function(v) getgenv().MoMoHub.RoomConfig.Mode = v end
+})
+
+-- 2. สร้าง World Dropdown
+RoomSection:Dropdown({
+    Title = "Select World (Map)",
+    Values = worldList,
+    Value = "OnePiece",
+    Callback = function(v)
+        getgenv().MoMoHub.RoomConfig.World = v
+        local newChapters = worldChapters[v] or {"None"}
+        
+        -- ตรวจสอบว่า chapterDropdown ถูกสร้างหรือยังก่อนสั่งอัปเดต
+        if chapterDropdown then
+            chapterDropdown:SetValues(newChapters) -- อัปเดตรายการใหม่เข้าไป
+            chapterDropdown:Set(newChapters[1])    -- เลือกด่านแรกของ World นั้นทันที
+        end
+    end
+})
+
+-- 3. กำหนดค่าให้ตัวแปร chapterDropdown ที่ประกาศไว้ด้านบน
+chapterDropdown = RoomSection:Dropdown({
+    Title = "Select Chapter ID",
+    Values = worldChapters["OnePiece"], -- ค่าเริ่มต้น
+    Value = worldChapters["OnePiece"][1],
+    Callback = function(v) 
+        getgenv().MoMoHub.RoomConfig.Chapter = v 
+    end
+})
+
+RoomSection:Dropdown({
+    Title = "Difficulty",
+    Values = {"Normal", "Hard", "Nightmare"},
+    Value = "Normal",
+    Callback = function(v) getgenv().MoMoHub.RoomConfig.Difficulty = v end
+})
 
 -- Teleport Tab
 local TeleportTab = Window:Tab({ Title = "Teleport", Icon = "map-pin", IconColor = Yellow, Border = true , IconShape = "Square"})
@@ -198,6 +284,454 @@ utilGroup:Toggle({ Flag = "InfJump", Title = "Infinite Jump", Value = false, Typ
 -- ════════════════════════════════════════
 -- //  SETTINGS TAB (FULL CONFIG FEATURES)
 -- ════════════════════════════════════════
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- 📦  DATA: ข้อมูล Evolve ทุก Unit (จาก ARX)
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+local EvolveData = {
+    ["Ace"]              = { Gold=5000,     Curr={},                                    Items={["Fire Fist's Hat"]=1},                                                                                   TD=200  },
+    ["Akainu"]           = { Gold=5000,     Curr={},                                    Items={["Magu Fruit"]=1},                                                                                        TD=200  },
+    ["Akira"]            = { Gold=15000,    Curr={},                                    Items={["Akiras Motorcycle"]=1},                                                                                 TD=0    },
+    ["Albedo"]           = { Gold=15000,    Curr={["Yggdrasil Token"]=200},              Items={["Candle of Undeath"]=50, ["Demon Axe"]=1},                                                               TD=0    },
+    ["Alucard"]          = { Gold=250000,   Curr={["CSW Raid Currency"]=600},            Items={["Behelits"]=200, ["Dracula Arms"]=2, ["Dracula Hat"]=1, ["Ranger Crystal"]=150},                         TD=0    },
+    ["Arthur"]           = { Gold=30000,    Curr={},                                    Items={["Star Ring"]=1},                                                                                         TD=200  },
+    ["AsNodt"]           = { Gold=115000,   Curr={},                                    Items={["Ranger Crystal"]=35, ["Volt Ring"]=1},                                                                  TD=0    },
+    ["Astolfo"]          = { Gold=22500,    Curr={},                                    Items={["Ancient Power Core"]=13, ["Holy Sword"]=1, ["Obsidian Plate"]=25},                                       TD=250  },
+    ["Benimaru"]         = { Gold=15000,    Curr={},                                    Items={["Sun Wheel"]=1},                                                                                         TD=50   },
+    ["Beru"]             = { Gold=15000,    Curr={},                                    Items={["Hive Monarch Cocoon"]=5},                                                                               TD=0    },
+    ["Blair"]            = { Gold=50000,    Curr={},                                    Items={["Pumpkin"]=1, ["Ranger Crystal"]=10},                                                                    TD=0    },
+    ["Boa"]              = { Gold=5000,     Curr={},                                    Items={["Mero Fruit"]=1},                                                                                        TD=200  },
+    ["Broly"]            = { Gold=15000,    Curr={},                                    Items={["Emperor Crown"]=1},                                                                                     TD=0    },
+    ["Brook"]            = { Gold=100000,   Curr={},                                    Items={["Ranger Crystal"]=25, ["Skull Guitar"]=1},                                                               TD=0    },
+    ["Burns"]            = { Gold=15000,    Curr={},                                    Items={["Burning Eyepatch"]=1},                                                                                  TD=50   },
+    ["Carrot"]           = { Gold=27500,    Curr={},                                    Items={["Little Frog"]=30, ["Mini Moon"]=1, ["Soul Core"]=15},                                                   TD=250  },
+    ["Cid"]              = { Gold=5000000,  Curr={},                                    Items={["Atomic Sword"]=1, ["Ranger Crystal"]=85, ["Shadow Slime"]=3},                                           TD=3500 },
+    ["Crocodile"]        = { Gold=15000,    Curr={},                                    Items={["Golden Handhook"]=1},                                                                                   TD=0    },
+    ["Demiurge"]         = { Gold=15000,    Curr={["Yggdrasil Token"]=150},              Items={["Candle of Undeath"]=30, ["Demon Mask"]=1},                                                              TD=0    },
+    ["Denji"]            = { Gold=25000,    Curr={["CSW Raid Currency"]=500},            Items={["Pochita"]=1, ["Ranger Crystal"]=20},                                                                    TD=0    },
+    ["Diavolo"]          = { Gold=75000,    Curr={},                                    Items={["Galaxy Arrow"]=1},                                                                                      TD=0    },
+    ["Dio"]              = { Gold=15000,    Curr={},                                    Items={["Vampire Mask"]=1},                                                                                      TD=0    },
+    ["Dio:Evo"]          = { Gold=15000,    Curr={["Heavenly Essence"]=300},             Items={["Vampire Quest I"]=1,["Vampire Quest II"]=1,["Vampire Quest III"]=1,["Vampire Quest IV"]=1,["Vampire Quest V"]=1}, TD=0 },
+    ["Escanor"]          = { Gold=15000,    Curr={},                                    Items={["Prides Sun"]=1},                                                                                        TD=0    },
+    ["Eugeo"]            = { Gold=7000000,  Curr={},                                    Items={["Blue Flower Sword"]=1, ["Ranger Crystal"]=30},                                                          TD=3250 },
+    ["Feitan"]           = { Gold=15000,    Curr={},                                    Items={["Feitans Cane"]=1},                                                                                      TD=0    },
+    ["Funny Valentine"]  = { Gold=15000,    Curr={},                                    Items={["Corpse Rib Cage"]=1},                                                                                   TD=0    },
+    ["Gappy"]            = { Gold=50000,    Curr={},                                    Items={["Star Bubble"]=1},                                                                                       TD=0    },
+    ["Genos"]            = { Gold=15000,    Curr={},                                    Items={["Cyber Core"]=1},                                                                                        TD=0    },
+    ["Gilgamesh"]        = { Gold=10000000, Curr={["GrailCurrency"]=5000},              Items={["Ranger Crystal"]=115, ["Rupturic Sword"]=1},                                                            TD=6666 },
+    ["Giorno"]           = { Gold=50000,    Curr={},                                    Items={["Requiem Arrow"]=1},                                                                                     TD=0    },
+    ["Gohan"]            = { Gold=15000,    Curr={},                                    Items={["Hourglass"]=1},                                                                                         TD=0    },
+    ["Gohan:Evo"]        = { Gold=50000,    Curr={},                                    Items={["Android 16 Head"]=1, ["Ranger Crystal"]=50},                                                            TD=0    },
+    ["Gojo"]             = { Gold=30000,    Curr={},                                    Items={["Limitless Eyes"]=2, ["Soul Core"]=20, ["Strongest Seal"]=1},                                            TD=200  },
+    ["Goku"]             = { Gold=15000,    Curr={},                                    Items={["Golden Cloud"]=1},                                                                                      TD=0    },
+    ["Guts"]             = { Gold=15000,    Curr={},                                    Items={["Dragon Slayer"]=1},                                                                                     TD=0    },
+    ["Gyro Zeppeli"]     = { Gold=15000,    Curr={},                                    Items={["Gyro's Steel Ball"]=2},                                                                                 TD=0    },
+    ["Hakari"]           = { Gold=15000,    Curr={},                                    Items={["Lucky Ticket"]=1},                                                                                      TD=50   },
+    ["Haumea"]           = { Gold=30000,    Curr={},                                    Items={["Inhibitor Crown"]=1},                                                                                   TD=200  },
+    ["Higuruma"]         = { Gold=125000,   Curr={},                                    Items={["Cursed Core"]=40, ["Cursed Hammer"]=50, ["Judges Envelope"]=75, ["Ranger Crystal"]=30},                  TD=1250 },
+    ["Homura"]           = { Gold=155000,   Curr={},                                    Items={["Ranger Crystal"]=35, ["Time Witch Shield"]=1},                                                          TD=0    },
+    ["Ichigo"]           = { Gold=15000,    Curr={},                                    Items={["Zangets"]=1},                                                                                           TD=0    },
+    ["Igris"]            = { Gold=15000,    Curr={},                                    Items={["Holy Commander Blade"]=1},                                                                              TD=0    },
+    ["Itachi"]           = { Gold=15000,    Curr={},                                    Items={["Shinobi Mask"]=1},                                                                                      TD=0    },
+    ["Jin Mori"]         = { Gold=7000000,  Curr={},                                    Items={["Monkey King Ring"]=1, ["Ranger Crystal"]=80},                                                           TD=5000 },
+    ["Johnny Joestar"]   = { Gold=15000,    Curr={["Heavenly Essence"]=250},             Items={["Corpse Left Arm"]=1, ["Corpse Spine"]=1, ["Gyro's Steel Ball"]=1, ["Ranger Crystal"]=15},               TD=0    },
+    ["Joker"]            = { Gold=15000,    Curr={},                                    Items={["Joker Card"]=1},                                                                                        TD=50   },
+    ["Jotaro"]           = { Gold=50000,    Curr={},                                    Items={["Heavenly Ascendant Bone"]=1},                                                                           TD=0    },
+    ["Judar"]            = { Gold=4500000,  Curr={},                                    Items={["Mage Wand"]=1, ["Ranger Crystal"]=15},                                                                  TD=1750 },
+    ["Juuzou_Suzuya"]    = { Gold=15000,    Curr={},                                    Items={["Jason 14's"]=1},                                                                                        TD=0    },
+    ["Ken_Kaneki"]       = { Gold=15000,    Curr={},                                    Items={["Ghoul Mask"]=1},                                                                                        TD=0    },
+    ["Ken_Kaneki:Evo:One"]={ Gold=15000,    Curr={},                                    Items={["Scorpion Mask"]=1},                                                                                     TD=0    },
+    ["Kirito"]           = { Gold=15000,    Curr={},                                    Items={["Virtual Swords"]=1},                                                                                    TD=0    },
+    ["Kishou_Arima"]     = { Gold=15000,    Curr={},                                    Items={["Anger Of The Owl"]=1},                                                                                  TD=0    },
+    ["Kisuke"]           = { Gold=15000,    Curr={},                                    Items={["Zanpak"]=1},                                                                                            TD=0    },
+    ["Kizaru"]           = { Gold=5000,     Curr={},                                    Items={["Pika Fruit"]=1},                                                                                        TD=200  },
+    ["Kurumi"]           = { Gold=300000,   Curr={["Candy"]=35000, ["Yggdrasil Token"]=1000}, Items={["Ranger Crystal"]=100, ["Time Clock"]=1},                                                         TD=0    },
+    ["Lord Slime"]       = { Gold=15000,    Curr={},                                    Items={["Rimuru Mask"]=1},                                                                                       TD=0    },
+    ["Lucy"]             = { Gold=20000,    Curr={},                                    Items={["Celestial Key"]=1},                                                                                     TD=0    },
+    ["Mai Sakurajima"]   = { Gold=30000,    Curr={},                                    Items={["Bunny Ears"]=1, ["Narmekian Ore"]=10, ["Ujaku Feather"]=30},                                            TD=215  },
+    ["Maki"]             = { Gold=115000,   Curr={},                                    Items={["Sacrificial Soul"]=100, ["Sorcerer Glasses"]=50, ["Twin Weapons"]=50},                                  TD=1500 },
+    ["Makima"]           = { Gold=30000,    Curr={["CSW Raid Currency"]=750},            Items={["Makima Chains"]=1, ["Pochita"]=1, ["Ranger Crystal"]=10},                                              TD=0    },
+    ["Megumi"]           = { Gold=100000,   Curr={},                                    Items={["Adaptation Wheel"]=50, ["Bird Feathers"]=70, ["Cursed Core"]=35, ["Elephant Tusks"]=65, ["Ranger Crystal"]=25}, TD=1500 },
+    ["Megumin"]          = { Gold=45000,    Curr={},                                    Items={["Demon Fang Shard"]=25, ["Energy Vial"]=40, ["Mage Staff"]=1, ["Ranger Crystal"]=25},                    TD=650  },
+    ["Mihawk"]           = { Gold=5000,     Curr={},                                    Items={["Yoru Blade"]=1},                                                                                        TD=200  },
+    ["Mob"]              = { Gold=15000,    Curr={},                                    Items={["Esper Friend"]=1, ["Ranger Crystal"]=10},                                                               TD=150  },
+    ["Mob:Evo:One"]      = { Gold=50000,    Curr={},                                    Items={["Flower Brigade"]=1, ["Ranger Crystal"]=25},                                                             TD=250  },
+    ["Naruto"]           = { Gold=15000,    Curr={},                                    Items={["Scroll Of Sage"]=1},                                                                                    TD=0    },
+    ["Natsu"]            = { Gold=10000,    Curr={},                                    Items={["Salamander Scarf"]=1},                                                                                  TD=0    },
+    ["Okarun"]           = { Gold=15000,    Curr={},                                    Items={["Turbo Statue"]=1},                                                                                      TD=0    },
+    ["Piccolo"]          = { Gold=15000,    Curr={},                                    Items={["Dragon Orb"]=1},                                                                                        TD=0    },
+    ["Pucci"]            = { Gold=75000,    Curr={},                                    Items={["Broken Arrow"]=1},                                                                                      TD=0    },
+    ["Pucci:Evo"]        = { Gold=150000,   Curr={},                                    Items={["Heaven Diary"]=1},                                                                                      TD=0    },
+    ["Ragna"]            = { Gold=20000000, Curr={},                                    Items={["Ranger Crystal"]=50, ["Silver Sword"]=1},                                                               TD=6500 },
+    ["Reigen"]           = { Gold=20000,    Curr={},                                    Items={["Esper Phone"]=1},                                                                                       TD=200  },
+    ["Rias Gremory"]     = { Gold=27500,    Curr={},                                    Items={["Demon Wings"]=1, ["One-Eyed Fragment"]=10, ["Scroll of Focus"]=15},                                     TD=0    },
+    ["Ryu"]              = { Gold=150000,   Curr={},                                    Items={["Cursed Core"]=50, ["Dessert"]=150, ["Ranger Crystal"]=30},                                              TD=1500 },
+    ["Saber"]            = { Gold=15000,    Curr={},                                    Items={["Chaostic Sword"]=1},                                                                                    TD=0    },
+    ["Sanji"]            = { Gold=15000,    Curr={},                                    Items={["West Blue Fish"]=1},                                                                                    TD=0    },
+    ["Sasuke"]           = { Gold=15000,    Curr={},                                    Items={["Cursed Mark"]=1},                                                                                       TD=0    },
+    ["Shalltear"]        = { Gold=15000,    Curr={["Yggdrasil Token"]=250},              Items={["Candle of Undeath"]=75, ["Vampire Lance"]=1},                                                           TD=0    },
+    ["Shanks"]           = { Gold=7500,     Curr={},                                    Items={["Straw Hat"]=1},                                                                                         TD=250  },
+    ["Shanks:Evo:One"]   = { Gold=10000,    Curr={},                                    Items={["Conqueror's Sword"]=1, ["Straw Hat"]=1},                                                                TD=400  },
+    ["Shirou"]           = { Gold=4500000,  Curr={},                                    Items={["Dual Blades"]=2, ["Ranger Crystal"]=65},                                                                TD=3500 },
+    ["Sho"]              = { Gold=15000,    Curr={},                                    Items={["Chrono Sword"]=1},                                                                                      TD=50   },
+    ["Songjinwuu"]       = { Gold=15000,    Curr={},                                    Items={["Karmib Dagger's"]=1},                                                                                   TD=0    },
+    ["Songjinwuu:Evo"]   = { Gold=15000,    Curr={},                                    Items={["System Shards"]=50},                                                                                    TD=0    },
+    ["Sukuna"]           = { Gold=30000,    Curr={},                                    Items={["Demon Fang Shard"]=7, ["King's Finger"]=16, ["King's Shrine"]=1},                                       TD=200  },
+    ["SungJinWoo"]       = { Gold=15000,    Curr={},                                    Items={["Soul of The System"]=1, ["System Core"]=1},                                                             TD=0    },
+    ["Tanjiro"]          = { Gold=15000,    Curr={},                                    Items={["Sunrise Earrings"]=1},                                                                                  TD=0    },
+    ["Teruki"]           = { Gold=20000,    Curr={},                                    Items={["Esper Hair"]=1},                                                                                        TD=200  },
+    ["Toichiro"]         = { Gold=25000,    Curr={},                                    Items={["Esper Tie"]=1, ["Ranger Crystal"]=10},                                                                  TD=250  },
+    ["Toichiro:Evo:One"] = { Gold=50000,    Curr={},                                    Items={["Charge Bomb"]=1, ["Ranger Crystal"]=25},                                                                TD=250  },
+    ["Toji"]             = { Gold=15000,    Curr={},                                    Items={["Assassin's Spear"]=1},                                                                                  TD=50   },
+    ["Toru"]             = { Gold=50000,    Curr={},                                    Items={["Cursed Cane"]=1},                                                                                       TD=0    },
+    ["Uro"]              = { Gold=100000,   Curr={},                                    Items={["Cursed Core"]=50, ["Ranger Crystal"]=25, ["Sorceress Earrings"]=150},                                   TD=1250 },
+    ["Uta"]              = { Gold=15000,    Curr={},                                    Items={["Musical Fruit"]=1},                                                                                     TD=0    },
+    ["Whitebeard"]       = { Gold=5000,     Curr={},                                    Items={["Gura Fruit"]=1},                                                                                        TD=200  },
+    ["Yor"]              = { Gold=35000,    Curr={},                                    Items={["Kunai Shards"]=20, ["Storm Flake Crystal"]=12, ["Thorn Needles"]=1},                                    TD=350  },
+    ["Yoru"]             = { Gold=200000,   Curr={["CSW Raid Currency"]=600},            Items={["Ranger Crystal"]=50, ["Ruler"]=1},                                                                      TD=0    },
+    ["Yuki"]             = { Gold=30000,    Curr={},                                    Items={["Cursed Core"]=16, ["Gorodo"]=1, ["Little Frog"]=9},                                                     TD=200  },
+    ["Yuta"]             = { Gold=20000,    Curr={},                                    Items={["Cursed Ring"]=1, ["Little Frog"]=6, ["Soul Core"]=15},                                                  TD=150  },
+    ["Yuta:Evo:One"]     = { Gold=200000,   Curr={},                                    Items={["Cursed Blade"]=120, ["Cursed Core"]=75, ["Cursed Ring"]=1, ["Dessert"]=100, ["Ranger Crystal"]=40, ["Sorceress Earrings"]=100}, TD=2000 },
+}
+
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- 🔨  DATA: สูตรคราฟ (จาก craft)
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+local CraftData = {
+    ["Frozen Fang Daggers"]       = {["Smoke Orb"]=4, ["Ancient Power Core"]=5},
+    ["Flame-Touched Gauntlets"]   = {["Ancient Power Core"]=3, ["Obsidian Plate"]=2, ["Smoke Orb"]=2},
+    ["Lucky Ticket"]              = {["Little Frog"]=6, ["Soul Core"]=15, ["Cursed Core"]=20},
+    ["Infernal Blade"]            = {["Kunai Shards"]=4, ["Obsidian Plate"]=4, ["Core of Silence"]=3},
+    ["Golden Handhook"]           = {["Marine Tech Chip"]=5, ["Obsidian Plate"]=5, ["Mystic Kelp"]=5, ["Rubber Fruit"]=45, ["Sea Gem Fragment"]=50, ["Ranger Crystal"]=15},
+    ["Celestial Crown"]           = {["Energy Vial"]=7, ["Core of Silence"]=5},
+    ["Silver-Edged Saber"]        = {["Kunai Shards"]=3, ["Marine Tech Chip"]=1, ["Ghost Lens"]=2},
+    ["Crown of Eternity"]         = {["Enhanced Optical Lens"]=14, ["Combat Fluid"]=13},
+    ["Golden Cloud"]              = {["Narmekian Crystal"]=4, ["Green Bean"]=20, ["Power Core"]=10, ["Narmekian Ore"]=15, ["Energy Vial"]=1, ["Ranger Crystal"]=5},
+    ["Dragon Orb"]                = {["Nano Fiber Wire"]=1, ["Green Bean"]=50, ["Dracoscale Shard"]=15, ["Power Core"]=10, ["Narmekian Crystal"]=4, ["Ranger Crystal"]=3},
+    ["Stormbreaker Shield"]       = {["Phantom Alloy"]=1, ["Smoke Orb"]=1},
+    ["Wings of the Valkyrie"]     = {["Micro Circuit Board"]=7, ["Enhanced Optical Lens"]=6},
+    ["West Blue Fish"]            = {["Marine Tech Chip"]=5, ["Obsidian Plate"]=5, ["Will Core"]=5, ["Soul Shard"]=50, ["Rubber Fruit"]=45, ["Void Pearl"]=3, ["Ranger Crystal"]=15},
+    ["Shinobi Mask"]              = {["Shadow Fiber"]=50, ["Ramen"]=69, ["Ancient Talisman"]=3, ["Ranger Crystal"]=10, ["Chakra Shard"]=10, ["Core of Silence"]=1},
+    ["Cursed Mark"]               = {["Storm Flake Crystal"]=20, ["Ramen"]=30, ["Smoke Orb"]=1, ["Kunai Shards"]=1, ["Chakra Shard"]=5, ["Ranger Crystal"]=5},
+    ["Blacklight Reaver"]         = {["Green Crystalite"]=30, ["Red Crystalite"]=15, ["Blue Crystalite"]=15, ["Black Crystalite"]=15},
+    ["Piercing Longbow"]          = {["Kunai Shards"]=1, ["Nano Fiber Wire"]=2},
+    ["Phoenix Cloak"]             = {["Kunai Shards"]=6, ["Obsidian Plate"]=6, ["Marine Tech Chip"]=8},
+    ["Blacklight Reaver Helmet"]  = {["Green Crystalite"]=15, ["Red Crystalite"]=15, ["Blue Crystalite"]=15, ["Black Crystalite"]=30},
+    ["Scroll Of Sage"]            = {["Storm Flake Crystal"]=20, ["Ramen"]=60, ["Scroll of Focus"]=1, ["Ancient Talisman"]=1, ["Chakra Shard"]=5, ["Ranger Crystal"]=5},
+    ["Blacklight Reaver Boots"]   = {["Green Crystalite"]=15, ["Red Crystalite"]=30, ["Blue Crystalite"]=15, ["Black Crystalite"]=15},
+    ["Chaostic Sword"]            = {["Ancient Power Core"]=2, ["Obsidian Plate"]=7, ["Ranger Crystal"]=12},
+    ["Anger Of The Owl"]          = {["Gourmet Meal"]=120, ["Kakuja Mask Shard"]=50, ["Biaiku Scale"]=75, ["One-Eyed Fragment"]=5, ["CGGG Investigator's Badge"]=8, ["Centipede Husk"]=18, ["Yoshimarun's Mask Fragment"]=6, ["Owl Fragment"]=1},
+    ["Dragonfang Blade"]          = {["Kunai Shards"]=8, ["Ghost Lens"]=7, ["Core of Silence"]=7},
+    ["Jason 14's"]                = {["Kakuja Mask Shard"]=7, ["Death Shard"]=1, ["Arata Armor Piece"]=3, ["Gourmet Meal"]=100, ["Ujaku Feather"]=35, ["Ribe's RC Cells"]=35, ["Centipede Husk"]=7, ["CGGG Investigator's Badge"]=5, ["Ranger Crystal"]=10},
+    ["Assassin's Spear"]          = {["Little Frog"]=12, ["Soul Core"]=15, ["Cursed Core"]=15},
+    ["Scorpion Mask"]             = {["Kakuja Mask Shard"]=40, ["Gourmet Meal"]=120, ["One-Eyed Fragment"]=5, ["Yoshimarun's Mask Fragment"]=5, ["Centipede Husk"]=20, ["Biaiku Scale"]=50, ["Ranger Crystal"]=10},
+    ["Earthshatter Maul"]         = {["Core of Silence"]=6},
+    ["Ghoul Mask"]                = {["Kakuja Mask Shard"]=7, ["Gourmet Meal"]=60, ["One-Eyed Fragment"]=1, ["Yoshimarun's Mask Fragment"]=2, ["Ujaku Feather"]=35, ["Biaiku Scale"]=35, ["Ranger Crystal"]=10},
+    ["Gilded Dagger"]             = {["Nano Fiber Wire"]=1, ["Scroll of Focus"]=1, ["Core of Silence"]=2},
+    ["Runebound Chestplate"]      = {["Micro Circuit Board"]=3, ["Combat Fluid"]=5, ["Energy Vial"]=4},
+    ["Starfire Bow"]              = {["Kunai Shards"]=4, ["Marine Tech Chip"]=5, ["Enhanced Optical Lens"]=3},
+    ["Eclipse Edge"]              = {["Phantom Alloy"]=15, ["Obsidian Plate"]=13, ["Ghost Lens"]=12},
+    ["Ainz"]                      = {["Shalltear"]=1, ["Overlords Staff"]=1, ["Ring of Mana"]=1, ["Demiurge"]=1, ["Ring of Death"]=1, ["Ring of Life"]=1, ["Albedo"]=1},
+    ["Shalltear"]                 = {["Blood Vial"]=1},
+    ["Leather Armor"]             = {["Smoke Orb"]=3, ["Ancient Power Core"]=1},
+    ["Aetherial Lance"]           = {["Nano Fiber Wire"]=13, ["Ancient Power Core"]=14},
+    ["Shadowsteel Helm"]          = {["Kunai Shards"]=4, ["Nano Fiber Wire"]=3},
+    ["Blacklight Reaver Wings"]   = {["Green Crystalite"]=15, ["Red Crystalite"]=15, ["Blue Crystalite"]=30, ["Black Crystalite"]=15},
+    ["Emperor Crown"]             = {["Narmekian Crystal"]=7, ["Green Bean"]=100, ["Enhanced Optical Lens"]=2, ["Power Core"]=35, ["Narmekian Ore"]=35, ["Phantom Alloy"]=1, ["Ranger Crystal"]=10},
+}
+
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- 📍  DATA: แหล่งหาไอเทม (จาก item JSON)
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+local ItemSources = {
+    -- ⚓ One Piece
+    ["Rubber Fruit"]               = "One Piece Ch1-5 (100%)",
+    ["Sea Gem Fragment"]           = "One Piece Ch2(10%) Ch3(15%) Ch4(20%) Ch5(30%)",
+    ["Soul Shard"]                 = "One Piece Ch3 (35%)",
+    ["Will Core"]                  = "One Piece Ch4 (10%)",
+    ["Void Pearl"]                 = "One Piece Ch5 (3.5%)",
+    ["Obsidian Plate"]             = "One Piece Ranger I (25%) / Calamity Ch1 (30%)",
+    ["Mystic Kelp"]                = "One Piece Ranger I (25%)",
+    ["Marine Tech Chip"]           = "One Piece Ranger II (30%)",
+    ["Ancient Power Core"]         = "One Piece Ranger II (12%) / Ranger III (15%)",
+    ["Combat Fluid"]               = "One Piece Ranger III (25%)",
+    -- 🟢 Namek
+    ["Green Bean"]                 = "Namek Ch1-5 (100%)",
+    ["Ghost Lens"]                 = "Namek Ch1 (25%)",
+    ["Phantom Alloy"]              = "Namek Ch2 (40%)",
+    ["Power Core"]                 = "Namek Ch3 (20%)",
+    ["Narmekian Ore"]              = "Namek Ch3(5%) Ch4(30%) Ch5(10%)",
+    ["Dracoscale Shard"]           = "Namek Ch5 (15%)",
+    ["Nano Fiber Wire"]            = "Namek Ranger I (25%)",
+    ["Narmekian Crystal"]          = "Namek Ranger I (15%)",
+    ["Energy Vial"]                = "Namek Ranger II (35%)",
+    ["Micro Circuit Board"]        = "Namek Ranger II (50%)",
+    ["Enhanced Optical Lens"]      = "Namek Ranger III (60%)",
+    -- 🍜 Naruto
+    ["Ramen"]                      = "Naruto Ch1-5 (100%)",
+    ["Shadow Fiber"]               = "Naruto Ch3 (30%)",
+    ["Chakra Shard"]               = "Naruto Ch3(5%) Ch4(10%) Ch5(15%)",
+    ["Storm Flake Crystal"]        = "Naruto Ranger I (30%)",
+    ["Core of Silence"]            = "Naruto Ranger I (20%)",
+    ["Smoke Orb"]                  = "Naruto Ranger II (50%)",
+    ["Scroll of Focus"]            = "Naruto Ranger II (25%)",
+    ["Kunai Shards"]               = "Naruto Ranger III (75%)",
+    ["Ancient Talisman"]           = "Naruto Ranger III (15%)",
+    -- 👺 Tokyo Ghoul
+    ["Gourmet Meal"]               = "Tokyo Ghoul Ch1-5 (100%)",
+    ["Centipede Husk"]             = "Tokyo Ghoul Ch1 (35%)",
+    ["Biaiku Scale"]               = "Tokyo Ghoul Ch1 (30%)",
+    ["Arata Armor Piece"]          = "Tokyo Ghoul Ch2 (20%)",
+    ["Mutant Core Fragment"]       = "Tokyo Ghoul Ch3(5%) Ch4(7.5%) Ch5(20%)",
+    ["Yoshimarun's Mask Fragment"] = "Tokyo Ghoul Ch4 (15%)",
+    ["CGGG Investigator's Badge"]  = "Tokyo Ghoul Ch5 (25%)",
+    ["Ribe's RC Cells"]            = "Tokyo Ghoul Ranger I (25%)",
+    ["Ujaku Feather"]              = "Tokyo Ghoul Ranger II (40%)",
+    ["Kakuja Mask Shard"]          = "Tokyo Ghoul Ranger III (35%)",
+    ["One-Eyed Fragment"]          = "Tokyo Ghoul Ranger III (15%)",
+    -- ⚔️ SAO
+    ["Swordswoman Sandwich"]       = "SAO Ch1-5 (100%)",
+    ["Black Crystalite"]           = "SAO Ranger I (25%)",
+    ["Red Crystalite"]             = "SAO Ranger II (30%)",
+    ["Green Crystalite"]           = "SAO Ranger II (25%)",
+    ["Blue Crystalite"]            = "SAO Ranger III (20%)",
+    ["Neurochip Beta"]             = "SAO Ranger III (20%)",
+    -- 🔮 JJK
+    ["French Fries"]               = "JJK Ch1-5 (100%)",
+    ["Cursed Core"]                = "JJK Ch4(10%) Ch5(25%) Ranger I(30%)",
+    ["Soul Core"]                  = "JJK Ranger II (25%) / Ranger IV (25%)",
+    ["Demon Fang Shard"]           = "JJK Ranger III (25%)",
+    ["Little Frog"]                = "JJK Ranger III (25%)",
+    -- 🏰 Colony / Event
+    ["Bird Feathers"]              = "Kage Colony Act 1 (100%)",
+    ["Elephant Tusks"]             = "Kage Colony Act 2 (100%)",
+    ["Adaptation Wheel"]           = "Kage Colony Act 3 (100%)",
+    ["Twin Weapons"]               = "Surota Colony Act 1 (100%)",
+    ["Sorcerer Glasses"]           = "Surota Colony Act 2 (100%)",
+    ["Sacrificial Soul"]           = "Surota Colony Act 3 (100%)",
+    ["Sorceress Earrings"]         = "Sendai Colony Act 1 (100%)",
+    ["Dessert"]                    = "Sendai Colony Act 2 (100%)",
+    ["Cursed Blade"]               = "Sendai Colony Act 3 (100%)",
+    ["Judges Envelope"]            = "Gochu Colony Act1(5%) Act3(100%)",
+    ["Cursed Hammer"]              = "Gochu Colony Act 2 (100%)",
+    ["Ranger Crystal"]             = "Gochu Colony Act1(5%) Act2(10%) Act3(25%)",
+    ["Conqueror's Sword"]          = "Invasion (10% — One Armed Emperor after Wave 10)",
+    ["Soul Fragments"]             = "Invasion (40% boss drop) / BossRush (0.1%)",
+    ["Candy"]                      = "Kurumi Boss Event Normal (100%)",
+    ["Esper Friend"]               = "Esper Raid Nightmare (1.5%)",
+}
+
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- 🛠️  HELPER FUNCTIONS
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+-- ดึง inventory ของ LocalPlayer จาก ReplicatedStorage.Player_Data
+local function getPlayerItems()
+    local items = {}
+    local ok = pcall(function()
+        local pd = game:GetService("ReplicatedStorage"):FindFirstChild("Player_Data")
+        if not pd then return end
+        local myData = pd:FindFirstChild(LocalPlayer.Name)
+        if not myData then return end
+        local itemsFolder = myData:FindFirstChild("Items")
+        if not itemsFolder then return end
+        for _, folder in ipairs(itemsFolder:GetChildren()) do
+            local amt = folder:FindFirstChild("Amount")
+            items[folder.Name] = amt and amt.Value or 0
+        end
+    end)
+    if not ok then
+        warn("[MoMoHub Evolve] ไม่สามารถอ่าน Player_Data ได้")
+    end
+    return items
+end
+
+-- สร้างข้อความแสดง status ของ item 1 บรรทัด
+local function itemLine(icon, name, have, need)
+    return icon .. " " .. name .. "  (" .. tostring(have) .. "/" .. tostring(need) .. ")"
+end
+
+-- สร้าง description text แบบสมบูรณ์จาก unit ที่เลือก
+local function buildEvolveDesc(unitName, playerItems)
+    local data = EvolveData[unitName]
+    if not data then return "ไม่พบข้อมูลสำหรับ Unit นี้" end
+
+    local lines   = {}
+    local missing = {}
+
+    -- ─── Gold ───────────────────────────────────────────────
+    table.insert(lines, "💰 Gold Required: " .. string.format("%d", data.Gold))
+
+    -- ─── Takedown ───────────────────────────────────────────
+    if data.TD and data.TD > 0 then
+        table.insert(lines, "⚔️  Takedown Required: " .. tostring(data.TD))
+    end
+
+    -- ─── Currency ───────────────────────────────────────────
+    local hasCurr = false
+    for curr, need in pairs(data.Curr) do
+        if not hasCurr then
+            table.insert(lines, "")
+            table.insert(lines, "━━ 💎 Currency ━━")
+            hasCurr = true
+        end
+        local have = playerItems[curr] or 0
+        local ok   = have >= need
+        if not ok then table.insert(missing, curr) end
+        table.insert(lines, itemLine(ok and "✅" or "❌", curr, have, need))
+    end
+
+    -- ─── Items ──────────────────────────────────────────────
+    table.insert(lines, "")
+    table.insert(lines, "━━ 🎒 Items ━━")
+
+    for itemName, need in pairs(data.Items) do
+        local have = playerItems[itemName] or 0
+        local ok   = have >= need
+        if not ok then table.insert(missing, itemName) end
+
+        -- บรรทัดหลักของ item
+        table.insert(lines, itemLine(ok and "✅" or "❌", itemName, have, need))
+
+        -- ── Craftable? ──
+        if CraftData[itemName] then
+            table.insert(lines, "   🔨 Craftable — วัตถุดิบ:")
+            for mat, qty in pairs(CraftData[itemName]) do
+                local mhave = playerItems[mat] or 0
+                local mok   = mhave >= qty
+                local src   = ItemSources[mat]
+                local srcTxt = src and ("  → " .. src) or "  → ❓ Gacha/Shop/Event"
+                table.insert(lines,
+                    "      " .. (mok and "✅" or "❌") ..
+                    " " .. mat .. " (" .. mhave .. "/" .. qty .. ")" ..
+                    srcTxt
+                )
+            end
+        else
+            -- ── Drop location ──
+            local src = ItemSources[itemName]
+            if src then
+                table.insert(lines, "   📍 " .. src)
+            else
+                table.insert(lines, "   ❓ ไม่พบแหล่งดรอป (Gacha/Shop/Event)")
+            end
+        end
+    end
+
+    -- ─── Summary ────────────────────────────────────────────
+    table.insert(lines, "")
+    if #missing == 0 then
+        table.insert(lines, "🎉 พร้อม Evolve! ไอเทมครบทุกอย่างแล้ว ✅")
+    else
+        table.insert(lines, "⚠️  ยังขาดอยู่ " .. #missing .. " รายการ:")
+        for _, m in ipairs(missing) do
+            table.insert(lines, "   • " .. m)
+        end
+    end
+
+    return table.concat(lines, "\n")
+end
+
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- 🖥️  TAB CREATION
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+local EvolveTab = Window:Tab({
+    Title     = "Evolve",
+    Icon      = "star",
+    IconColor = PurpleGlow,
+    Border    = true,
+    IconShape = "Square",
+})
+
+-- ── Selector Section ────────────────────────────────────
+local selSection = EvolveTab:Section({
+    Title     = "⚡ Evolve Checker",
+    Box       = true,
+    BoxBorder = true,
+    Opened    = true,
+})
+
+-- สร้าง list ชื่อ unit แบบ sorted
+local unitNames = {}
+for name in pairs(EvolveData) do
+    table.insert(unitNames, name)
+end
+table.sort(unitNames)
+
+local selectedUnit = unitNames[1]
+
+selSection:Dropdown({
+    Flag     = "EvolveUnit",
+    Title    = "เลือก Unit ที่อยากจะ Evolve",
+    Values   = unitNames,
+    Value    = unitNames[1],
+    Callback = function(v) selectedUnit = v end,
+})
+
+selSection:Space()
+
+
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- 📋  RESULT SECTION — Destroy + Recreate เมื่อกด Check
+--     (WindUI API ที่ถูกต้อง: SetTitle / SetDesc / Destroy)
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+local resultSection  = EvolveTab:Section({
+    Title     = "📋 ผลลัพธ์",
+    Box       = true,
+    BoxBorder = true,
+    Opened    = true,
+})
+
+-- สร้าง Paragraph เริ่มต้น (placeholder)
+local resultPara = resultSection:Paragraph({
+    Title = "รอการตรวจสอบ...",
+    Desc  = "เลือก Unit แล้วกด  🔍 Check Inventory  เพื่อดูว่าขาดอะไรบ้าง",
+})
+
+-- ฟังก์ชันกลางสำหรับอัปเดตผลลัพธ์ด้วย API ที่ถูกต้องของ WindUI
+local function updateResult(unitName)
+    if not unitName or not EvolveData[unitName] then
+        WindUI:Notify({ Title = "⚠️ กรุณาเลือก Unit ก่อน", Duration = 2 })
+        return
+    end
+
+    local playerItems = getPlayerItems()
+    local desc        = buildEvolveDesc(unitName, playerItems)
+
+    -- ✅ WindUI Paragraph API ที่ถูกต้อง
+    resultPara:SetTitle("📋 " .. unitName .. " — Evolve Requirements")
+    resultPara:SetDesc(desc)
+
+    WindUI:Notify({
+        Title    = "✅ ตรวจสอบเสร็จแล้ว — " .. unitName,
+        Content  = "ดูผลลัพธ์ใน Evolve Tab ด้านล่าง",
+        Duration = 3,
+    })
+end
+
+-- เปลี่ยนจากปุ่ม Check Inventory เป็น Toggle อัตโนมัติ
+selSection:Toggle({
+    Flag     = "AutoCheckEvolve",
+    Title    = "Auto Refresh Inventory (Every 10s)",
+    Desc     = "Automatically updates your item status for the selected unit",
+    Value    = false,
+    Type     = "Checkbox",
+    Callback = function(v)
+        getgenv().MoMoHub.AutoCheckEvolve = v
+        if v then
+            updateResult(selectedUnit) -- ทำงานทันทีที่เปิด
+        end
+    end,
+})
+
+-- คงปุ่ม Refresh ไว้สำหรับกดเองแบบ Manual ได้
+selSection:Button({
+    Title   = "🔄 Manual Refresh",
+    Icon    = "refresh-cw",
+    Color   = LightPurple,
+    Callback = function()
+        updateResult(selectedUnit)
+    end,
+})
 
 local SettingsTab = Window:Tab({ Title = "Settings", Icon = "settings", IconColor = Grey, Border = true , IconShape = "Square"})
 
@@ -470,5 +1004,63 @@ ToggleBtn.InputChanged:Connect(function(input) if (input.UserInputType == Enum.U
 ToggleBtn.InputEnded:Connect(function(input)
     if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and isClicking then
         pcall(function() vim:SendKeyEvent(true, getgenv().MoMoHub.ToggleKey, false, game); task.wait(0.05); vim:SendKeyEvent(false, getgenv().MoMoHub.ToggleKey, false, game) end)
+    end
+end)
+
+-- ════════════════════════════════════════
+-- // AUTO UPDATE LOOP (10 SECONDS)
+-- ════════════════════════════════════════
+task.spawn(function()
+    while true do
+        task.wait(10) -- หน่วงเวลา 10 วินาที
+        if getgenv().MoMoHub.AutoCheckEvolve and selectedUnit then
+            -- เรียกใช้ฟังก์ชันอัปเดต UI จากข้อมูล Inventory ล่าสุด
+            pcall(function()
+                updateResult(selectedUnit)
+            end)
+        end
+    end
+end)
+
+-- ════════════════════════════════════════
+-- // REFINED AUTO CREATE ROOM LOGIC
+-- ════════════════════════════════════════
+local PlayRoomEvent = ReplicatedStorage:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event")
+
+task.spawn(function()
+    while true do
+        task.wait(3) -- ตรวจสอบทุก 3 วินาที
+        
+        if getgenv().MoMoHub.AutoCreateRoom then
+            local config = getgenv().MoMoHub.RoomConfig
+            
+            pcall(function()
+                -- ส่งคำสั่งเซ็ตอัพทีละขั้นตอน
+                PlayRoomEvent:FireServer("Change-Mode", { ["Mode"] = config.Mode })
+                task.wait(0.3)
+                
+                PlayRoomEvent:FireServer("Change-World", { ["World"] = config.World })
+                task.wait(0.3)
+                
+                PlayRoomEvent:FireServer("Change-Chapter", { ["Chapter"] = config.Chapter })
+                task.wait(0.3)
+                
+                PlayRoomEvent:FireServer("Change-Difficulty", { ["Difficulty"] = config.Difficulty })
+                task.wait(0.5)
+
+                -- กด Submit เพื่อจองห้อง
+                PlayRoomEvent:FireServer("Submit")
+                task.wait(1.5)
+
+                -- ถ้ายังเปิด Toggle อยู่ ให้กดเริ่มเกม
+                if getgenv().MoMoHub.AutoCreateRoom then
+                    PlayRoomEvent:FireServer("Start")
+                    print("🚀 Room Started: " .. config.World .. " | " .. config.Chapter)
+                end
+            end)
+            
+            -- รอสักพักเพื่อให้เกมวาร์ปเข้าด่าน (ป้องกันการสร้างซ้ำซ้อน)
+            task.wait(10)
+        end
     end
 end)
