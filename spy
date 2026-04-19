@@ -1,286 +1,296 @@
-[22:24:30]
-==================================================
-[22:24:30]
-1. PlayerGui.PlayRoomSelection
-[22:24:30]
-==================================================
-[22:24:30]
-Found: PlayRoomSelection | Enabled: false
-[22:24:30]
---- Attributes ---
-[22:24:30]
-(ไม่มี Attributes)
-[22:24:30]
---- Tree (depth 5) ---
-[22:24:30]
-[Configuration] Configuration
-[22:24:30]
-[StringValue] Mode = []
-[22:24:30]
-[Frame] Main | Visible: true
-[22:24:30]
-[TextButton] Create | Visible: true
-[22:24:30]
-[Frame] Frame | Visible: true
-[22:24:30]
-[Frame] UnitFrame | Visible: true
-[22:24:30]
-[UICorner] UICorner
-[22:24:30]
-[Frame] UnitProfile | Visible: true
-[22:24:30]
-[UIStroke] UIStroke | Enabled: true
-[22:24:30]
-[ImageLabel] Glowing | Special | Visible: true
-[22:24:30]
-[UIGradient] Color | Enabled: true
-[22:24:30]
-[UICorner] UICorner
-[22:24:30]
-[UIStroke] UIStroke | Enabled: false
-[22:24:30]
-[TextLabel] Label | Text: "Create Room" | Visible: true
-[22:24:30]
-[UIStroke] UIStroke | Enabled: true
-[22:24:30]
-[UIGradient] UIGradient | Enabled: true
-[22:24:30]
-[UIAspectRatioConstraint] UIAspectRatioConstraint
-[22:24:30]
-[TextButton] Join | Visible: true
-[22:24:30]
-[Frame] Frame | Visible: true
-[22:24:30]
-[Frame] UnitFrame | Visible: true
-[22:24:30]
-[UICorner] UICorner
-[22:24:30]
-[Frame] UnitProfile | Visible: true
-[22:24:30]
-[UIStroke] UIStroke | Enabled: true
-[22:24:30]
-[ImageLabel] Glowing | Special | Visible: true
-[22:24:30]
-[UIGradient] Color | Enabled: true
-[22:24:30]
-[UICorner] UICorner
-[22:24:30]
-[UIStroke] UIStroke | Enabled: false
-[22:24:30]
-[TextLabel] Label | Text: "Join Room" | Visible: true
-[22:24:30]
-[UIStroke] UIStroke | Enabled: true
-[22:24:30]
-[UIGradient] UIGradient | Enabled: true
-[22:24:30]
-[UIAspectRatioConstraint] UIAspectRatioConstraint
-[22:24:30]
-[UIListLayout] UIListLayout
-[22:24:30]
-[TextLabel] Head | Text: "Choose whether you want to create a <fon" | Visible: true
-[22:24:30]
-[UIStroke] UIStroke | Enabled: true
-[22:24:30]
-[TextButton] Back | Text: "Button" | Visible: true
-[22:24:30]
-[Frame] EnterStroke | Visible: false
-[22:24:30]
-[UIStroke] UIStroke | Enabled: true
-[22:24:30]
-[UICorner] UICorner
-[22:24:30]
-[Frame] Back | Visible: true
-[22:24:30]
-[UIStroke] UIStroke | Enabled: true
-[22:24:30]
-[UIGradient] UIGradient | Enabled: true
-[22:24:30]
-[UICorner] UICorner
-[22:24:30]
-[UIGradient] UIGradient | Enabled: true
-[22:24:30]
-[Frame] Back2 | Visible: true
-[22:24:30]
-[UIStroke] UIStroke | Enabled: true
-[22:24:30]
-[UICorner] UICorner
-[22:24:30]
-[TextLabel] Label | Text: "Back" | Visible: true
-[22:24:30]
-[UIStroke] UIStroke | Enabled: true
-[22:24:30]
-[UIAspectRatioConstraint] UIAspectRatioConstraint
-[22:24:30]
-[Frame] Black | Visible: true
-[22:24:30]
-[22:24:30]
-==================================================
-[22:24:30]
-2. PlayerGui.PlayRoom
-[22:24:30]
-==================================================
-[22:24:30]
-Found: PlayRoom | Enabled: false
-[22:24:30]
---- Attributes ---
-[22:24:30]
-[Attribute] World =
-[22:24:30]
---- Tree (depth 4) ---
-[22:24:30]
-[Frame] Main | Visible: true
-[22:24:30]
-[Frame] Button | Visible: true
-[22:24:30]
-[UIAspectRatioConstraint] UIAspectRatioConstraint
-[22:24:30]
-[UIListLayout] UIListLayout
-[22:24:30]
-[TextButton] Create | Text: "Button" | Visible: true
-[22:24:30]
-[Frame] EnterStroke | Visible: false
-[22:24:30]
-[TextLabel] Label | Text: "Create Room" | Visible: true
-[22:24:30]
-[Frame] Back | Visible: true
-[22:24:30]
-[Frame] Back2 | Visible: true
-[22:24:30]
-[TextButton] Leave | Text: "Button" | Visible: true
-[22:24:30]
-[Frame] EnterStroke | Visible: false
-[22:24:30]
-[TextLabel] Label | Text: "Leave" | Visible: true
-[22:24:30]
-[Frame] Back | Visible: true
-[22:24:30]
-[Frame] Back2 | Visible: true
-[22:24:30]
-[TextButton] Join | Text: "Button" | Visible: true
-[22:24:30]
-[Frame] EnterStroke | Visible: false
-[22:24:30]
-[TextLabel] Label | Text: "Join Room" | Visible: true
-[22:24:30]
-[Frame] Back | Visible: true
-[22:24:30]
-[Frame] Back2 | Visible: true
-[22:24:30]
-[Frame] Head | Visible: true
-[22:24:30]
-[Frame] RoomActive | Visible: true
-[22:24:30]
-[UICorner] UICorner
-[22:24:30]
-[UIStroke] UIStroke | Enabled: true
-[22:24:30]
-[TextLabel] Label | Text: "There are <font color="rgb(189,255,144)"" | Visible: true
-[22:24:30]
-[Frame] Head | Visible: true
-[22:24:30]
-[UICorner] UICorner
-[22:24:30]
-[TextLabel] Label | Text: "ROOM PODS" | Visible: true
-[22:24:30]
-[TextLabel] Label | Text: "You can create a room to play games or j" | Visible: true
-[22:24:30]
-[ImageLabel] Background | Visible: true
-[22:24:30]
-[UIStroke] UIStroke | Enabled: true
-[22:24:30]
-[UIAspectRatioConstraint] UIAspectRatioConstraint
-[22:24:30]
-[UIStroke] UIStroke | Enabled: true
-[22:24:30]
-[UICorner] UICorner
-[22:24:30]
-[Frame] GameStage | Visible: false
-[22:24:30]
-[Frame] Main | Visible: true
-[22:24:30]
-[Frame] Base | Visible: true
-[22:24:30]
-[UIAspectRatioConstraint] UIAspectRatioConstraint
-[22:24:30]
-[Frame] Stage_Select | Visible: true
-[22:24:30]
-[TextButton] ResetRangersStage | Visible: false
-[22:24:30]
-[Frame] Game_Submit | Visible: false
-[22:24:30]
-[Frame] StageInfo | Visible: true
-[22:24:30]
-[UIAspectRatioConstraint] UIAspectRatioConstraint
-[22:24:30]
-[Frame] StageInfo | Visible: true
-[22:24:30]
-[Frame] Players | Visible: true
-[22:24:30]
-[Frame] Button | Visible: true
-[22:24:30]
-[UIAspectRatioConstraint] UIAspectRatioConstraint
-[22:24:30]
-[UIListLayout] UIListLayout
-[22:24:30]
-[TextLabel] Label | Text: "(Waiting for the host to start the match" | Visible: true
-[22:24:30]
-[TextButton] Leave | Text: "Button" | Visible: true
-[22:24:30]
-[TextButton] Start | Text: "Button" | Visible: true
-[22:24:30]
-[Frame] JoinRoom | Visible: false
-[22:24:30]
-[Frame] Main | Visible: true
-[22:24:30]
-[Frame] Base | Visible: true
-[22:24:30]
-[UIAspectRatioConstraint] UIAspectRatioConstraint
-[22:24:30]
-[ImageLabel] TopBar | Visible: true
-[22:24:30]
-[Configuration] Configuration
-[22:24:30]
-[22:24:30]
-==================================================
-[22:24:30]
-3. ReplicatedStorage.PlayRoom (ห้องทั้งหมด)
-[22:24:30]
-==================================================
-[22:24:30]
-จำนวนห้องทั้งหมด: 0
-[22:24:30]
-[22:24:30]
-==================================================
-[22:24:30]
-4. Remote Events (PlayRoom)
-[22:24:30]
-==================================================
-[22:24:30]
-✅ Found: Remote.Server.PlayRoom.Event [RemoteEvent]
-[22:24:30]
-✅ Found: Remote.Client.UI.PlayRoomUI [BindableEvent]
-[22:24:30]
-[22:24:30]
-==================================================
-[22:24:30]
-5. PlayRoomSelection Values & Mode
-[22:24:30]
-==================================================
-[22:24:30]
-[StringValue] PlayerGui.PlayRoomSelection.Mode =
-[22:24:30]
-[BoolValue] PlayerGui.PlayRoomSelection.Main.Create.Frame.UnitFrame.UnitProfile.Character.Rig.Songjinwuu.Sword_Parts.Ignore = false
-[22:24:30]
-[BoolValue] PlayerGui.PlayRoomSelection.Main.Create.Frame.UnitFrame.UnitProfile.Character.Rig.Songjinwuu.Sword_Part.Ignore = false
-[22:24:30]
-[22:24:30]
-==================================================
-[22:24:30]
-6. กำลัง Listen Remote Events... (10 วินาที)
-[22:24:30]
-==================================================
-[22:24:30]
-Listening: Remote.Server.PlayRoom.Event
-[22:24:30]
-[22:24:30]
-✅ Spy เสร็จสิ้น! ดูผลใน Output
+[22:28:09]
+───────────────────────────────────────────────────────
+[22:28:09]
+📌 1. World ทั้งหมด (GameWorld.World)
+[22:28:09]
+───────────────────────────────────────────────────────
+[22:28:09]
+[World] OnePiece | Name: Voocha Village | Mode: Story | Category: Story | Unlock: ไม่มี
+[22:28:09]
+[World] SAO | Name: Virtual Sword | Mode: Story | Category: Story | Unlock: TokyoGhoul_Chapter5
+[22:28:09]
+[World] Namek | Name: Green Planet | Mode: Story | Category: Story | Unlock: OnePiece_Chapter5
+[22:28:09]
+[World] Naruto | Name: Leaf Village | Mode: Story | Category: Story | Unlock: Namek_Chapter5
+[22:28:09]
+[World] KageColony | Name: Kage Colony | Mode: ColonyRush | Category: Colony Rush | Unlock: JJK_Chapter5
+[22:28:09]
+[World] Invasion | Name: Invasion | Mode: Story | Category: Misc | Unlock: Calamity_Chapter2
+[22:28:09]
+[World] Dungeon | Name: Dungeon | Mode: Story | Category: Story | Unlock: ไม่มี
+[22:28:09]
+[World] BattleArena | Name: Battle Arena | Mode: Story | Category: Story | Unlock: ไม่มี
+[22:28:09]
+[World] KurumiBossEvent | Name: Nightmare Hall | Mode: Story | Category: Story | Unlock: ไม่มี
+[22:28:09]
+[World] Calamity | Name: Calamity | Mode: Story | Category: Misc | Unlock: JJK_Chapter5
+[22:28:09]
+[World] SurotaColony | Name: Surota Colony | Mode: ColonyRush | Category: Colony Rush | Unlock: JJK_Chapter5
+[22:28:09]
+[World] SendaiColony | Name: Sendai Colony | Mode: ColonyRush | Category: Colony Rush | Unlock: JJK_Chapter5
+[22:28:09]
+[World] GochuColony | Name: Gochu Colony | Mode: ColonyRush | Category: Colony Rush | Unlock: JJK_Chapter5
+[22:28:09]
+[World] BossRush | Name: BossRush | Mode: Story | Category: Story | Unlock: ไม่มี
+[22:28:09]
+[World] TokyoGhoul | Name: Ghoul City | Mode: Story | Category: Story | Unlock: Naruto_Chapter5
+[22:28:09]
+[World] EsperRaid | Name: Esper Town | Mode: Story | Category: Story | Unlock: ไม่มี
+[22:28:09]
+[World] JJK | Name: Tokyo City | Mode: Story | Category: Story | Unlock: SAO_Chapter1
+[22:28:09]
+[World] BossAttackMob25 | Name: Esper Town | Mode: Story | Category: Story | Unlock: ไม่มี
+[22:28:09]
+[World] JJKRaid | Name: The Tokyo Incident | Mode: Story | Category: Story | Unlock: ไม่มี
+[22:28:09]
+[22:28:09]
+รวม World ทั้งหมด: 19
+[22:28:09]
+[22:28:09]
+───────────────────────────────────────────────────────
+[22:28:09]
+📌 2. Chapter/Level ทั้งหมด (GameWorld.Levels)
+[22:28:09]
+───────────────────────────────────────────────────────
+[22:28:09]
+[22:28:09]
+🌍 World: OnePiece
+[22:28:09]
+[OnePiece_Chapter4 ] Chapter 4 | ForcedDiff: - | SupportedDiff: - | Req: OnePiece_Chapter3 | Image: ✅
+[22:28:09]
+[OnePiece_Chapter2 ] Chapter 2 | ForcedDiff: - | SupportedDiff: - | Req: OnePiece_Chapter1 | Image: ✅
+[22:28:09]
+[OnePiece_RangerStage3] Ranger Stage III | ForcedDiff: - | SupportedDiff: - | Req: OnePiece_RangerStage2 | Image: ✅
+[22:28:09]
+[OnePiece_Chapter5 ] Chapter 5 | ForcedDiff: - | SupportedDiff: - | Req: OnePiece_Chapter4 | Image: ✅
+[22:28:09]
+[OnePiece_RangerStage2] Ranger Stage II | ForcedDiff: - | SupportedDiff: - | Req: OnePiece_RangerStage1 | Image: ✅
+[22:28:09]
+[OnePiece_Chapter1 ] Chapter 1 | ForcedDiff: - | SupportedDiff: - | Req: - | Image: ✅
+[22:28:09]
+[OnePiece_RangerStage1] Ranger Stage I | ForcedDiff: - | SupportedDiff: - | Req: OnePiece_Chapter5 | Image: ✅
+[22:28:09]
+[OnePiece_Chapter3 ] Chapter 3 | ForcedDiff: - | SupportedDiff: - | Req: OnePiece_Chapter2 | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 8
+[22:28:09]
+[22:28:09]
+🌍 World: SAO
+[22:28:09]
+[SAO_RangerStage3 ] Ranger Stage III | ForcedDiff: - | SupportedDiff: - | Req: SAO_RangerStage2 | Image: ✅
+[22:28:09]
+[SAO_Chapter4 ] Chapter 4 | ForcedDiff: - | SupportedDiff: - | Req: SAO_Chapter3 | Image: ✅
+[22:28:09]
+[SAO_Chapter3 ] Chapter 3 | ForcedDiff: - | SupportedDiff: - | Req: SAO_Chapter2 | Image: ✅
+[22:28:09]
+[SAO_RangerStage1 ] Ranger Stage I | ForcedDiff: - | SupportedDiff: - | Req: SAO_Chapter5 | Image: ✅
+[22:28:09]
+[SAO_Chapter2 ] Chapter 2 | ForcedDiff: - | SupportedDiff: - | Req: SAO_Chapter1 | Image: ✅
+[22:28:09]
+[SAO_Chapter1 ] Chapter 1 | ForcedDiff: - | SupportedDiff: - | Req: TokyoGhoul_Chapter5 | Image: ✅
+[22:28:09]
+[SAO_RangerStage2 ] Ranger Stage II | ForcedDiff: - | SupportedDiff: - | Req: SAO_RangerStage1 | Image: ✅
+[22:28:09]
+[SAO_Chapter5 ] Chapter 5 | ForcedDiff: - | SupportedDiff: - | Req: SAO_Chapter4 | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 8
+[22:28:09]
+[22:28:09]
+🌍 World: Namek
+[22:28:09]
+[Namek_RangerStage3 ] Ranger Stage III | ForcedDiff: - | SupportedDiff: - | Req: Namek_RangerStage2 | Image: ✅
+[22:28:09]
+[Namek_RangerStage1 ] Ranger Stage I | ForcedDiff: - | SupportedDiff: - | Req: Namek_Chapter5 | Image: ✅
+[22:28:09]
+[Namek_RangerStage2 ] Ranger Stage II | ForcedDiff: - | SupportedDiff: - | Req: Namek_RangerStage1 | Image: ✅
+[22:28:09]
+[Namek_Chapter4 ] Chapter 4 | ForcedDiff: - | SupportedDiff: - | Req: Namek_Chapter3 | Image: ✅
+[22:28:09]
+[Namek_Chapter1 ] Chapter 1 | ForcedDiff: - | SupportedDiff: - | Req: OnePiece_Chapter5 | Image: ✅
+[22:28:09]
+[Namek_Chapter5 ] Chapter 5 | ForcedDiff: - | SupportedDiff: - | Req: Namek_Chapter4 | Image: ✅
+[22:28:09]
+[Namek_Chapter3 ] Chapter 3 | ForcedDiff: - | SupportedDiff: - | Req: Namek_Chapter2 | Image: ✅
+[22:28:09]
+[Namek_Chapter2 ] Chapter 2 | ForcedDiff: - | SupportedDiff: - | Req: Namek_Chapter1 | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 8
+[22:28:09]
+[22:28:09]
+🌍 World: Naruto
+[22:28:09]
+[Naruto_RangerStage1 ] Ranger Stage I | ForcedDiff: - | SupportedDiff: - | Req: Naruto_Chapter5 | Image: ✅
+[22:28:09]
+[Naruto_Chapter1 ] Chapter 1 | ForcedDiff: - | SupportedDiff: - | Req: Namek_Chapter5 | Image: ✅
+[22:28:09]
+[Naruto_RangerStage3 ] Ranger Stage III | ForcedDiff: - | SupportedDiff: - | Req: Naruto_RangerStage2 | Image: ✅
+[22:28:09]
+[Naruto_Chapter5 ] Chapter 5 | ForcedDiff: - | SupportedDiff: - | Req: Naruto_Chapter4 | Image: ✅
+[22:28:09]
+[Naruto_Chapter4 ] Chapter 4 | ForcedDiff: - | SupportedDiff: - | Req: Naruto_Chapter3 | Image: ✅
+[22:28:09]
+[Naruto_RangerStage2 ] Ranger Stage II | ForcedDiff: - | SupportedDiff: - | Req: Naruto_RangerStage1 | Image: ✅
+[22:28:09]
+[Naruto_Chapter3 ] Chapter 3 | ForcedDiff: - | SupportedDiff: - | Req: Naruto_Chapter2 | Image: ✅
+[22:28:09]
+[Naruto_Chapter2 ] Chapter 2 | ForcedDiff: - | SupportedDiff: - | Req: Naruto_Chapter1 | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 8
+[22:28:09]
+[22:28:09]
+🌍 World: KageColony
+[22:28:09]
+[Kage_Act1 ] Act 1: The Blonde Esper | ForcedDiff: Normal | SupportedDiff: - | Req: - | Image: ✅
+[22:28:09]
+[Kage_Act3 ] Act 3: Potential Man | ForcedDiff: Normal | SupportedDiff: - | Req: Kage_Act2 | Image: ✅
+[22:28:09]
+[Kage_Act2 ] Act 2: The Curse King | ForcedDiff: Normal | SupportedDiff: - | Req: Kage_Act1 | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 3
+[22:28:09]
+[22:28:09]
+🌍 World: Invasion
+[22:28:09]
+[Invasion_Chapter1 ] Bounty Hunt | ForcedDiff: Normal | SupportedDiff: - | Req: - | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 1
+[22:28:09]
+[22:28:09]
+🌍 World: Dungeon
+[22:28:09]
+[Dungeon_Level ] Dungeon | ForcedDiff: - | SupportedDiff: - | Req: - | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 1
+[22:28:09]
+[22:28:09]
+🌍 World: BattleArena
+[22:28:09]
+[BattleArena_BossAttack] Green Planet | ForcedDiff: - | SupportedDiff: - | Req: - | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 1
+[22:28:09]
+[22:28:09]
+🌍 World: KurumiBossEvent
+[22:28:09]
+[KurumiBossEvent ] The Spooky Queen | ForcedDiff: - | SupportedDiff: - | Req: - | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 1
+[22:28:09]
+[22:28:09]
+🌍 World: Calamity
+[22:28:09]
+[Calamity_Chapter1 ] Shibuya Incident | ForcedDiff: - | SupportedDiff: - | Req: - | Image: ✅
+[22:28:09]
+[Calamity_Chapter2 ] Great Cataclysm | ForcedDiff: Nightmare | SupportedDiff: - | Req: - | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 2
+[22:28:09]
+[22:28:09]
+🌍 World: SurotaColony
+[22:28:09]
+[Surota_Act2 ] Act 2: Radio Girl | ForcedDiff: Normal | SupportedDiff: - | Req: Surota_Act1 | Image: ✅
+[22:28:09]
+[Surota_Act1 ] Act 1: The Blip | ForcedDiff: Normal | SupportedDiff: - | Req: - | Image: ✅
+[22:28:09]
+[Surota_Act3 ] Act 3: The Clan Killer | ForcedDiff: Normal | SupportedDiff: - | Req: Surota_Act2 | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 3
+[22:28:09]
+[22:28:09]
+🌍 World: SendaiColony
+[22:28:09]
+[Sendai_Act2 ] Act 2: Jane Bullet | ForcedDiff: Normal | SupportedDiff: - | Req: Sendai_Act1 | Image: ✅
+[22:28:09]
+[Sendai_Act1 ] Act 1: The Sky Shaper | ForcedDiff: Normal | SupportedDiff: - | Req: - | Image: ✅
+[22:28:09]
+[Sendai_Act3 ] Act 3: The Prodigy | ForcedDiff: Normal | SupportedDiff: - | Req: Sendai_Act2 | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 3
+[22:28:09]
+[22:28:09]
+🌍 World: GochuColony
+[22:28:09]
+[Gochu_Act2 ] Act 2: The Claw Boss | ForcedDiff: Normal | SupportedDiff: - | Req: Gochu_Act1 | Image: ✅
+[22:28:09]
+[Gochu_Act3 ] Act 3: The Judge Sorcerer | ForcedDiff: Normal | SupportedDiff: - | Req: Gochu_Act2 | Image: ✅
+[22:28:09]
+[Gochu_Act1 ] Act 1: The Magma Admiral | ForcedDiff: Normal | SupportedDiff: - | Req: - | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 3
+[22:28:09]
+[22:28:09]
+🌍 World: BossRush
+[22:28:09]
+[BossRush_Level ] BossRush | ForcedDiff: - | SupportedDiff: - | Req: - | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 1
+[22:28:09]
+[22:28:09]
+🌍 World: TokyoGhoul
+[22:28:09]
+[TokyoGhoul_RangerStage1] Ranger Stage I | ForcedDiff: - | SupportedDiff: - | Req: TokyoGhoul_Chapter5 | Image: ✅
+[22:28:09]
+[TokyoGhoul_Chapter1 ] Chapter 1 | ForcedDiff: - | SupportedDiff: - | Req: Naruto_Chapter5 | Image: ✅
+[22:28:09]
+[TokyoGhoul_Chapter4 ] Chapter 4 | ForcedDiff: - | SupportedDiff: - | Req: TokyoGhoul_Chapter3 | Image: ✅
+[22:28:09]
+[TokyoGhoul_RangerStage2] Ranger Stage II | ForcedDiff: - | SupportedDiff: - | Req: TokyoGhoul_RangerStage1 | Image: ✅
+[22:28:09]
+[TokyoGhoul_RangerStage3] Ranger Stage III | ForcedDiff: - | SupportedDiff: - | Req: TokyoGhoul_RangerStage2 | Image: ✅
+[22:28:09]
+[TokyoGhoul_Chapter5 ] Chapter 5 | ForcedDiff: - | SupportedDiff: - | Req: TokyoGhoul_Chapter4 | Image: ✅
+[22:28:09]
+[TokyoGhoul_Chapter3 ] Chapter 3 | ForcedDiff: - | SupportedDiff: - | Req: TokyoGhoul_Chapter2 | Image: ✅
+[22:28:09]
+[TokyoGhoul_Chapter2 ] Chapter 2 | ForcedDiff: - | SupportedDiff: - | Req: TokyoGhoul_Chapter1 | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 8
+[22:28:09]
+[22:28:09]
+🌍 World: EsperRaid
+[22:28:09]
+[Esper_Raid_Chapter1 ] Spirit Showdown | ForcedDiff: - | SupportedDiff: Nightmare/Normal | Req: JJK_Chapter5 | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 1
+[22:28:09]
+[22:28:09]
+🌍 World: JJK
+[22:28:09]
+[JJK_RangerStage2 ] Ranger Stage II | ForcedDiff: - | SupportedDiff: - | Req: JJK_RangerStage1 | Image: ✅
+[22:28:09]
+[JJK_Chapter1 ] Chapter 1 | ForcedDiff: - | SupportedDiff: - | Req: SAO_Chapter1 | Image: ✅
+[22:28:09]
+[JJK_RangerStage1 ] Ranger Stage I | ForcedDiff: - | SupportedDiff: - | Req: JJK_Chapter5 | Image: ✅
+[22:28:09]
+[JJK_Chapter4 ] Chapter 4 | ForcedDiff: - | SupportedDiff: - | Req: JJK_Chapter3 | Image: ✅
+[22:28:09]
+[JJK_Chapter3 ] Chapter 3 | ForcedDiff: - | SupportedDiff: - | Req: JJK_Chapter2 | Image: ✅
+[22:28:09]
+[JJK_RangerStage3 ] Ranger Stage III | ForcedDiff: - | SupportedDiff: - | Req: JJK_RangerStage2 | Image: ✅
+[22:28:09]
+[JJK_Chapter5 ] Chapter 5 | ForcedDiff: - | SupportedDiff: - | Req: JJK_Chapter4 | Image: ✅
+[22:28:09]
+[JJK_Chapter2 ] Chapter 2 | ForcedDiff: - | SupportedDiff: - | Req: JJK_Chapter1 | Image: ✅
+[22:28:09]
+[JJK_RangerStage4 ] Ranger Stage IV | ForcedDiff: - | SupportedDiff: - | Req: JJK_RangerStage3 | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 9
+[22:28:09]
+[22:28:09]
+🌍 World: BossAttackMob25
+[22:28:09]
+[BossAttackMob25_Chapter1] | ForcedDiff: - | SupportedDiff: Nightmare | Req: - | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 1
+[22:28:09]
+[22:28:09]
+🌍 World: JJKRaid
+[22:28:09]
+[JJK_Raid_Chapter2 ] Act 2: The Strongest | ForcedDiff: - | SupportedDiff: - | Req: JJK_Raid_Chapter1 | Image: ✅
+[22:28:09]
+[JJK_Raid_Chapter1 ] Act 1: Pure Love | ForcedDiff: - | SupportedDiff: - | Req: JJK_Chapter5 | Image: ✅
+[22:28:09]
+└─ รวม Chapter: 2
+[22:28:09]
+[22:28:09]
+รวมทั้งหมด → World: 19 | Chapter: 72
