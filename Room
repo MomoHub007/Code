@@ -1,0 +1,115 @@
+-- Decompiled with Medal by YuBX
+
+local v_u_1 = game:GetService("ReplicatedStorage")
+local v_u_2 = require(v_u_1.UIS.Packages.Visual)
+local v_u_3 = game:GetService("Players").LocalPlayer
+require(v_u_1.Shared.GetData).GetData(v_u_3)
+require(v_u_1.Shared.GAMEPLAY_CONFIG)
+require(v_u_1.Modules.UI.RarityColor)
+require(v_u_1.UIS.Packages.NumberAnimation.SuffixService)
+local v_u_4 = game:GetService("TweenService")
+return function(_)
+	-- upvalues: (copy) v_u_3, (copy) v_u_2, (copy) v_u_1, (copy) v_u_4
+	local v_u_5 = v_u_3.PlayerGui.PlayRoomSelection
+	for _, v6 in pairs(v_u_5:GetDescendants()) do
+		if v6:IsA("TextButton") and v6:FindFirstChild("EnterStroke", true) then
+			v_u_2.CreateButtonAnim(v6, nil, nil, nil, v6:FindFirstChild("EnterStroke", true))
+		end
+	end
+	v_u_2.CreateButtonAnim(v_u_5.Main.Create, 1.075, nil, nil, v_u_5.Main.Create.Frame:FindFirstChild("UIStroke", true))
+	v_u_2.CreateButtonAnim(v_u_5.Main.Join, 1.075, nil, nil, v_u_5.Main.Join.Frame:FindFirstChild("UIStroke", true))
+	v_u_5.Back.Activated:Connect(function()
+		-- upvalues: (copy) v_u_5
+		v_u_5.Enabled = false
+	end)
+	local v7 = v_u_5.Main.Create.Frame.UnitFrame.UnitProfile.Character.Rig:FindFirstChildOfClass("Model")
+	local v8 = v_u_5.Main.Join.Frame.UnitFrame.UnitProfile.Character.Rig:FindFirstChildOfClass("Model")
+	local v_u_9 = v7:FindFirstChildOfClass("Humanoid"):LoadAnimation(v7:WaitForChild("Animations").Idle)
+	local v_u_10 = v8:FindFirstChildOfClass("Humanoid"):LoadAnimation(v8:WaitForChild("Animations").Idle)
+	local v_u_11 = v7:FindFirstChildOfClass("Humanoid"):LoadAnimation(v7:WaitForChild("Animations").Run)
+	local v_u_12 = v8:FindFirstChildOfClass("Humanoid"):LoadAnimation(v8:WaitForChild("Animations").Run)
+	v_u_5.Main.Create.Activated:Connect(function()
+		-- upvalues: (copy) v_u_5, (ref) v_u_1
+		if v_u_5.Mode.Value == "Challenge" then
+			v_u_1.Remote.Server.PlayRoom.Event:FireServer("Create", {
+				["CreateChallengeRoom"] = true
+			})
+			return
+		elseif v_u_5.Mode.Value == "Raids" then
+			v_u_1.Remote.Server.PlayRoom.Event:FireServer("Create", {
+				["CreateRaidRoom"] = true
+			})
+		else
+			v_u_1.Remote.Server.PlayRoom.Event:FireServer("Create")
+		end
+	end)
+	v_u_5.Main.Join.Activated:Connect(function()
+		-- upvalues: (ref) v_u_3, (ref) v_u_1, (copy) v_u_5
+		v_u_3.PlayerGui.PlayRoom.Enabled = true
+		v_u_1.Remote.Client.UI.PlayRoomUI:Fire("JoinRoom", v_u_5.Mode.Value)
+	end)
+	v_u_5.Main.Create.MouseEnter:Connect(function()
+		-- upvalues: (copy) v_u_9, (copy) v_u_11
+		if v_u_9.IsPlaying then
+			v_u_11:Play(0.5)
+			v_u_9:Stop(0.5)
+		end
+	end)
+	v_u_5.Main.Create.MouseLeave:Connect(function()
+		-- upvalues: (copy) v_u_11, (copy) v_u_9
+		if v_u_11.IsPlaying then
+			v_u_11:Stop(0.5)
+			v_u_9:Play(0.5)
+		end
+	end)
+	v_u_5.Main.Join.MouseEnter:Connect(function()
+		-- upvalues: (copy) v_u_10, (copy) v_u_12
+		if v_u_10.IsPlaying then
+			v_u_12:Play(0.5)
+			v_u_10:Stop(0.5)
+		end
+	end)
+	v_u_5.Main.Join.MouseLeave:Connect(function()
+		-- upvalues: (copy) v_u_12, (copy) v_u_10
+		if v_u_12.IsPlaying then
+			v_u_12:Stop(0.5)
+			v_u_10:Play(0.5)
+		end
+	end)
+	v_u_5:GetPropertyChangedSignal("Enabled"):Connect(function()
+		-- upvalues: (copy) v_u_5, (ref) v_u_4, (ref) v_u_2, (copy) v_u_9, (copy) v_u_10, (copy) v_u_11, (copy) v_u_12
+		if v_u_5.Enabled == true then
+			v_u_5.Head.Text = "Choose whether you want to create a <font color=\'rgb(132,255,108)\'>" .. v_u_5.Mode.Value .. "</font> Room or join someone else\'s <font color=\'rgb(132,255,108)\'>" .. v_u_5.Mode.Value .. "</font> Room."
+			v_u_5.Head.TextTransparency = 1
+			v_u_5.Head.UIStroke.Transparency = 1
+			v_u_4:Create(v_u_5.Head, TweenInfo.new(0.5, Enum.EasingStyle.Sine), {
+				["TextTransparency"] = 0
+			}):Play()
+			v_u_4:Create(v_u_5.Head.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Sine), {
+				["Transparency"] = 0
+			}):Play()
+			v_u_5.Main.Create.Frame.Position = UDim2.new(0.5, 0, 1.5, 0)
+			v_u_5.Main.Join.Frame.Position = UDim2.new(0.5, 0, 1.5, 0)
+			v_u_5.Back.Position = UDim2.new(0.5, 0, 1.5, 0)
+			v_u_4:Create(v_u_5.Back, TweenInfo.new(0.5, Enum.EasingStyle.Back), {
+				["Position"] = UDim2.new(0.5, 0, 0.753, 0)
+			}):Play()
+			v_u_4:Create(v_u_5.Main.Create.Frame, TweenInfo.new(0.65, Enum.EasingStyle.Back), {
+				["Position"] = UDim2.new(0.5, 0, 0.5, 0)
+			}):Play()
+			v_u_4:Create(v_u_5.Main.Join.Frame, TweenInfo.new(0.75, Enum.EasingStyle.Back), {
+				["Position"] = UDim2.new(0.5, 0, 0.5, 0)
+			}):Play()
+			v_u_2.PopUp(v_u_5.Main)
+			v_u_9:Play(0)
+			v_u_10:Play(0)
+			v_u_11:Stop(0)
+			v_u_12:Stop(0)
+		else
+			v_u_9:Stop(0)
+			v_u_10:Stop(0)
+			v_u_11:Stop(0)
+			v_u_12:Stop(0)
+		end
+	end)
+end
