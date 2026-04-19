@@ -1,0 +1,286 @@
+[22:24:30]
+==================================================
+[22:24:30]
+1. PlayerGui.PlayRoomSelection
+[22:24:30]
+==================================================
+[22:24:30]
+Found: PlayRoomSelection | Enabled: false
+[22:24:30]
+--- Attributes ---
+[22:24:30]
+(ไม่มี Attributes)
+[22:24:30]
+--- Tree (depth 5) ---
+[22:24:30]
+[Configuration] Configuration
+[22:24:30]
+[StringValue] Mode = []
+[22:24:30]
+[Frame] Main | Visible: true
+[22:24:30]
+[TextButton] Create | Visible: true
+[22:24:30]
+[Frame] Frame | Visible: true
+[22:24:30]
+[Frame] UnitFrame | Visible: true
+[22:24:30]
+[UICorner] UICorner
+[22:24:30]
+[Frame] UnitProfile | Visible: true
+[22:24:30]
+[UIStroke] UIStroke | Enabled: true
+[22:24:30]
+[ImageLabel] Glowing | Special | Visible: true
+[22:24:30]
+[UIGradient] Color | Enabled: true
+[22:24:30]
+[UICorner] UICorner
+[22:24:30]
+[UIStroke] UIStroke | Enabled: false
+[22:24:30]
+[TextLabel] Label | Text: "Create Room" | Visible: true
+[22:24:30]
+[UIStroke] UIStroke | Enabled: true
+[22:24:30]
+[UIGradient] UIGradient | Enabled: true
+[22:24:30]
+[UIAspectRatioConstraint] UIAspectRatioConstraint
+[22:24:30]
+[TextButton] Join | Visible: true
+[22:24:30]
+[Frame] Frame | Visible: true
+[22:24:30]
+[Frame] UnitFrame | Visible: true
+[22:24:30]
+[UICorner] UICorner
+[22:24:30]
+[Frame] UnitProfile | Visible: true
+[22:24:30]
+[UIStroke] UIStroke | Enabled: true
+[22:24:30]
+[ImageLabel] Glowing | Special | Visible: true
+[22:24:30]
+[UIGradient] Color | Enabled: true
+[22:24:30]
+[UICorner] UICorner
+[22:24:30]
+[UIStroke] UIStroke | Enabled: false
+[22:24:30]
+[TextLabel] Label | Text: "Join Room" | Visible: true
+[22:24:30]
+[UIStroke] UIStroke | Enabled: true
+[22:24:30]
+[UIGradient] UIGradient | Enabled: true
+[22:24:30]
+[UIAspectRatioConstraint] UIAspectRatioConstraint
+[22:24:30]
+[UIListLayout] UIListLayout
+[22:24:30]
+[TextLabel] Head | Text: "Choose whether you want to create a <fon" | Visible: true
+[22:24:30]
+[UIStroke] UIStroke | Enabled: true
+[22:24:30]
+[TextButton] Back | Text: "Button" | Visible: true
+[22:24:30]
+[Frame] EnterStroke | Visible: false
+[22:24:30]
+[UIStroke] UIStroke | Enabled: true
+[22:24:30]
+[UICorner] UICorner
+[22:24:30]
+[Frame] Back | Visible: true
+[22:24:30]
+[UIStroke] UIStroke | Enabled: true
+[22:24:30]
+[UIGradient] UIGradient | Enabled: true
+[22:24:30]
+[UICorner] UICorner
+[22:24:30]
+[UIGradient] UIGradient | Enabled: true
+[22:24:30]
+[Frame] Back2 | Visible: true
+[22:24:30]
+[UIStroke] UIStroke | Enabled: true
+[22:24:30]
+[UICorner] UICorner
+[22:24:30]
+[TextLabel] Label | Text: "Back" | Visible: true
+[22:24:30]
+[UIStroke] UIStroke | Enabled: true
+[22:24:30]
+[UIAspectRatioConstraint] UIAspectRatioConstraint
+[22:24:30]
+[Frame] Black | Visible: true
+[22:24:30]
+[22:24:30]
+==================================================
+[22:24:30]
+2. PlayerGui.PlayRoom
+[22:24:30]
+==================================================
+[22:24:30]
+Found: PlayRoom | Enabled: false
+[22:24:30]
+--- Attributes ---
+[22:24:30]
+[Attribute] World =
+[22:24:30]
+--- Tree (depth 4) ---
+[22:24:30]
+[Frame] Main | Visible: true
+[22:24:30]
+[Frame] Button | Visible: true
+[22:24:30]
+[UIAspectRatioConstraint] UIAspectRatioConstraint
+[22:24:30]
+[UIListLayout] UIListLayout
+[22:24:30]
+[TextButton] Create | Text: "Button" | Visible: true
+[22:24:30]
+[Frame] EnterStroke | Visible: false
+[22:24:30]
+[TextLabel] Label | Text: "Create Room" | Visible: true
+[22:24:30]
+[Frame] Back | Visible: true
+[22:24:30]
+[Frame] Back2 | Visible: true
+[22:24:30]
+[TextButton] Leave | Text: "Button" | Visible: true
+[22:24:30]
+[Frame] EnterStroke | Visible: false
+[22:24:30]
+[TextLabel] Label | Text: "Leave" | Visible: true
+[22:24:30]
+[Frame] Back | Visible: true
+[22:24:30]
+[Frame] Back2 | Visible: true
+[22:24:30]
+[TextButton] Join | Text: "Button" | Visible: true
+[22:24:30]
+[Frame] EnterStroke | Visible: false
+[22:24:30]
+[TextLabel] Label | Text: "Join Room" | Visible: true
+[22:24:30]
+[Frame] Back | Visible: true
+[22:24:30]
+[Frame] Back2 | Visible: true
+[22:24:30]
+[Frame] Head | Visible: true
+[22:24:30]
+[Frame] RoomActive | Visible: true
+[22:24:30]
+[UICorner] UICorner
+[22:24:30]
+[UIStroke] UIStroke | Enabled: true
+[22:24:30]
+[TextLabel] Label | Text: "There are <font color="rgb(189,255,144)"" | Visible: true
+[22:24:30]
+[Frame] Head | Visible: true
+[22:24:30]
+[UICorner] UICorner
+[22:24:30]
+[TextLabel] Label | Text: "ROOM PODS" | Visible: true
+[22:24:30]
+[TextLabel] Label | Text: "You can create a room to play games or j" | Visible: true
+[22:24:30]
+[ImageLabel] Background | Visible: true
+[22:24:30]
+[UIStroke] UIStroke | Enabled: true
+[22:24:30]
+[UIAspectRatioConstraint] UIAspectRatioConstraint
+[22:24:30]
+[UIStroke] UIStroke | Enabled: true
+[22:24:30]
+[UICorner] UICorner
+[22:24:30]
+[Frame] GameStage | Visible: false
+[22:24:30]
+[Frame] Main | Visible: true
+[22:24:30]
+[Frame] Base | Visible: true
+[22:24:30]
+[UIAspectRatioConstraint] UIAspectRatioConstraint
+[22:24:30]
+[Frame] Stage_Select | Visible: true
+[22:24:30]
+[TextButton] ResetRangersStage | Visible: false
+[22:24:30]
+[Frame] Game_Submit | Visible: false
+[22:24:30]
+[Frame] StageInfo | Visible: true
+[22:24:30]
+[UIAspectRatioConstraint] UIAspectRatioConstraint
+[22:24:30]
+[Frame] StageInfo | Visible: true
+[22:24:30]
+[Frame] Players | Visible: true
+[22:24:30]
+[Frame] Button | Visible: true
+[22:24:30]
+[UIAspectRatioConstraint] UIAspectRatioConstraint
+[22:24:30]
+[UIListLayout] UIListLayout
+[22:24:30]
+[TextLabel] Label | Text: "(Waiting for the host to start the match" | Visible: true
+[22:24:30]
+[TextButton] Leave | Text: "Button" | Visible: true
+[22:24:30]
+[TextButton] Start | Text: "Button" | Visible: true
+[22:24:30]
+[Frame] JoinRoom | Visible: false
+[22:24:30]
+[Frame] Main | Visible: true
+[22:24:30]
+[Frame] Base | Visible: true
+[22:24:30]
+[UIAspectRatioConstraint] UIAspectRatioConstraint
+[22:24:30]
+[ImageLabel] TopBar | Visible: true
+[22:24:30]
+[Configuration] Configuration
+[22:24:30]
+[22:24:30]
+==================================================
+[22:24:30]
+3. ReplicatedStorage.PlayRoom (ห้องทั้งหมด)
+[22:24:30]
+==================================================
+[22:24:30]
+จำนวนห้องทั้งหมด: 0
+[22:24:30]
+[22:24:30]
+==================================================
+[22:24:30]
+4. Remote Events (PlayRoom)
+[22:24:30]
+==================================================
+[22:24:30]
+✅ Found: Remote.Server.PlayRoom.Event [RemoteEvent]
+[22:24:30]
+✅ Found: Remote.Client.UI.PlayRoomUI [BindableEvent]
+[22:24:30]
+[22:24:30]
+==================================================
+[22:24:30]
+5. PlayRoomSelection Values & Mode
+[22:24:30]
+==================================================
+[22:24:30]
+[StringValue] PlayerGui.PlayRoomSelection.Mode =
+[22:24:30]
+[BoolValue] PlayerGui.PlayRoomSelection.Main.Create.Frame.UnitFrame.UnitProfile.Character.Rig.Songjinwuu.Sword_Parts.Ignore = false
+[22:24:30]
+[BoolValue] PlayerGui.PlayRoomSelection.Main.Create.Frame.UnitFrame.UnitProfile.Character.Rig.Songjinwuu.Sword_Part.Ignore = false
+[22:24:30]
+[22:24:30]
+==================================================
+[22:24:30]
+6. กำลัง Listen Remote Events... (10 วินาที)
+[22:24:30]
+==================================================
+[22:24:30]
+Listening: Remote.Server.PlayRoom.Event
+[22:24:30]
+[22:24:30]
+✅ Spy เสร็จสิ้น! ดูผลใน Output
